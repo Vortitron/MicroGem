@@ -28,13 +28,17 @@ The page shows:
     it live; then a number and `ENT` to force it. `NEXT`/`PREV` step.
   - *PROG*: `▲▼` step through rungs, `◄►` scroll. `BLNK` starts a new rung,
     `ED` re-keys the selected one, `DEL` then `ENT` deletes it, `FIND` jumps to
-    an address. Inside a rung the keys give their symbols: `-] [-`, `-]/[-`,
-    `-( )-`, `-(S)-` (set), `-(D)-` (delay) and `-(C)-` (count), each followed by
-    an address. `LINK` opens a parallel branch (or starts the next one), `JOIN`
-    closes it. `ENT` writes the rung, `DEL` undoes the last step.
+    an address. Inside a rung the keys give their symbols: contacts `-] [-` and
+    `-]/[-`, `-(D)-` (DELAY word and VALUE in 0.1 s) and `-(C)-` (COUNT word and
+    VALUE), which sit in the rung as on the GEM 80. `▼` opens a parallel
+    branch (or starts the next line down) and `JOIN` closes it; `LINK` is only
+    a spacer, as in the manual. End the rung with `-( )-` (coil), `-(S)-`
+    (sequencer) or `BLK` (OBEY BLOCK, or END OF BLOCK on an empty rung). `ENT`
+    writes the rung, `DEL` undoes the last step.
   - With the programmer focused, the computer keyboard works too.
-- a live **ladder diagram** with power rails, contacts, coils and function
-  blocks, where powered wires and closed contacts light up;
+- a live **ladder diagram** drawn like the GEM 80 programmer screen: live
+  paths solid, dead paths dotted, with the time left above each DELAY, the
+  count above each COUNT, and values above OUT and word elements;
 - the full **program text** editor, and a data-table monitor.
 
 ## How it works
@@ -43,7 +47,7 @@ The page shows:
 |---|---|---|
 | Data tables | `microgem/tables.py` | Lettered tables of 16-bit words, addressed like `A0.3` or `G12` |
 | Program | `microgem/program.py` | Parses one-rung-per-line ladder text |
-| Controller | `microgem/engine.py` | Scan cycle, coils, latches, DELAY, COUNT, maths, Halt/Run behaviour |
+| Controller | `microgem/engine.py` | Scan cycle, 16-bit rung words, DELAY, COUNT, SEQR, OBEY BLOCK, Halt/Run behaviour |
 | Service | `microgem/service.py` | Runs the scan every 20 ms and tells listeners about changes |
 | Web | `microgem/server.py`, `microgem/web/` | Standalone page over a WebSocket |
 
@@ -59,27 +63,39 @@ serial I/O. Most tables are cleared on the Halt to Run transition; `A`, `P`,
 
 ### Program notation
 
+Elements and behaviour follow the GEM 80 *Ladder Diagram Programming Manual*
+(T391, issue 4). A 16-bit word flows along each rung: the left rail gives -1
+(@FFFF), a contact passes the word on or gives 0, and the rung is ON when its
+word is not 0. One line is one rung; `->` comes before its single output
+element.
+
 ```
-; comment
-A0.0 AND NOT A0.1 -> B0.0
-(A0.2 OR B0.1) AND NOT A0.3 -> B0.1
-A0.4 -> DELAY 2.5s G0.0              ; on-delay timer, 100 ms to 54 min
-RISE A0.5 -> COUNT 10 G1 G0.1        ; count rising edges into G1, G0.1 at 10
-A0.6 -> SET B0.2
-A0.7 -> RESET B0.2, CLEAR G1
-G1 GE 5 -> B0.3
-TRUE -> ADD G1 100 G2                ; also SUB MULT DIV, saturating at +/-32767
+; comment lines above a rung become its title
+A0.0 AND NOT A0.1 -> B0.0                 ; contacts in series, then a COIL
+(A0.2 OR B0.1) AND NOT A0.3 -> B0.1       ; parallel branches (wired OR); also a seal-in latch
+A0.4 DELAY G10 VALUE 25 -> B0.2           ; on-delay 2.5 s; G10 counts down the 0.1 s steps left
+A0.5 COUNT G11 VALUE 10 RESET A0.6 -> B0.3 ; counts OFF-to-ON changes; bit 15 of G11 is the last input
+B0.0 INV DELAY G12 VALUE 50 INV -> B0.4   ; INV, DELAY, INV: an off-delay
+E0.1 -> SEQR G13 RESET A0.7               ; one bit walks left each scan the rung is on
+AND G1 ADD 5 -> OUT G2                    ; plant G1 on the rung, add 5, write the word
+A1.0 AND @00FF -> OUT G3                  ; 16-bit logic: AND OR XOR INV
+AND G1 MULT 3 -> OUT G4                   ; MULT and DIV are Special Functions T10 and T11
+AND G1 ADD [AND G5] -> OUT G6             ; [ ] is a second branch into ADD (JOIN)
+A1.1 -> BLOCK                             ; OBEY BLOCK: rungs down to END BLOCK run only
+A1.2 -> B0.5                              ;   while A1.1 is on, and freeze while it is off
+END BLOCK
 ```
 
-Read-only flags follow the GEM80-400 manual (T1614): `E0.0` pulses for one
-scan every 0.1 s, `E0.1` every second, `E0.6` after a program change, `E0.7`
-when ADD/SUB saturates; `E1`-`E6` hold seconds, minutes, hours, day, month,
+ADD and SUB limit their result to ±32,767 and set `E0.7` (cleared by the next
+ADD or SUB that does not overflow). Read-only flags follow the GEM80-400 manual
+(T1614): `E0.0` pulses for one scan every 0.1 s, `E0.1` every second, `E0.6`
+after a program change; `E1`-`E6` hold seconds, minutes, hours, day, month,
 year; `E7` the previous scan time in ms. Hex numbers are written `@00FF`.
 
-This notation is **provisional**. The real operand syntax is in the GEM 80
-*Ladder Diagram Language Programming Manual* (T391), which we have not found
-yet. The instruction names and ranges (DELAY, COUNT, SET/RESET coils, data
-tables) come from the GEM80-500 Technical Manual (T2025).
+Extensions that are not in a real GEM 80, kept for convenience and marked
+"ext" on the ladder: `RISE A0.0` / `FALL A0.0` one-scan pulses, word
+comparisons such as `G1 GE 5` (the real controller uses Special Functions),
+and `SET` / `RESET` outputs (the real one latches with a seal-in branch).
 
 ## Home Assistant
 
@@ -112,9 +128,11 @@ pytest -c tests_ha/pytest.ini --rootdir=. tests_ha
 
 ## Not known yet
 
-- The exact key sequences of the real programmer. The layout and legends come
-  from a photo; what each key did (the I/Q table mapping, `-(S)-` as set, how
-  LINK/JOIN build branches, RESET only in text) is a best guess.
+- The MicroGEM's own details. T391 covers the GEM 80; the MicroGEM programmer
+  photo shows I and Q table keys (mapped here to the A and B tables), and
+  `-(S)-` is taken to be SEQR. Which GEM 80 elements the MicroGEM lacked (it
+  has no keys for AND, ADD or OUT) is not known, so the text editor accepts
+  them all.
 - The default 12 inputs / 8 outputs match the MicroGEM60; `--inputs` /
   `--outputs` change them.
 

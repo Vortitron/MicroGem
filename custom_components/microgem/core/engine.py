@@ -9,9 +9,10 @@ from dataclasses import dataclass
 from .program import (
     ARITHMETIC,
     COMPARISONS,
-    COUNT_MAX,
+    LOGIC,
+    RAIL,
     Arith,
-    Clear,
+    Branch,
     Coil,
     Compare,
     Constant,
@@ -19,16 +20,22 @@ from .program import (
     Count,
     Delay,
     Edge,
+    EndBlock,
+    Inv,
     Latch,
-    Not,
+    Logic,
+    ObeyBlock,
     Out,
     Parallel,
     Program,
+    ProgramError,
+    Seqr,
     Series,
+    addresses,
     parse_program,
+    walk,
     rung_to_json,
 )
-from .program import ProgramError
 from .tables import RETAINED_TABLES, TABLE_LETTERS, Address, DataTables, clamp16, to_signed
 
 INPUT_TABLE = "A"
@@ -39,7 +46,7 @@ FLAG_TABLE = "E"
 E_TENTH_SECOND = Address("E", 0, 0)  # on for one scan every 0.1 s
 E_ONE_SECOND = Address("E", 0, 1)  # on for one scan every 1 s
 E_RECOMPILED = Address("E", 0, 6)  # on for one scan after a program change
-E_LIMIT = Address("E", 0, 7)  # an ADD/SUB result hit +/-32767 this scan
+E_LIMIT = Address("E", 0, 7)  # the last ADD/SUB was limited to +/-32767
 E_CLOCK_WORDS = range(1, 7)  # E1..E6: seconds, minutes, hours, day, month, year
 E_LAST_SCAN = Address("E", 7)  # duration of the previous scan in ms
 
@@ -48,8 +55,7 @@ E_LAST_SCAN = Address("E", 7)  # duration of the previous scan in ms
 class ControllerConfig:
     """What the virtual device looks like from the outside.
 
-    The MicroGEM's real I/O count is not yet confirmed, so these are
-    placeholders that the front end and Home Assistant both read.
+    The defaults match the MicroGEM60: 12 inputs and 8 relay outputs.
     """
 
     name: str = "MicroGEM"
@@ -72,8 +78,12 @@ class Controller:
         self.running = False
         self.scan_count = 0
         self.elapsed_ms = 0
-        self._timers: dict[tuple[int, int], int] = {}
-        self._rung_was_on: dict[tuple[int, int], bool] = {}
+        self._dt_ms = 0
+        # DELAY state the data table cannot hold: whether it is timing, and the
+        # part of a 0.1 s step already elapsed. Keyed by element id.
+        self._delays: dict[int, list] = {}
+        self._flow: dict[int, int] = {}
+        self._skipped: set[int] = set()
         self._previous_bits: dict[Address, bool] = {}
 
     # --- program and mode ---------------------------------------------------
@@ -82,17 +92,21 @@ class Controller:
         """Compile and install a new program. Raises ProgramError on mistakes."""
         program = parse_program(source)
         for rung in program.rungs:
-            for address in _addresses(rung):
+            for address in addresses(rung):
                 self.tables.check(address)
-            for action in rung.actions:
-                for name in ("address", "done", "count", "dest"):
-                    target = getattr(action, name, None)
-                    if isinstance(target, Address) and target.table == FLAG_TABLE:
-                        raise ProgramError("E tables are read-only to the program", rung.line)
+            written = [getattr(rung.output, "address", None)]
+            written += [getattr(n, "word", None) for n in walk(rung)]
+            for target in written:
+                if isinstance(target, Address) and target.table == FLAG_TABLE:
+                    raise ProgramError("E tables are read-only to the program", rung.line)
         self._recompiled = True
         self.program = program
-        self._timers.clear()
-        self._rung_was_on.clear()
+        self._reset_state()
+
+    def _reset_state(self) -> None:
+        self._delays.clear()
+        self._flow.clear()
+        self._skipped.clear()
         self._snapshot_edges()
 
     def run(self) -> None:
@@ -100,9 +114,7 @@ class Controller:
             return
         # As on a GEM 80, most tables are cleared on the Halt -> Run transition.
         self.tables.clear("".join(t for t in TABLE_LETTERS if t not in RETAINED_TABLES))
-        self._timers.clear()
-        self._rung_was_on.clear()
-        self._snapshot_edges()
+        self._reset_state()
         self.running = True
 
     def halt(self) -> None:
@@ -134,11 +146,24 @@ class Controller:
         """Run the whole program once, as if ``dt_ms`` passed since the last scan."""
         if not self.running:
             return
+        self._dt_ms = dt_ms
         self._update_flags(dt_ms)
-        for r, rung in enumerate(self.program.rungs):
-            power = self._evaluate(rung.condition)
-            for a, action in enumerate(rung.actions):
-                self._execute(action, power, (r, a), dt_ms)
+        self._skipped.clear()
+        rungs = self.program.rungs
+        r = 0
+        while r < len(rungs):
+            rung = rungs[r]
+            if isinstance(rung.output, EndBlock):
+                r += 1
+                continue
+            word = RAIL if rung.condition is None else self._evaluate(rung.condition, RAIL)
+            if isinstance(rung.output, ObeyBlock) and word == 0:
+                # Skip the block: everything in it keeps its state.
+                self._skipped.update(range(r + 1, rung.end))
+                r = rung.end + 1
+                continue
+            self._output(rung.output, word)
+            r += 1
         self._snapshot_edges()
         self.scan_count += 1
         self.elapsed_ms += dt_ms
@@ -150,7 +175,6 @@ class Controller:
         tables.set_bit(E_ONE_SECOND, after // 1000 != before // 1000)
         tables.set_bit(E_RECOMPILED, self._recompiled)
         self._recompiled = False
-        tables.set_bit(E_LIMIT, False)
         now = self._clock()
         clock = (now.tm_sec, now.tm_min, now.tm_hour, now.tm_mday, now.tm_mon, now.tm_year)
         for word, value in zip(E_CLOCK_WORDS, clock):
@@ -162,65 +186,114 @@ class Controller:
             address: self.tables.get_bit(address) for address in self.program.edge_addresses()
         }
 
-    def _word(self, operand: Address | int) -> int:
+    def _word(self, operand: Address | int | Branch) -> int:
         if isinstance(operand, int):
             return operand
+        if isinstance(operand, Branch):
+            return self._evaluate(operand.node, RAIL)
+        if operand.is_bit:
+            return RAIL if self.tables.get_bit(operand) else 0
         return to_signed(self.tables.get_word(operand))
 
-    def _evaluate(self, node: object) -> bool:
-        if isinstance(node, Contact):
-            return self.tables.get_bit(node.address) != node.normally_closed
-        if isinstance(node, Series):
-            return all(self._evaluate(item) for item in node.items)
-        if isinstance(node, Parallel):
-            return any(self._evaluate(item) for item in node.items)
-        if isinstance(node, Not):
-            return not self._evaluate(node.operand)
-        if isinstance(node, Edge):
-            now = self.tables.get_bit(node.address)
-            before = self._previous_bits.get(node.address, now)
-            return (now and not before) if node.rising else (before and not now)
-        if isinstance(node, Compare):
-            return COMPARISONS[node.op](self._word(node.left), self._word(node.right))
-        if isinstance(node, Constant):
-            return node.value
-        raise TypeError(f"unknown contact {node!r}")
+    def _evaluate(self, node: object, word: int) -> int:
+        """Pass a 16-bit word (as a signed int) through an element."""
+        out = self._element(node, word)
+        self._flow[node.nid] = out
+        return out
 
-    def _execute(self, action: object, power: bool, key: tuple[int, int], dt_ms: int) -> None:
+    def _element(self, node: object, word: int) -> int:
         tables = self.tables
-        if isinstance(action, Coil):
-            tables.set_bit(action.address, power)
-        elif isinstance(action, Latch):
-            if power:
-                tables.set_bit(action.address, action.set)
-        elif isinstance(action, Delay):
-            accumulated = min(self._timers.get(key, 0) + dt_ms, action.preset_ms) if power else 0
-            self._timers[key] = accumulated
-            tables.set_bit(action.done, power and accumulated >= action.preset_ms)
-        elif isinstance(action, Count):
-            count = to_signed(tables.get_word(action.count))
-            if power and not self._rung_was_on.get(key, False) and count < COUNT_MAX:
-                count += 1
-                tables.set_word(action.count, count)
-            self._rung_was_on[key] = power
-            tables.set_bit(action.done, count >= action.preset)
-        elif isinstance(action, Clear):
-            if power:
-                tables.set_word(action.address, 0)
-        elif isinstance(action, Out):
-            if power:
-                tables.set_word(action.dest, self._word(action.source))
-        elif isinstance(action, Arith):
-            if power:
-                result = ARITHMETIC[action.op](self._word(action.left), self._word(action.right))
-                if clamp16(result) != result:
-                    tables.set_bit(E_LIMIT, True)
-                tables.set_word(action.dest, clamp16(result))
-        else:
-            raise TypeError(f"unknown action {action!r}")
+        if isinstance(node, Contact):
+            return word if tables.get_bit(node.address) != node.normally_closed else 0
+        if isinstance(node, Series):
+            for item in node.items:
+                word = self._evaluate(item, word)
+            return word
+        if isinstance(node, Parallel):
+            result = 0
+            for item in node.items:
+                result |= self._evaluate(item, word) & 0xFFFF  # wired OR
+            return to_signed(result)
+        if isinstance(node, Logic):
+            return to_signed(LOGIC[node.op](word & 0xFFFF, self._word(node.operand) & 0xFFFF))
+        if isinstance(node, Inv):
+            return to_signed(~word & 0xFFFF)
+        if isinstance(node, Arith):
+            result = ARITHMETIC[node.op](word, self._word(node.operand))
+            limited = max(-32767, min(32767, result))
+            if node.op in ("ADD", "SUB"):
+                tables.set_bit(E_LIMIT, limited != result)
+            return limited
+        if isinstance(node, Delay):
+            return self._delay(node, word)
+        if isinstance(node, Count):
+            return self._count(node, word)
+        if isinstance(node, Edge):
+            now = tables.get_bit(node.address)
+            before = self._previous_bits.get(node.address, now)
+            fired = (now and not before) if node.rising else (before and not now)
+            return word if fired else 0
+        if isinstance(node, Compare):
+            ok = COMPARISONS[node.op](self._word(node.left), self._word(node.right))
+            return word if ok else 0
+        if isinstance(node, Constant):
+            return word if node.value else 0
+        raise TypeError(f"unknown element {node!r}")
 
-    def timer_ms(self, rung: int, action: int = 0) -> int:
-        return self._timers.get((rung, action), 0)
+    def _delay(self, node: Delay, word: int) -> int:
+        """On-delay. The table word counts down the 0.1 s steps still to go."""
+        state = self._delays.setdefault(node.nid, [False, 0])  # timing, ms into this step
+        if word == 0:
+            state[:] = [False, 0]
+            self.tables.set_word(node.word, 0)
+            return 0
+        left = to_signed(self.tables.get_word(node.word))
+        if not state[0]:
+            # The VALUE is read when timing starts; later changes wait for the next start.
+            left = max(0, self._word(node.value))
+            state[:] = [True, 0]
+        elif left > 0:
+            state[1] += self._dt_ms
+            steps, state[1] = divmod(state[1], 100)
+            left = max(0, left - steps)
+        self.tables.set_word(node.word, left)
+        return RAIL if left == 0 else 0
+
+    def _count(self, node: Count, word: int) -> int:
+        """Count OFF-to-ON changes of the rung. Bits 0-14 count, bit 15 is the last input."""
+        raw = self.tables.get_word(node.word)
+        count, was_on = raw & 0x7FFF, bool(raw & 0x8000)
+        on = word != 0
+        target = max(0, self._word(node.value))
+        reset = node.reset is not None and self._evaluate(node.reset, RAIL) != 0
+        if reset:
+            count = 0
+        elif on and not was_on and count < target:
+            count += 1
+        self.tables.set_word(node.word, count | (0x8000 if on else 0))
+        return RAIL if count >= target else 0
+
+    def _output(self, output: object, word: int) -> None:
+        tables = self.tables
+        if isinstance(output, Coil):
+            tables.set_bit(output.address, word != 0)
+        elif isinstance(output, Out):
+            tables.set_word(output.address, word & 0xFFFF)
+        elif isinstance(output, Seqr):
+            reset = output.reset is not None and self._evaluate(output.reset, RAIL) != 0
+            value = tables.get_word(output.address)
+            if reset or value == 0:
+                value = 1
+            elif word != 0:
+                value = ((value << 1) | (value >> 15)) & 0xFFFF
+            tables.set_word(output.address, value)
+        elif isinstance(output, Latch):
+            if word != 0:
+                tables.set_bit(output.address, output.set)
+        elif isinstance(output, ObeyBlock):
+            pass
+        else:
+            raise TypeError(f"unknown output {output!r}")
 
     # --- for front ends -------------------------------------------------------
 
@@ -240,7 +313,7 @@ class Controller:
         """Current value of every address the program uses, for live ladder diagrams."""
         values: dict[str, int | bool] = {}
         for rung in self.program.rungs:
-            for address in _addresses(rung):
+            for address in addresses(rung):
                 key = str(address)
                 if key not in values:
                     values[key] = (
@@ -250,8 +323,9 @@ class Controller:
                     )
         return values
 
-    def timers(self) -> dict[str, int]:
-        return {f"{r}.{a}": ms for (r, a), ms in self._timers.items()}
+    def flow(self) -> dict[str, int]:
+        """The word each element passed on in the last scan, by element id."""
+        return {str(nid): word for nid, word in self._flow.items()}
 
     def snapshot(self, tables: str = "BEGHLRW") -> dict:
         return {
@@ -262,27 +336,7 @@ class Controller:
             "outputs": self.outputs(),
             "tables": {letter: self.tables.table(letter)[:8] for letter in tables},
             "live": self.live(),
-            "timers": self.timers(),
+            "flow": self.flow(),
+            "skipped": sorted(self._skipped),
         }
 
-
-def _addresses(rung) -> list[Address]:
-    found: list[Address] = []
-
-    def add(value: object) -> None:
-        if isinstance(value, Address):
-            found.append(value)
-
-    def walk(node: object) -> None:
-        for name in ("address", "left", "right"):
-            add(getattr(node, name, None))
-        for child in getattr(node, "items", ()):
-            walk(child)
-        if isinstance(node, Not):
-            walk(node.operand)
-
-    walk(rung.condition)
-    for action in rung.actions:
-        for name in ("address", "done", "count", "dest", "source", "left", "right"):
-            add(getattr(action, name, None))
-    return found

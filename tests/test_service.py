@@ -29,7 +29,7 @@ def test_write_command():
     assert service.command({"type": "write", "address": "G3", "value": 12}) is None
     assert service.state()["tables"]["G"][3] == 12
     assert service.command({"type": "write", "address": "Z1", "value": 1})["type"] == "error"
-    assert service.state()["ladder"][0]["actions"] == [{"t": "coil", "addr": "B0.0"}]
+    assert service.state()["ladder"][0]["output"] == {"t": "coil", "addr": "B0.0"}
 
 
 def test_read_and_preview_commands():
@@ -38,6 +38,6 @@ def test_read_and_preview_commands():
     assert service.command({"type": "read", "address": "G2"}) == {"type": "value", "address": "G2", "value": -5}
     assert service.command({"type": "read", "address": "A0.0"})["value"] is False
     reply = service.command({"type": "preview", "source": "A0.1 AND A0.2 -> SET B0.4"})
-    assert reply["type"] == "preview" and reply["rungs"][0]["actions"] == [{"t": "set", "addr": "B0.4"}]
+    assert reply["type"] == "preview" and reply["rungs"][0]["output"] == {"t": "set", "addr": "B0.4"}
     assert service.command({"type": "preview", "source": "A0.1 ->"})["type"] == "error"
     assert service.controller.program.source == "A0.0 -> B0.0"  # preview never loads

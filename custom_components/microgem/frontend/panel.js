@@ -86,6 +86,7 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .rung:hover { background: rgba(120,255,160,.04); }
 .rung.sel { background: rgba(120,255,160,.09); outline: 1px dashed #3d6b4e; }
 .rung.draft { outline: 1px dashed var(--amber); }
+.rung.skipped { opacity: .45; }
 .rung svg { display: block; }
 .ladder-empty { color: var(--crt-text); font: 13px var(--mono); padding: 12px; }
 
@@ -173,10 +174,13 @@ const MARKUP = `
       <details>
         <summary>Language reference</summary>
         <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A (terminals 00–11 are <code>A0.0</code>–<code>A0.11</code>), relay outputs are B (<code>B0.0</code>–<code>B0.7</code>), workspace is G H L N O S U, retained workspace is R W.</p>
-        <p><b>Contacts:</b> <code>A0.0</code>, <code>NOT A0.0</code>, <code>RISE A0.0</code>, <code>FALL A0.0</code>, <code>TRUE</code>, joined with <code>AND</code>, <code>OR</code> and brackets. Word comparisons: <code>G1 GE 5</code> (EQ NE GT LT GE LE).</p>
-        <p><b>Outputs:</b> a bit address is a coil; <code>SET B0.0</code>, <code>RESET B0.0</code>; <code>DELAY 2.5s G0.1</code>; <code>COUNT 10 G1 G0.2</code>; <code>CLEAR G1</code>; <code>OUT 42 G2</code>; <code>ADD G1 G2 G3</code> (also SUB MULT DIV). Separate several with commas.</p>
-        <p><b>Flags (read-only):</b> <code>E0.0</code> pulses every 0.1 s, <code>E0.1</code> every second, <code>E0.6</code> after a program load, <code>E0.7</code> when ADD or SUB hits the limit. <code>E1</code> to <code>E6</code> hold the time and date, <code>E7</code> the last scan time in ms. Hex numbers: <code>@00FF</code>.</p>
-        <p>This notation is provisional until we find the original GEM 80 programming manual (T391).</p>
+        <p><b>Signal flow:</b> as on the GEM 80, a 16-bit word flows along each rung. The left rail gives -1 (@FFFF); a contact passes the word on or gives 0; the rung is ON when its word is not 0.</p>
+        <p><b>Contacts:</b> <code>A0.0</code> (N/O), <code>NOT A0.0</code> (N/C), <code>TRUE</code>. <code>AND</code> between contacts wires them in series, <code>OR</code> in parallel; use brackets for branches.</p>
+        <p><b>In the rung:</b> <code>DELAY G10 VALUE 25</code> (on-delay, VALUE in 0.1 s, G10 counts down the time left); <code>COUNT G11 VALUE 10 RESET A0.6</code> (counts OFF-to-ON changes); <code>INV</code>; <code>AND OR XOR</code> with a number or word (<code>AND @00FF</code>); <code>ADD SUB</code> and the Special Functions <code>MULT</code> (T10) and <code>DIV</code> (T11). A second input from its own branch goes in square brackets: <code>ADD [AND G4]</code>.</p>
+        <p><b>Output (one per rung):</b> a bit address is a COIL; <code>OUT G2</code> writes the rung word; <code>SEQR G12 RESET A0.7</code> walks one bit left each scan; <code>BLOCK</code> obeys the rungs down to the next <code>END BLOCK</code> only while the rung is on.</p>
+        <p><b>Flags (read-only):</b> <code>E0.0</code> pulses every 0.1 s, <code>E0.1</code> every second, <code>E0.6</code> after a program load, <code>E0.7</code> when ADD or SUB was limited to ±32767. <code>E1</code> to <code>E6</code> hold the time and date, <code>E7</code> the last scan time in ms. Hex numbers: <code>@00FF</code>.</p>
+        <p><b>Extensions</b> (not in a real GEM 80): <code>RISE A0.0</code>/<code>FALL A0.0</code> one-scan pulses, comparisons such as <code>G1 GE 5</code>, and <code>SET</code>/<code>RESET</code> outputs. On the real controller you latch with a seal-in branch.</p>
+        <p>Elements and behaviour follow the GEM 80 Ladder Diagram Programming Manual (T391). The MicroGEM's own table letters (I and Q on the programmer) are not documented yet, so inputs and outputs use the GEM 80 A and B tables.</p>
       </details>
     </section>
     <section class="panel">
@@ -324,104 +328,150 @@ export function homeAssistantTransport(hass, entryId) {
 }
 
 // ---------------------------------------------------------------------------
-// Ladder diagram rendering.
+// Ladder diagram rendering, in the style of the GEM 80 programmer screen.
+// The controller reports the word each element passed on in the last scan
+// (state.flow). A live path is drawn solid, a dead path dotted, as the
+// programmer showed --] [-- against ..] [.. when monitoring.
 
 const CW = 92, CH = 58, AW = 150;
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const OPS = { EQ: "=", NE: "≠", GT: ">", LT: "<", GE: "≥", LE: "≤" };
+const isAddr = (s) => typeof s === "string" && /^[A-Z]\d+$/.test(s);
 
 function size(n) {
+  if (!n) return { w: 0, h: 1 };
   switch (n.t) {
     case "series": return n.items.map(size).reduce((a, b) => ({ w: a.w + b.w, h: Math.max(a.h, b.h) }), { w: 0, h: 1 });
     case "parallel": return n.items.map(size).reduce((a, b) => ({ w: Math.max(a.w, b.w), h: a.h + b.h }), { w: 0, h: 0 });
-    case "not": { const s = size(n.x); return { w: s.w + 1, h: s.h }; }
+    case "delay": return { w: 2, h: 1 };
+    case "count": {
+      const r = n.reset ? size(n.reset) : null;
+      return r ? { w: Math.max(2, r.w + 1), h: 1 + r.h } : { w: 2, h: 1 };
+    }
+    case "logic": case "arith": {
+      if (n.arg && typeof n.arg === "object") { const b = size(n.arg); return { w: b.w + 1, h: 1 + b.h }; }
+      return { w: n.spec ? 2 : 1, h: 1 };
+    }
     default: return { w: 1, h: 1 };
   }
 }
-
-function value(live, operand) {
-  if (/^-?\d+$/.test(operand)) return Number(operand);
-  if (/^@/.test(operand)) { const v = parseInt(operand.slice(1), 16); return v & 0x8000 ? v - 0x10000 : v; }
-  return live[operand] ?? 0;
-}
-
-const CMP = { EQ: (a, b) => a === b, NE: (a, b) => a !== b, GT: (a, b) => a > b, LT: (a, b) => a < b, GE: (a, b) => a >= b, LE: (a, b) => a <= b };
 
 function wire(x1, y1, x2, y2, on) {
   return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="w${on ? " on" : ""}"/>`;
 }
 
-// Draw node n with its left edge at x and top at y; returns [svg, powerOut].
-function drawNode(n, x, y, pin, live) {
+const fmtNum = (v) => (v === undefined || v === null ? "" : typeof v === "boolean" ? (v ? "1" : "0") : String(v));
+
+// Draw node n with its left edge at x and top at y.
+// ctx: { live, flow, draft }. Returns [svg, powerOut].
+function drawNode(n, x, y, pin, ctx) {
   const cy = y + CH / 2;
-  const cell = (inner, pout, label, sub) => {
-    const mx = x + CW / 2;
+  const { live, flow } = ctx;
+  const out = (fallback) => (ctx.draft ? false : n.id in flow ? flow[n.id] !== 0 : fallback);
+  const cell = (inner, pout, label, sub, w = 1) => {
+    const mx = x + (CW * w) / 2;
     return [
-      wire(x, cy, mx - 13, cy, pin) + inner(mx) + wire(mx + 13, cy, x + CW, cy, pout) +
-        (label ? `<text x="${mx}" y="${cy - 17}" class="lab">${esc(label)}</text>` : "") +
-        (sub !== undefined ? `<text x="${mx}" y="${cy + 26}" class="sub">${esc(sub)}</text>` : ""),
+      wire(x, cy, mx - 13 * w, cy, pin) + inner(mx) + wire(mx + 13 * w, cy, x + CW * w, cy, pout) +
+        (label ? `<text x="${mx}" y="${cy - 19}" class="lab">${esc(label)}</text>` : "") +
+        (sub !== undefined && sub !== "" ? `<text x="${mx}" y="${cy + 27}" class="sub">${esc(sub)}</text>` : ""),
       pout,
     ];
   };
+  // A box element such as <AND> with its operand underneath and, for a
+  // table operand, its value above (as the programmer monitored it).
+  const box = (title, under, above, pout, w = 1, bx = x) => {
+    const mx = bx + (CW * w) / 2, bw = CW * w - 18;
+    return wire(bx, cy, bx + 9, cy, pin) +
+      `<rect x="${bx + 9}" y="${cy - 11}" width="${bw}" height="22" rx="11" class="box${pout ? " ok" : ""}"/>` +
+      `<text x="${mx}" y="${cy + 4}" class="btxt">${esc(title)}</text>` +
+      wire(bx + 9 + bw, cy, bx + CW * w, cy, pout) +
+      (under !== undefined ? `<text x="${mx}" y="${cy + 25}" class="lab">${esc(under)}</text>` : "") +
+      (above !== undefined && above !== "" ? `<text x="${mx}" y="${cy - 17}" class="val">${esc(above)}</text>` : "");
+  };
+  // A second branch from the left rail, drawn on the rows below and fed up
+  // into the element at column ex (JOIN, RESET).
+  const lower = (branch, ex, label) => lowerBranch(branch, ctx.L ?? x, y, ex + CW / 2, ctx, label);
   switch (n.t) {
     case "contact": {
-      const bit = !!live[n.addr];
-      const closed = n.nc ? !bit : bit;
-      const pout = pin && closed;
+      const closed = n.nc ? !live[n.addr] : !!live[n.addr];
+      const pout = out(pin && closed);
       return cell((mx) =>
-        `<rect x="${mx - 9}" y="${cy - 11}" width="18" height="22" class="cbody${closed ? " closed" : ""}"/>` +
+        `<rect x="${mx - 9}" y="${cy - 11}" width="18" height="22" class="cbody${closed && !ctx.draft ? " closed" : ""}"/>` +
         `<line x1="${mx - 9}" y1="${cy - 13}" x2="${mx - 9}" y2="${cy + 13}" class="plate${pin ? " on" : ""}"/>` +
         `<line x1="${mx + 9}" y1="${cy - 13}" x2="${mx + 9}" y2="${cy + 13}" class="plate${pout ? " on" : ""}"/>` +
         (n.nc ? `<line x1="${mx - 12}" y1="${cy + 12}" x2="${mx + 12}" y2="${cy - 12}" class="plate${pout ? " on" : ""}"/>` : ""),
         pout, n.addr);
     }
     case "edge": {
-      const pout = false; // a one-scan pulse: too quick to see
+      const pout = out(false);
       return cell((mx) =>
         `<line x1="${mx - 9}" y1="${cy - 13}" x2="${mx - 9}" y2="${cy + 13}" class="plate${pin ? " on" : ""}"/>` +
-        `<line x1="${mx + 9}" y1="${cy - 13}" x2="${mx + 9}" y2="${cy + 13}" class="plate"/>` +
+        `<line x1="${mx + 9}" y1="${cy - 13}" x2="${mx + 9}" y2="${cy + 13}" class="plate${pout ? " on" : ""}"/>` +
         `<text x="${mx}" y="${cy + 5}" class="edge">${n.rising ? "↑" : "↓"}</text>`,
-        pout, n.addr, n.rising ? "rise" : "fall");
+        pout, n.addr, n.rising ? "RISE (ext)" : "FALL (ext)");
     }
-    case "const":
-      return [wire(x, cy, x + CW, cy, pin && n.value) + (n.value ? "" : `<text x="${x + CW / 2}" y="${cy - 8}" class="lab">FALSE</text>`), pin && n.value];
+    case "const": {
+      const pout = out(pin && n.value);
+      return [wire(x, cy, x + CW, cy, pout) + (n.value ? "" : `<text x="${x + CW / 2}" y="${cy - 8}" class="lab">OPEN</text>`), pout];
+    }
     case "cmp": {
-      const a = value(live, n.left), b = value(live, n.right);
-      const ok = CMP[n.op](a, b);
-      const pout = pin && ok;
+      const pout = out(false);
+      const lv = isAddr(n.left) ? live[n.left] : undefined;
+      return [box(`${n.left}${OPS[n.op]}${n.right}`, "compare (ext)", lv, pout), pout];
+    }
+    case "inv": {
+      const pout = out(!pin);
+      return [box("INV", undefined, undefined, pout), pout];
+    }
+    case "logic": case "arith": {
+      const pout = out(pin);
+      const branch = n.arg && typeof n.arg === "object";
+      const w = size(n).w;
+      const ex = x + (w - (n.spec ? 2 : 1)) * CW;
+      let svg = branch ? wire(x, cy, ex, cy, pin) + lower(n.arg, ex, "JOIN") : "";
+      const under = branch ? undefined : n.arg;
+      const above = !branch && isAddr(n.arg) ? fmtNum(live[n.arg]) : undefined;
+      if (n.spec) svg += box(`SPEC. ${n.spec}`, under, n.op, pout, 2, ex);
+      else svg += box(n.op, under, above, pout, 1, ex);
+      return [svg, pout];
+    }
+    case "delay": {
+      const pout = out(false);
+      const left = live[n.word];
       return [
-        wire(x, cy, x + 6, cy, pin) +
-          `<rect x="${x + 6}" y="${cy - 17}" width="${CW - 12}" height="34" rx="3" class="box${ok ? " ok" : ""}"/>` +
-          `<text x="${x + CW / 2}" y="${cy - 2}" class="btxt">${esc(n.left)} ${OPS[n.op]} ${esc(n.right)}</text>` +
-          `<text x="${x + CW / 2}" y="${cy + 11}" class="bsub">${a} ${OPS[n.op]} ${b}</text>` +
-          wire(x + CW - 6, cy, x + CW, cy, pout),
+        wire(x, cy, x + 8, cy, pin) +
+          `<rect x="${x + 8}" y="${cy - 12}" width="${2 * CW - 16}" height="24" rx="2" class="box${pout ? " ok" : ""}"/>` +
+          `<text x="${x + CW / 2 + 2}" y="${cy + 4}" class="btxt">DELAY</text><text x="${x + CW * 1.5 - 2}" y="${cy + 4}" class="btxt">VALUE</text>` +
+          `<text x="${x + CW / 2 + 2}" y="${cy + 26}" class="lab">${esc(n.word)}</text><text x="${x + CW * 1.5 - 2}" y="${cy + 26}" class="lab">${esc(n.value)}</text>` +
+          (ctx.draft ? "" : `<text x="${x + CW / 2 + 2}" y="${cy - 17}" class="val">${fmtNum(left ?? 0)}</text>`) +
+          wire(x + 2 * CW - 8, cy, x + 2 * CW, cy, pout),
         pout,
       ];
     }
-    case "not": {
-      const s = size(n.x);
-      const [inner, p] = drawNode(n.x, x, y, true, live);
-      const pout = pin && !p;
-      const nx = x + s.w * CW;
-      return [
-        `<g opacity=".85">${inner}</g>` +
-          `<rect x="${nx + 8}" y="${cy - 14}" width="${CW - 16}" height="28" rx="14" class="box${!p ? " ok" : ""}"/>` +
-          `<text x="${nx + CW / 2}" y="${cy + 4}" class="btxt">NOT</text>` +
-          wire(nx, cy, nx + 8, cy, p) + wire(nx + CW - 8, cy, nx + CW, cy, pout),
-        pout,
-      ];
+    case "count": {
+      const pout = out(false);
+      const raw = live[n.word] ?? 0;
+      const w = size(n).w;
+      let svg = (w > 2 ? wire(x, cy, x + (w - 2) * CW, cy, pin) : "");
+      const bx = x + (w - 2) * CW;
+      svg += wire(bx, cy, bx + 8, cy, pin) +
+        `<rect x="${bx + 8}" y="${cy - 12}" width="${2 * CW - 16}" height="24" rx="2" class="box${pout ? " ok" : ""}"/>` +
+        `<text x="${bx + CW / 2 + 2}" y="${cy + 4}" class="btxt">COUNT</text><text x="${bx + CW * 1.5 - 2}" y="${cy + 4}" class="btxt">VALUE</text>` +
+        `<text x="${bx + CW / 2 + 2}" y="${cy + 26}" class="lab">${esc(n.word)}</text><text x="${bx + CW * 1.5 - 2}" y="${cy + 26}" class="lab">${esc(n.value)}</text>` +
+        (ctx.draft ? "" : `<text x="${bx + CW / 2 + 2}" y="${cy - 17}" class="val">${raw & 0x7fff}</text>`) +
+        wire(bx + 2 * CW - 8, cy, bx + 2 * CW, cy, pout);
+      if (n.reset) svg += lower(n.reset, bx, "RESET");
+      return [svg, pout];
     }
     case "series": {
       let svg = "", p = pin, cx = x;
-      const h = size(n).h;
       for (const item of n.items) {
-        const s = size(item);
-        const [part, out] = drawNode(item, cx, y, p, live);
+        const [part, o] = drawNode(item, cx, y, p, ctx);
         svg += part;
-        p = out;
-        cx += s.w * CW;
+        p = o;
+        cx += size(item).w * CW;
       }
-      return [svg, p];
+      return [svg, out(p)];
     }
     case "parallel": {
       const s = size(n);
@@ -429,102 +479,123 @@ function drawNode(n, x, y, pin, live) {
       const tops = [];
       for (const item of n.items) {
         const is = size(item);
-        const [part, out] = drawNode(item, x, ry, pin, live);
+        const [part, o] = drawNode(item, x, ry, pin, ctx);
         svg += part;
-        if (is.w < s.w) svg += wire(x + is.w * CW, ry + CH / 2, x + s.w * CW, ry + CH / 2, out);
-        any = any || out;
+        if (is.w < s.w) svg += wire(x + is.w * CW, ry + CH / 2, x + s.w * CW, ry + CH / 2, o);
+        any = any || o;
         tops.push(ry + CH / 2);
         ry += is.h * CH;
       }
       svg += wire(x, tops[0], x, tops[tops.length - 1], pin);
-      svg += wire(x + s.w * CW, tops[0], x + s.w * CW, tops[tops.length - 1], any);
-      return [svg, any];
+      svg += wire(x + s.w * CW, tops[0], x + s.w * CW, tops[tops.length - 1], out(any));
+      return [svg, out(any)];
     }
   }
   return ["", false];
 }
 
-function fmtTime(ms) {
-  if (ms >= 60000 && ms % 60000 === 0) return ms / 60000 + "m";
-  return (ms / 1000).toFixed(ms % 1000 ? 1 : 0) + "s";
+function lowerBranch(branch, rx, y, mx, ctx, label) {
+  const [svg, p] = drawNode(branch, rx, y + CH, !ctx.draft, ctx);
+  const bw = size(branch).w, by = y + CH + CH / 2;
+  return svg + wire(rx + bw * CW, by, mx, by, p) + wire(mx, by, mx, y + CH / 2 + 11, p) +
+    `<text x="${mx + 5}" y="${by + 14}" class="sub" style="text-anchor:start">${label}</text>`;
 }
 
-function drawAction(a, x, y, pin, live, timerMs) {
+// The output element, top right of the rung.
+function drawOutput(o, x, y, pin, ctx, rungX) {
   const cy = y + CH / 2;
-  const coil = (letter, addr) => {
-    const on = !!live[addr];
-    const mx = x + AW - 40;
+  const { live } = ctx;
+  const mx = x + AW - 40;
+  const coil = (letter, addr, note) => {
+    const on = !ctx.draft && !!live[addr];
     return wire(x, cy, mx - 14, cy, pin) +
       `<path d="M${mx - 8} ${cy - 14} a14 14 0 0 0 0 28 M${mx + 8} ${cy - 14} a14 14 0 0 1 0 28" class="coil${on ? " on" : ""}"/>` +
       (letter ? `<text x="${mx}" y="${cy + 5}" class="edge">${letter}</text>` : "") +
       `<circle cx="${mx}" cy="${cy}" r="9" class="coilfill${on ? " on" : ""}"/>` +
-      wire(mx + 14, cy, x + AW, cy, false) +
-      `<text x="${mx}" y="${cy - 19}" class="lab">${esc(addr)}</text>`;
+      wire(mx + 14, cy, x + AW, cy, pin) +
+      `<text x="${mx}" y="${cy + 27}" class="lab">${esc(addr)}</text>` +
+      (note ? `<text x="${mx}" y="${cy - 19}" class="sub">${note}</text>` : "");
   };
-  const block = (title, lines, done) => {
-    const on = done === undefined ? pin : !!live[done];
-    let s = wire(x, cy, x + 10, cy, pin) +
-      `<rect x="${x + 10}" y="${cy - 24}" width="${AW - 22}" height="48" rx="3" class="box${on ? " ok" : ""}"/>` +
-      `<text x="${x + 10 + (AW - 22) / 2}" y="${cy - 10}" class="btxt">${esc(title)}</text>`;
-    lines.forEach((l, i) => { s += `<text x="${x + 10 + (AW - 22) / 2}" y="${cy + 4 + i * 12}" class="bsub">${esc(l)}</text>`; });
-    return s + wire(x + AW - 12, cy, x + AW, cy, false);
+  const word = (title, addr, hex) => {
+    const v = live[addr];
+    const shown = ctx.draft || v === undefined ? "" : hex ? "@" + (v & 0xffff).toString(16).toUpperCase() : String(v);
+    return wire(x, cy, mx - 26, cy, pin) +
+      `<rect x="${mx - 26}" y="${cy - 11}" width="52" height="22" rx="11" class="box${pin ? " ok" : ""}"/>` +
+      `<text x="${mx}" y="${cy + 4}" class="btxt">${title}</text>` + wire(mx + 26, cy, x + AW, cy, pin) +
+      `<text x="${mx}" y="${cy + 27}" class="lab">${esc(addr)}</text>` +
+      (shown ? `<text x="${mx}" y="${cy - 17}" class="val">${shown}</text>` : "");
   };
-  switch (a.t) {
-    case "coil": return coil("", a.addr);
-    case "set": return coil("S", a.addr);
-    case "reset": return coil("R", a.addr);
-    case "delay": {
-      const pct = Math.min(1, (timerMs || 0) / a.preset_ms);
-      return block("DELAY " + fmtTime(a.preset_ms), [`${((timerMs || 0) / 1000).toFixed(1)}s → ${a.done}`], a.done) +
-        `<rect x="${x + 18}" y="${cy + 15}" width="${(AW - 38) * pct}" height="4" class="bar"/>`;
+  if (!o) return wire(x, cy, x + 20, cy, pin);
+  switch (o.t) {
+    case "coil": return coil("", o.addr);
+    case "set": return coil("S", o.addr, "SET (ext)");
+    case "reset": return coil("R", o.addr, "RESET (ext)");
+    case "out": return word("OUT", o.addr);
+    case "seqr": {
+      let s = word("SEQ.", o.addr, true);
+      if (o.reset) s += lowerBranch(o.reset, rungX, y, mx, ctx, "RESET");
+      return s;
     }
-    case "count": return block(`COUNT ${a.preset}`, [`${a.count} = ${live[a.count] ?? 0}`, `done → ${a.done}`], a.done);
-    case "clear": return block("CLEAR", [a.addr]);
-    case "out": return block("OUT", [`${a.src} → ${a.dest}`, `${a.dest} = ${live[a.dest] ?? 0}`]);
-    case "arith": return block(a.op, [`${a.left} , ${a.right}`, `→ ${a.dest} = ${live[a.dest] ?? 0}`]);
+    case "block":
+      return wire(x, cy, mx - 30, cy, pin) +
+        `<text x="${mx}" y="${cy - 2}" class="btxt">-OBEY-</text><text x="${mx}" y="${cy + 12}" class="btxt">BLOCK</text>` +
+        wire(mx + 30, cy, x + AW, cy, pin);
   }
   return "";
 }
 
-function rungSvg(rung, index, live, timers, condWidth) {
-  const s = size(rung.condition);
-  const rows = Math.max(s.h, rung.actions.length);
-  const top = rung.comment ? 22 : 8;
+function rungSvg(rung, index, ctx, condWidth, blockNo) {
   const L = 52;
+  const top = rung.comment ? 22 : 8;
   const ax = L + condWidth * CW + 20;
   const W = ax + AW + 26;
-  const H = top + rows * CH + 6;
-  const [cond, p] = drawNode(rung.condition, L, top, true, live);
-  let svg = cond + wire(L + s.w * CW, top + CH / 2, ax, top + CH / 2, p);
-  rung.actions.forEach((a, i) => {
-    svg += drawAction(a, ax, top + i * CH, p, live, timers[`${index}.${i}`]);
-  });
-  if (rung.actions.length > 1) svg += wire(ax, top + CH / 2, ax, top + (rung.actions.length - 0.5) * CH, p);
-  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">
-    <style>
-      .w{stroke:var(--dead);stroke-width:2.2}.w.on{stroke:var(--live);filter:drop-shadow(0 0 3px var(--live))}
+  const style = `<style>
+      .w{stroke:var(--dead);stroke-width:2.2;stroke-dasharray:1.5 4.5;stroke-linecap:round}
+      .w.on{stroke:var(--live);stroke-dasharray:none;filter:drop-shadow(0 0 3px var(--live))}
       .plate{stroke:var(--crt-text);stroke-width:2.6}.plate.on{stroke:var(--live)}
       .cbody{fill:transparent}.cbody.closed{fill:rgba(61,255,122,.22)}
       .lab{font:600 11px var(--mono);fill:var(--crt-text);text-anchor:middle}
+      .val{font:700 11px var(--mono);fill:var(--amber);text-anchor:middle}
       .sub{font:600 9px var(--mono);fill:var(--dead);text-anchor:middle}
       .edge{font:700 13px var(--mono);fill:var(--crt-text);text-anchor:middle}
       .box{fill:#0c1f15;stroke:var(--crt-text);stroke-width:1.4}.box.ok{stroke:var(--live);fill:#0f2a1b}
       .btxt{font:700 11px var(--mono);fill:var(--crt-text);text-anchor:middle}
-      .bsub{font:600 9.5px var(--mono);fill:var(--amber);text-anchor:middle}
       .coil{fill:none;stroke:var(--crt-text);stroke-width:2.6}.coil.on{stroke:var(--live)}
       .coilfill{fill:transparent}.coilfill.on{fill:rgba(61,255,122,.35)}
-      .bar{fill:var(--amber)}
       .rail{stroke:var(--live);stroke-width:4}.rail2{stroke:var(--dead);stroke-width:4}
       .rn{font:700 11px var(--mono);fill:var(--amber)}.title{font:600 11px var(--mono);fill:#6fae84}
-    </style>
+      .stars{font:700 11px var(--mono);fill:var(--amber);text-anchor:middle;letter-spacing:.08em}
+    </style>`;
+  const rn = `<text x="6" y="${top + CH / 2 + 4}" class="rn">R${String(index + 1).padStart(3, "0")}</text>`;
+  const title = rung.comment ? `<text x="${L + 8}" y="14" class="title">; ${esc(rung.comment)}</text>` : "";
+  if (rung.output && rung.output.t === "end") {
+    const H = top + 34;
+    return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${style}
+      <line x1="${L}" y1="0" x2="${L}" y2="${H}" class="rail"/><line x1="${W - 4}" y1="0" x2="${W - 4}" y2="${H}" class="rail2"/>
+      ${rn}${title}<text x="${(L + W) / 2}" y="${top + 18}" class="stars">******** END OF BLOCK ${blockNo} ********</text></svg>`;
+  }
+  const s = size(rung.condition);
+  const outRows = rung.output && rung.output.reset ? 1 + size(rung.output.reset).h : 1;
+  const block = rung.output && rung.output.t === "block";
+  const rows = Math.max(s.h, outRows);
+  const H = top + rows * CH + (block ? 26 : 6);
+  ctx = { ...ctx, L };
+  let p = !ctx.draft;
+  let svg = "";
+  if (rung.condition) {
+    const [cond, cp] = drawNode(rung.condition, L, top, true, ctx);
+    svg += cond;
+    p = cp;
+  }
+  svg += wire(L + s.w * CW, top + CH / 2, ax, top + CH / 2, p);
+  svg += drawOutput(rung.output, ax, top, p, ctx, L);
+  if (block) svg += `<text x="${(L + W) / 2}" y="${H - 8}" class="stars">******** START OF BLOCK ${blockNo} ********</text>`;
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">${style}
     <line x1="${L}" y1="0" x2="${L}" y2="${H}" class="rail"/>
     <line x1="${W - 4}" y1="0" x2="${W - 4}" y2="${H}" class="rail2"/>
-    <text x="6" y="${top + CH / 2 + 4}" class="rn">R${String(index + 1).padStart(3, "0")}</text>
-    ${rung.comment ? `<text x="${L + 8}" y="14" class="title">; ${esc(rung.comment)}</text>` : ""}
-    ${svg}
+    ${rn}${title}${svg}
   </svg>`;
 }
-
 // ---------------------------------------------------------------------------
 // The MicroGEM Programmer: 25 keys laid out and coloured as on the real one.
 // Each key has a main legend and a second legend (after the slash). The second
@@ -546,17 +617,21 @@ const SYMBOLS = new Set(["-] [-", "-]/[-", "-( )-", "-(S)-", "-(C)-", "-(D)-", "
 const TABLE_KEY = { I: "A", Q: "B", G: "G", W: "W", C: "C", D: "D", S: "S" };
 const LCD_W = 16;
 
+// What each element key asks for. DELAY and COUNT sit in the rung like
+// contacts (as on the GEM 80, their output passes along the rung); the coil,
+// -(S)- (taken to be the sequencer, SEQR) and BLK end the rung.
 const ELEMENTS = {
   "-] [-": { prompts: ["ADDR?"], make: (a) => ["c", a[0]] },
   "-]/[-": { prompts: ["ADDR?"], make: (a) => ["c", "NOT " + a[0]] },
+  "-(D)-": { prompts: ["WORD?", "VALUE 0.1S?"], make: (a) => ["c", `DELAY ${a[0]} VALUE ${a[1]}`] },
+  "-(C)-": { prompts: ["WORD?", "VALUE?"], make: (a) => ["c", `COUNT ${a[0]} VALUE ${a[1]}`] },
   "-( )-": { prompts: ["ADDR?"], make: (a) => ["a", a[0]] },
-  "-(S)-": { prompts: ["ADDR?"], make: (a) => ["a", "SET " + a[0]] },
-  "-(D)-": { prompts: ["TIME s?", "DONE BIT?"], make: (a) => ["a", `DELAY ${a[0]}s ${a[1]}`] },
-  "-(C)-": { prompts: ["PRESET?", "COUNT WORD?", "DONE BIT?"], make: (a) => ["a", `COUNT ${a[0]} ${a[1]} ${a[2]}`] },
+  "-(S)-": { prompts: ["SEQR WORD?"], make: (a) => ["a", "SEQR " + a[0]] },
 };
 
-// A rung being keyed in: a stack of open LINK sections, each a list of
-// parallel branches, each a list of series terms.
+// A rung being keyed in: a stack of open branch points (▼ opens one, ▼ again
+// starts its next line down, JOIN closes it), each a list of parallel
+// branches, each a list of series elements.
 const newDraft = () => ({ stack: [{ branches: [[]] }], acts: [], history: [] });
 const joinBranches = (sec) => {
   const bs = sec.branches.filter((b) => b.length).map((b) => b.join(" AND "));
@@ -684,12 +759,21 @@ class MicroGemPanel extends HTMLElement {
     function renderLadder() {
       const rungs = state.ladder || [];
       const box = $("ladder");
-      const live = state.live || {};
+      const ctx = { live: state.live || {}, flow: state.flow || {}, draft: false };
       const all = draftRungs ? rungs.concat(draftRungs.map((r) => ({ ...r, draft: true }))) : rungs;
       if (!all.length) { box.innerHTML = `<div class="ladder-empty">No program loaded.</div>`; return; }
       const condWidth = Math.max(...all.map((r) => size(r.condition).w));
-      box.innerHTML = all.map((r, i) =>
-        `<div class="rung${i === selected && !r.draft ? " sel" : ""}${r.draft ? " draft" : ""}" data-i="${i}">${rungSvg(r, i, r.draft ? {} : live, state.timers || {}, condWidth)}</div>`).join("");
+      const skipped = new Set(state.skipped || []);
+      const blocks = [];
+      let next = 1;
+      box.innerHTML = all.map((r, i) => {
+        let no = "";
+        if (r.output && r.output.t === "block") { no = next++; blocks.push(no); }
+        else if (r.output && r.output.t === "end") no = blocks.pop() ?? "";
+        const c = r.draft ? { ...ctx, draft: true } : ctx;
+        const cls = `rung${i === selected && !r.draft ? " sel" : ""}${r.draft ? " draft" : ""}${skipped.has(i) ? " skipped" : ""}`;
+        return `<div class="${cls}" data-i="${i}">${rungSvg(r, i, c, condWidth, no)}</div>`;
+      }).join("");
     }
 
     function renderTables() {
@@ -748,7 +832,7 @@ class MicroGemPanel extends HTMLElement {
       if (!rungs.length) return ["NO PROGRAM", "BLNK = NEW RUNG"];
       const r = rungs[selected];
       const text = r.source.split(";")[0].trim();
-      const out = r.actions[0] && (r.actions[0].addr || r.actions[0].done || r.actions[0].dest);
+      const out = r.output && r.output.addr;
       return [window16(text, P.hscroll), fields(out || "", out ? fmtVal(state.live[out]) : "", loc())];
     }
 
@@ -759,7 +843,7 @@ class MicroGemPanel extends HTMLElement {
       root.querySelectorAll(".k").forEach((k) => k.classList.toggle("lit", k.dataset.key === "CTRL" && P.ctrl));
       $("prog-help").innerHTML =
         P.screen === "MON" ? "<b>Monitor:</b> ADDR, a table key (I = inputs, Q = outputs, G, W, C, D, S) then the word; ► types a dot for a bit. ENT to watch. Then type a number and ENT to force it. ▲▼ step through words."
-        : P.screen === "PROG" ? "<b>Program:</b> ▲▼ step through rungs, ◄► scroll. BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, LINK…JOIN for a parallel branch, then a coil, -(D)- delay or -(C)- count. ENT writes the rung, DEL undoes the last step."
+        : P.screen === "PROG" ? "<b>Program:</b> ▲▼ step through rungs, ◄► scroll. BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, -(D)- delay and -(C)- count; ▼ opens a parallel branch and JOIN closes it; end with a coil -( )-, -(S)- sequencer or BLK (OBEY BLOCK, or END OF BLOCK on an empty rung). ENT writes the rung, DEL undoes the last step."
         : "<b>Select mode:</b> PROG to program, ADDR or Ø (MON) to monitor. The key switch sets RUN or HALT. With the programmer focused you can also use your keyboard.";
     }
     setInterval(() => { if (state) renderLcd(); }, 250);
@@ -860,13 +944,13 @@ class MicroGemPanel extends HTMLElement {
       const snapshot = () => d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
       if (ELEMENTS[t]) {
         const spec = ELEMENTS[t];
-        if (spec.make([""])[0] === "c" && d.acts.length) return flash("CONTACTS FIRST");
+        if (d.acts.length) return flash("OUTPUT DONE");
         P.pending = { name: t, ...spec };
         P.answers = [];
         P.entry = { kind: "prompt", buf: "" };
         return;
       }
-      if (t === "LINK") {
+      if (t === "▼") {
         if (d.acts.length) return flash("CONTACTS FIRST");
         snapshot();
         const top = d.stack.at(-1);
@@ -875,13 +959,20 @@ class MicroGemPanel extends HTMLElement {
         return preview();
       }
       if (t === "JOIN") {
-        if (d.stack.length === 1) return flash("NO LINK OPEN");
+        if (d.stack.length === 1) return flash("NO BRANCH OPEN");
         snapshot();
         const s = joinBranches(d.stack.pop());
         if (s) d.stack.at(-1).branches.at(-1).push(s);
         return preview();
       }
-      if (t === "BLK") return flash("BLK: USE TEXT");
+      if (t === "LINK") return flash("LINK: SPACER ONLY");
+      if (t === "BLK") {
+        if (d.acts.length) return flash("OUTPUT DONE");
+        snapshot();
+        if (!draftCond(d)) { d.acts.push("END BLOCK"); return writeRung(); }
+        d.acts.push("BLOCK");
+        return preview();
+      }
       if (t === "DEL") {
         const h = d.history.pop();
         if (h) { const o = JSON.parse(h); d.stack = o.stack; d.acts = o.acts; preview(); }
@@ -922,6 +1013,7 @@ class MicroGemPanel extends HTMLElement {
         if (!buf) return;
         if (/ADDR|BIT/.test(prompt) && !/^[A-Z]\d+\.\d+$/.test(buf)) return flash("NEED BIT eg G0.1");
         if (/WORD/.test(prompt) && !/^[A-Z]\d+$/.test(buf)) return flash("NEED WORD eg G1");
+        if (/VALUE/.test(prompt) && !/^\d+$/.test(buf)) return flash("NEED A NUMBER");
         P.answers.push(buf);
         e.buf = "";
         if (P.answers.length < P.pending.prompts.length) return;
@@ -939,15 +1031,15 @@ class MicroGemPanel extends HTMLElement {
     function preview() {
       const d = P.draft;
       const cond = draftCond(d);
-      if (d.acts.length) send({ type: "preview", source: (cond || "TRUE") + " -> " + d.acts.join(", ") });
+      if (d.acts.length) send({ type: "preview", source: (cond || "") + " -> " + d.acts[0] });
       else if (cond) send({ type: "preview", source: cond + " -> G63.15" });
       else { draftRungs = null; schedule(); }
     }
 
     function writeRung() {
       const d = P.draft;
-      if (!d.acts.length) return flash("NEEDS A COIL");
-      const text = (draftCond(d) || "TRUE") + " -> " + d.acts.join(", ");
+      if (!d.acts.length) return flash("NEEDS AN OUTPUT");
+      const text = d.acts[0] === "END BLOCK" ? "END BLOCK" : ((draftCond(d) || "") + " -> " + d.acts[0]).trim();
       const lines = (state.program || "").split("\n");
       const rungs = state.ladder || [];
       if (P.replace && rungs[selected]) lines.splice(rungs[selected].line - 1, 1, text);
@@ -1033,7 +1125,7 @@ class MicroGemPanel extends HTMLElement {
       } else if (msg.type === "preview") {
         if (!P.draft) return;
         draftRungs = msg.rungs;
-        if (!P.draft.acts.length && draftRungs[0]) draftRungs[0].actions = [];
+        if (!P.draft.acts.length && draftRungs[0]) draftRungs[0].output = null;
         schedule();
       } else if (msg.type === "loaded") {
         programDirty = false;

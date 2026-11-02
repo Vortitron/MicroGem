@@ -21,20 +21,23 @@ EXAMPLE_PROGRAM = """\
 ; Inputs  A0.0 push-button by the door, A0.1 bedside switch, A0.2 "all off"
 ; Outputs B0.0 main light, B0.1 bedside lamp, B0.2 landing light (timed)
 
-; Door button toggles the main light
-(RISE A0.0 AND NOT B0.0) OR (NOT RISE A0.0 AND B0.0 AND NOT A0.2) -> B0.0
+; One-scan pulse G0.0 each time the door button is pressed
+A0.0 AND NOT G0.1 -> G0.0
+A0.0 -> G0.1
+
+; The pulse toggles the main light; all-off turns it off
+(G0.0 AND NOT B0.0) OR (NOT G0.0 AND B0.0 AND NOT A0.2) -> B0.0
 
 ; Bedside switch drives the lamp directly
 A0.1 AND NOT A0.2 -> B0.1
 
-; Landing light: on while the main light is on, and for 10 s after it goes off
-B0.0 -> SET G0.0
-NOT B0.0 AND G0.0 -> DELAY 10s G0.1
-G0.1 -> RESET G0.0
-G0.0 -> B0.2
+; Landing light: on with the main light, held by its own contact (a seal-in),
+; until 10 s after the main light goes off
+B0.0 OR (B0.2 AND NOT G0.2) -> B0.2
+B0.2 AND NOT B0.0 DELAY G10 VALUE 100 -> G0.2
 
-; Count how many times the door button has been pressed
-RISE A0.0 -> COUNT 32767 G1 G0.15
+; Count door presses in G11; all-off resets the count
+A0.0 COUNT G11 VALUE 1000 RESET A0.2 -> G0.15
 """
 
 Listener = Callable[[dict], None]
