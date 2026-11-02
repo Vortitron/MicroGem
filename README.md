@@ -64,8 +64,11 @@ tables) come from the GEM80-500 Technical Manual (T2025).
 
 ## Home Assistant
 
-`custom_components/microgem` is a custom integration (installable through HACS
-as a custom repository). Add **Virtual MicroGEM** under Settings > Devices &
+`custom_components/microgem` is a custom integration. To install it with HACS,
+open HACS > three-dot menu > **Custom repositories**, add
+`https://github.com/Vortitron/MicroGem` as type **Integration**, download
+**Virtual MicroGEM** and restart Home Assistant. (Or copy
+`custom_components/microgem` into your `config/custom_components/`.) Then add **Virtual MicroGEM** under Settings > Devices &
 services, choose a name and the number of inputs and outputs, and you get:
 
 - a switch for each input (`switch.<name>_input_a0_0` ...): automations can
