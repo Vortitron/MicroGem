@@ -158,6 +158,7 @@ class Rung:
     actions: tuple
     line: int
     source: str
+    comment: str = ""
 
 
 @dataclass
@@ -180,6 +181,59 @@ class Program:
         for rung in self.rungs:
             walk(rung.condition)
         return found
+
+
+# --- JSON form, for drawing ladder diagrams ---------------------------------
+
+def _operand(value: Address | int) -> str:
+    return str(value)
+
+
+def node_to_json(node: object) -> dict:
+    if isinstance(node, Contact):
+        return {"t": "contact", "addr": str(node.address), "nc": node.normally_closed}
+    if isinstance(node, Edge):
+        return {"t": "edge", "addr": str(node.address), "rising": node.rising}
+    if isinstance(node, Constant):
+        return {"t": "const", "value": node.value}
+    if isinstance(node, Compare):
+        return {"t": "cmp", "op": node.op, "left": _operand(node.left), "right": _operand(node.right)}
+    if isinstance(node, Not):
+        return {"t": "not", "x": node_to_json(node.operand)}
+    if isinstance(node, Series):
+        return {"t": "series", "items": [node_to_json(i) for i in node.items]}
+    if isinstance(node, Parallel):
+        return {"t": "parallel", "items": [node_to_json(i) for i in node.items]}
+    raise TypeError(f"unknown contact {node!r}")
+
+
+def action_to_json(action: object) -> dict:
+    if isinstance(action, Coil):
+        return {"t": "coil", "addr": str(action.address)}
+    if isinstance(action, Latch):
+        return {"t": "set" if action.set else "reset", "addr": str(action.address)}
+    if isinstance(action, Delay):
+        return {"t": "delay", "preset_ms": action.preset_ms, "done": str(action.done)}
+    if isinstance(action, Count):
+        return {"t": "count", "preset": action.preset, "count": str(action.count), "done": str(action.done)}
+    if isinstance(action, Clear):
+        return {"t": "clear", "addr": str(action.address)}
+    if isinstance(action, Out):
+        return {"t": "out", "src": _operand(action.source), "dest": str(action.dest)}
+    if isinstance(action, Arith):
+        return {"t": "arith", "op": action.op, "left": _operand(action.left),
+                "right": _operand(action.right), "dest": str(action.dest)}
+    raise TypeError(f"unknown action {action!r}")
+
+
+def rung_to_json(rung: Rung) -> dict:
+    return {
+        "line": rung.line,
+        "comment": rung.comment,
+        "source": rung.source,
+        "condition": node_to_json(rung.condition),
+        "actions": [action_to_json(a) for a in rung.actions],
+    }
 
 
 # --- parser ----------------------------------------------------------------
@@ -326,9 +380,13 @@ def parse_time(text: str, line: int | None = None) -> int:
 
 def parse_program(source: str) -> Program:
     program = Program(source=source)
+    comments: list[str] = []
     for number, raw in enumerate(source.splitlines(), start=1):
-        text = raw.split(";", 1)[0].strip()
+        text, _, note = raw.partition(";")
+        text = text.strip()
         if not text:
+            # Comment lines directly above a rung become its title; a blank line resets.
+            comments = comments + [note.strip()] if note.strip() else []
             continue
         tokens = _TOKEN_RE.findall(text)
         if "->" not in tokens:
@@ -342,7 +400,9 @@ def parse_program(source: str) -> Program:
             actions.append(parser.action())
         if parser.peek() is not None:
             raise ProgramError(f"unexpected {parser.peek()!r}", number)
-        program.rungs.append(Rung(condition, tuple(actions), number, raw.strip()))
+        title = " ".join(comments) or note.strip()
+        program.rungs.append(Rung(condition, tuple(actions), number, raw.strip(), title))
+        comments = []
     return program
 
 
@@ -350,5 +410,5 @@ __all__ = [
     "Arith", "Clear", "Coil", "Compare", "Constant", "Contact", "Count", "Delay",
     "Edge", "Latch", "Not", "Out", "Parallel", "Program", "ProgramError", "Rung",
     "Series", "ARITHMETIC", "COMPARISONS", "COUNT_MAX", "clamp16", "parse_program",
-    "parse_time", "to_signed",
+    "parse_time", "to_signed", "rung_to_json",
 ]

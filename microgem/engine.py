@@ -26,6 +26,7 @@ from .program import (
     Program,
     Series,
     parse_program,
+    rung_to_json,
 )
 from .program import ProgramError
 from .tables import RETAINED_TABLES, TABLE_LETTERS, Address, DataTables, clamp16, to_signed
@@ -223,6 +224,35 @@ class Controller:
 
     # --- for front ends -------------------------------------------------------
 
+    def write(self, address: Address, value: int | bool) -> None:
+        """Force a value into a data table, as a programmer's VALUE key does."""
+        if address.table == FLAG_TABLE:
+            raise ProgramError("E tables are read-only")
+        if address.is_bit:
+            self.tables.set_bit(address, bool(value))
+        else:
+            self.tables.set_word(address, clamp16(int(value)))
+
+    def ladder(self) -> list[dict]:
+        return [rung_to_json(rung) for rung in self.program.rungs]
+
+    def live(self) -> dict[str, int | bool]:
+        """Current value of every address the program uses, for live ladder diagrams."""
+        values: dict[str, int | bool] = {}
+        for rung in self.program.rungs:
+            for address in _addresses(rung):
+                key = str(address)
+                if key not in values:
+                    values[key] = (
+                        self.tables.get_bit(address)
+                        if address.is_bit
+                        else to_signed(self.tables.get_word(address))
+                    )
+        return values
+
+    def timers(self) -> dict[str, int]:
+        return {f"{r}.{a}": ms for (r, a), ms in self._timers.items()}
+
     def snapshot(self, tables: str = "BEGHLRW") -> dict:
         return {
             "name": self.config.name,
@@ -231,6 +261,8 @@ class Controller:
             "inputs": self.inputs(),
             "outputs": self.outputs(),
             "tables": {letter: self.tables.table(letter)[:8] for letter in tables},
+            "live": self.live(),
+            "timers": self.timers(),
         }
 
 

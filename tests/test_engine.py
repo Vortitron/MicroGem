@@ -171,3 +171,32 @@ def test_e_table_is_read_only():
     plc = Controller()
     with pytest.raises(ProgramError, match="read-only"):
         plc.load("A0.0 -> E0.0")
+
+
+def test_ladder_json_live_values_and_titles():
+    plc = make("; Door light\n(A0.0 OR NOT B0.0) AND G1 GE 2 -> B0.0, DELAY 1s G0.1\n\nA0.1 -> B0.1 ; lamp")
+    rungs = plc.ladder()
+    assert rungs[0]["comment"] == "Door light"
+    assert rungs[1]["comment"] == "lamp"
+    cond = rungs[0]["condition"]
+    assert cond["t"] == "series" and cond["items"][0]["t"] == "parallel"
+    assert cond["items"][0]["items"][1] == {"t": "contact", "addr": "B0.0", "nc": True}
+    assert cond["items"][1] == {"t": "cmp", "op": "GE", "left": "G1", "right": "2"}
+    assert rungs[0]["actions"][1] == {"t": "delay", "preset_ms": 1000, "done": "G0.1"}
+    plc.write(parse_address("G1"), 3)
+    plc.set_input(0, True)
+    plc.scan(20)
+    live = plc.live()
+    assert live["G1"] == 3 and live["B0.0"] is True and live["A0.1"] is False
+    assert plc.timers()["0.1"] == 20
+
+
+def test_write_forces_values_but_not_flags():
+    plc = make("A0.0 -> B0.0")
+    plc.write(parse_address("A0.0"), 1)
+    plc.scan(20)
+    assert plc.output(0)
+    plc.write(parse_address("G5"), 40000)
+    assert plc.tables.get_word(Address("G", 5)) == 32767
+    with pytest.raises(ProgramError):
+        plc.write(parse_address("E0.0"), 1)

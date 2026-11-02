@@ -11,8 +11,8 @@ import time
 from collections.abc import Callable
 
 from .engine import Controller, ControllerConfig
-from .program import ProgramError
-from .tables import AddressError
+from .program import ProgramError, parse_program, rung_to_json
+from .tables import AddressError, parse_address, to_signed
 
 SCAN_INTERVAL_MS = 20
 
@@ -82,6 +82,7 @@ class ControllerService:
     def state(self) -> dict:
         state = self.controller.snapshot()
         state["program"] = self.controller.program.source
+        state["ladder"] = self.controller.ladder()
         return state
 
     def _notify_if_changed(self, force: bool = False) -> None:
@@ -106,6 +107,10 @@ class ControllerService:
         self.controller.halt()
         self._notify_if_changed(force=True)
 
+    def write(self, address: str, value: int | bool) -> None:
+        self.controller.write(parse_address(address), value)
+        self._notify_if_changed()
+
     def load(self, source: str) -> None:
         """Install a new program; raises ProgramError and keeps the old one on a mistake."""
         self.controller.load(source)
@@ -115,7 +120,9 @@ class ControllerService:
         """Apply one command from a front end and return a reply, if any.
 
         Commands: ``{"type": "input", "index": 0, "value": true}``, ``{"type": "run"}``,
-        ``{"type": "halt"}`` and ``{"type": "load", "source": "..."}``.
+        ``{"type": "halt"}``, ``{"type": "read", "address": "G12"}``,
+        ``{"type": "preview", "source": "..."}`` (parse without loading), ``{"type": "write", "address": "G12", "value": 5}`` and
+        ``{"type": "load", "source": "..."}``.
         """
         kind = message.get("type")
         try:
@@ -125,6 +132,16 @@ class ControllerService:
                 self.run()
             elif kind == "halt":
                 self.halt()
+            elif kind == "read":
+                address = parse_address(str(message["address"]))
+                tables = self.controller.tables
+                value = tables.get_bit(address) if address.is_bit else to_signed(tables.get_word(address))
+                return {"type": "value", "address": str(address), "value": value}
+            elif kind == "preview":
+                program = parse_program(str(message["source"]))
+                return {"type": "preview", "rungs": [rung_to_json(r) for r in program.rungs]}
+            elif kind == "write":
+                self.write(str(message["address"]), int(message["value"]))
             elif kind == "load":
                 self.load(str(message["source"]))
                 return {"type": "loaded"}

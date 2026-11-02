@@ -14,9 +14,22 @@ python -m microgem            # then open http://127.0.0.1:8080
 python -m microgem --program my_program.txt --port 8080
 ```
 
-The page shows the MicroGEM face (input LEDs, output LEDs, RUN/HALT), a row
-of input switches you can click (as latching switches or push-buttons), the
-program editor, and a monitor for the data tables.
+The page shows:
+
+- the **MicroGEM unit**: input and output terminals with their LEDs, PWR/RUN/HALT;
+- an **input simulator** board of toggle switches (latching or push-button);
+- the **hand-held programmer**: a 2-line display and full keypad.
+  - *MON*: `ADDR`, then a table (`TABLE` + a key, e.g. `TABLE 7` = G) and word, `ENTER` to
+    watch it live; `VALUE`, a number, `ENTER` to force it; `PREV`/`NEXT` step.
+  - *PROG*: `PREV`/`NEXT` browse rungs; `INS` starts a rung, then contact keys
+    (`-] [-`, `-]/[-`), `OR` for a parallel branch, and a coil or block
+    (`-( )-`, `-(S)-`, `-(R)-`, `DELAY`, `COUNT`), each followed by its address and
+    `ENTER`; `ENTER` again writes the rung. `DEL` removes the selected rung.
+  - With the programmer focused, the computer keyboard works too (digits,
+    letters, Enter, Esc, arrows).
+- a live **ladder diagram** with power rails, contacts, coils and function
+  blocks, where powered wires and closed contacts light up;
+- the full **program text** editor, and a data-table monitor.
 
 ## How it works
 
