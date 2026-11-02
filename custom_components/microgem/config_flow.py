@@ -23,8 +23,8 @@ class MicroGemConfigFlow(ConfigFlow, domain=DOMAIN):
         schema = vol.Schema(
             {
                 vol.Required(CONF_NAME, default="MicroGEM"): str,
-                vol.Required(CONF_INPUTS, default=16): IO_RANGE,
-                vol.Required(CONF_OUTPUTS, default=16): IO_RANGE,
+                vol.Required(CONF_INPUTS, default=12): IO_RANGE,
+                vol.Required(CONF_OUTPUTS, default=8): IO_RANGE,
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema)

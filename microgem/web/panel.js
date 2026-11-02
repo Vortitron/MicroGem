@@ -1,5 +1,6 @@
-// <microgem-panel>: the MicroGEM unit, its hand-held programmer, a live ladder
-// diagram, the program text and a data-table monitor.
+// <microgem-panel>: a GEC MicroGEM60 controller, its hand-held MicroGEM
+// Programmer, a live ladder diagram, the program text and a data-table monitor.
+// The hardware is drawn from photos of a real MicroGEM60 and programmer.
 // Used by the standalone page (WebSocket transport) and by Home Assistant as a
 // custom panel (transport over Home Assistant's own connection).
 
@@ -7,9 +8,7 @@ const STYLE = `
 :host {
   --bg: #e9e6df; --text: #23211d; --muted: #6b665c; --panel: #f7f5f0; --border: #cfc9bd;
   --accent: #2f5d8a; --error: #b3261e;
-  --case: #cfc6b0; --case-hi: #e6dfcd; --case-lo: #a99d80; --strip: #2f2a24;
-  --led-off: #3c332b; --led-in: #43f26a; --led-out: #ff4433; --led-amber: #ffb52e;
-  --crt: #07130d; --crt-line: #2a3a31; --live: #3dff7a; --dead: #4d6b5a; --crt-text: #9fe8b6; --amber: #ffbf3d;
+  --crt: #07130d; --live: #3dff7a; --dead: #4d6b5a; --crt-text: #9fe8b6; --amber: #ffbf3d;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   display: block; min-height: 100%; background: var(--bg); color: var(--text);
   font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -18,7 +17,7 @@ const STYLE = `
   :host { --bg: #1b1a18; --text: #ece8df; --muted: #a39d90; --panel: #252320; --border: #3c3934; --accent: #86b4e3; --error: #ff8a80; }
 }
 * { box-sizing: border-box; }
-main { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+main { max-width: 1240px; margin: 0 auto; padding: 24px 16px 48px; }
 header h1 { margin: 0; font-size: 1.4rem; }
 header p { margin: 4px 0 18px; color: var(--muted); }
 .conn { font-size: .8rem; }
@@ -26,49 +25,59 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .hint { margin: 0 0 8px; color: var(--muted); font-size: .85rem; }
 
 /* ---------- hardware row ---------- */
-.hw { display: grid; grid-template-columns: minmax(0, 1.75fr) minmax(280px, 1fr); gap: 20px; align-items: start; }
-.unit svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 8px 14px rgba(0,0,0,.28)); }
-.led { fill: var(--led-off); transition: fill .04s; }
-.led.in.on { fill: var(--led-in); filter: url(#glow); }
-.led.out.on { fill: var(--led-out); filter: url(#glow); }
-.led.amber.on { fill: var(--led-amber); filter: url(#glow); }
+.hw { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
+.unit svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 10px 16px rgba(0,0,0,.35)); }
+.led { fill: #3a1414; transition: fill .04s; }
+.led.g { fill: #15301a; }
+.led.on { fill: #ff3b2f; filter: url(#glow); }
+.led.g.on { fill: #4dff6a; }
 
-.sim { margin-top: 14px; background: #3a3631; border-radius: 8px; padding: 10px 12px 12px; color: #e8e1d2;
-  box-shadow: inset 0 2px 0 rgba(255,255,255,.08), 0 3px 8px rgba(0,0,0,.25); }
+.sim { margin-top: 16px; background: #2b2926; border-radius: 8px; padding: 10px 12px 12px; color: #e8e1d2;
+  box-shadow: inset 0 2px 0 rgba(255,255,255,.06), 0 3px 8px rgba(0,0,0,.25); }
 .sim-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 .72rem/1 Arial, sans-serif; letter-spacing: .12em; }
-.toggles { display: grid; grid-template-columns: repeat(var(--n, 16), minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
+.toggles { display: grid; grid-template-columns: repeat(var(--n, 12), minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
 .toggle { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; touch-action: manipulation; }
 .toggle .plate { width: 22px; height: 34px; border-radius: 4px; background: linear-gradient(#5a554d, #2b2824); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.6); }
 .toggle .lever { position: absolute; left: 7px; width: 8px; height: 18px; border-radius: 4px; background: linear-gradient(90deg, #d8d4cc, #fff, #a8a39a); top: 14px; transition: top .06s; box-shadow: 0 2px 2px rgba(0,0,0,.5); }
 .toggle.on .lever { top: 2px; }
-.toggle small { font: 600 .6rem/1 var(--mono); color: #cfc3a8; }
+.toggle small { font: 600 .62rem/1 var(--mono); color: #cfc3a8; }
 .seg { display: inline-flex; border: 1px solid #77705f; border-radius: 4px; overflow: hidden; }
 .seg button { border: 0; background: #4a453d; color: #e8e1d2; padding: 4px 9px; font: 600 .7rem/1.2 Arial, sans-serif; letter-spacing: .06em; cursor: pointer; min-width: 30px; }
 .seg button.active { background: #e8e1d2; color: #2a241c; }
 
-/* ---------- programmer ---------- */
-.prog { background: linear-gradient(160deg, #f2c832, #d9a915); border-radius: 18px 18px 26px 26px; padding: 14px 14px 18px;
-  box-shadow: inset 0 2px 0 rgba(255,255,255,.5), inset 0 -3px 0 rgba(0,0,0,.18), 0 10px 18px rgba(0,0,0,.3); color: #2b2205; outline: none; }
-.prog:focus-visible { box-shadow: 0 0 0 3px var(--accent), 0 10px 18px rgba(0,0,0,.3); }
-.prog-top { display: flex; justify-content: space-between; align-items: baseline; font: 800 .8rem/1 Arial, sans-serif; letter-spacing: .14em; margin: 0 4px 8px; }
-.prog-top span:last-child { font-weight: 600; letter-spacing: .05em; font-size: .68rem; }
-.lcd { background: #0b1a10; border-radius: 6px; border: 3px solid #1d1a12; padding: 8px 10px; box-shadow: inset 0 0 12px rgba(0,0,0,.9); }
-.lcd div { font: 600 15px/1.35 var(--mono); color: #6dff8d; text-shadow: 0 0 6px rgba(80,255,120,.75); white-space: pre; overflow: hidden; letter-spacing: .06em; }
-.lcd .lbl { display: flex; justify-content: space-between; font: 700 .55rem/1 Arial, sans-serif; color: #4f8d5c; text-shadow: none; letter-spacing: .12em; margin-top: 4px; }
-.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; margin-top: 14px; }
-.key { position: relative; border: 0; border-radius: 6px; padding: 9px 0 7px; min-width: 0; cursor: pointer; touch-action: manipulation;
-  background: linear-gradient(#3b3a37, #1f1e1c); color: #f5f1e6; font: 700 .78rem/1 Arial, sans-serif;
-  box-shadow: 0 3px 0 #0b0b0a, inset 0 1px 0 rgba(255,255,255,.18); }
-.key:active, .key.down { transform: translateY(2px); box-shadow: 0 1px 0 #0b0b0a; }
-.key small { display: block; font: 700 .55rem/1 Arial, sans-serif; color: #f2c832; margin-top: 3px; letter-spacing: .05em; }
-.key.sym small { color: #7a5a00; }
-.key.sym { font: 700 .82rem/1 var(--mono); background: linear-gradient(#e9e4d6, #c7c0ae); color: #1f1b12; box-shadow: 0 3px 0 #7d7562, inset 0 1px 0 #fff; }
-.key.fn { background: linear-gradient(#7a2a20, #4d1711); }
-.key.go { background: linear-gradient(#2f6b3a, #1d4524); }
-.key.wide { grid-column: span 2; }
-.key.lit::after { content: ""; position: absolute; top: 4px; right: 5px; width: 5px; height: 5px; border-radius: 50%; background: #f2c832; box-shadow: 0 0 5px #f2c832; }
-.prog-help { font-size: .72rem; margin: 10px 4px 0; color: #4a3b06; }
-.cable { height: 18px; margin: -2px auto 0; width: 34px; border-radius: 0 0 10px 10px; background: repeating-linear-gradient(#262420 0 4px, #3b3833 4px 7px); }
+/* ---------- MicroGEM Programmer ---------- */
+.progwrap { display: flex; flex-direction: column; align-items: center; }
+.cable { width: 6px; height: 26px; background: #111; border-radius: 3px; margin-left: 150px; }
+.prog { position: relative; width: 100%; max-width: 340px; padding: 18px 0 26px; outline: none; color: #f2f0ea;
+  background: linear-gradient(170deg, #2a2a2a, #121212 60%, #0c0c0c);
+  clip-path: polygon(13% 0, 87% 0, 87% 40%, 100% 49%, 100% 100%, 0 100%, 0 49%, 13% 40%);
+  border-radius: 0 0 14px 14px; }
+.prog:focus-visible { filter: drop-shadow(0 0 4px var(--accent)); }
+.prog-head { position: relative; height: 54px; margin: 0 16%; }
+.brand { position: absolute; right: 0; top: 4px; text-align: center; font: 900 .78rem/1 Arial, sans-serif; letter-spacing: .02em; }
+.brand small { display: block; font: 800 .55rem/1.1 Arial, sans-serif; letter-spacing: .03em; }
+.keyswitch { position: absolute; left: 0; top: -6px; width: 44px; height: 44px; border-radius: 6px; background: #1d1d1d; border: 2px solid #333;
+  cursor: pointer; display: grid; place-items: center; padding: 0; }
+.keyswitch .barrel { width: 26px; height: 26px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #555, #1a1a1a); position: relative; transition: transform .15s; }
+.keyswitch .barrel::after { content: ""; position: absolute; left: 11px; top: -6px; width: 5px; height: 26px; border-radius: 2px; background: linear-gradient(90deg, #888, #ddd, #777); }
+.keyswitch.halt .barrel { transform: rotate(-60deg); }
+.keypos { position: absolute; left: 50px; top: 2px; font: 700 .52rem/1.5 Arial, sans-serif; color: #9a9a9a; letter-spacing: .06em; }
+.keypos b { color: #f2f0ea; }
+.lcdbox { margin: 6px 16% 0; }
+.lcd { background: linear-gradient(#c9cdbb, #b7bca6); border: 4px solid #3a3a3a; border-radius: 3px; padding: 6px 6px; box-shadow: inset 0 2px 6px rgba(0,0,0,.45); }
+.lcd div { font: 700 17px/1.25 "Courier New", var(--mono); color: #1c2117; white-space: pre; overflow: hidden; letter-spacing: .02em; text-align: center; }
+.lcd-labels { display: flex; justify-content: space-between; padding: 5px 8px 0; font: 800 .62rem/1 Arial, sans-serif; letter-spacing: .03em; }
+.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 10px; margin: 30px 8% 0; }
+.k { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; color: #f2f0ea; touch-action: manipulation; min-width: 0; }
+.k .leg { font: 800 .6rem/1 Arial, sans-serif; white-space: nowrap; letter-spacing: .01em; min-height: .6rem; }
+.k .leg i { font-style: normal; opacity: .95; }
+.k .cap { width: 42px; height: 28px; border-radius: 3px; box-shadow: 0 3px 0 rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.45); transition: transform .05s; }
+.k:active .cap, .k.down .cap { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.65); }
+.k.y .cap { background: linear-gradient(#ffd83a, #e9b916); }
+.k.o .cap { background: linear-gradient(#ff7a3d, #e3531d); }
+.k.g .cap { background: linear-gradient(#9fa39c, #7d817a); }
+.k.lit .cap { outline: 2px solid #fff; outline-offset: 1px; }
+.prog-help { font-size: .78rem; color: var(--muted); margin: 10px 0 0; max-width: 340px; }
 
 /* ---------- ladder ---------- */
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-width: 0; margin-top: 20px; }
@@ -99,13 +108,16 @@ th { color: var(--muted); font-weight: 600; }
 .picker button.active { background: var(--text); color: var(--panel); }
 details { margin-top: 12px; font-size: .85rem; }
 code { font-family: var(--mono); }
+kbd { font: 700 .75rem var(--mono); border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .hw, .grid { grid-template-columns: 1fr; }
-  .prog { max-width: 420px; margin: 0 auto; width: 100%; }
 }
 @media (max-width: 600px) {
-  .toggles { grid-template-columns: repeat(8, minmax(0, 1fr)); row-gap: 10px; }
+  .toggles { grid-template-columns: repeat(6, minmax(0, 1fr)); row-gap: 10px; }
+  .k .cap { width: 36px; height: 25px; }
+  .k .leg { font-size: .52rem; }
+  .keys { gap: 9px 6px; }
 }
 `;
 
@@ -113,35 +125,42 @@ const MARKUP = `
 <main>
   <header>
     <h1>Virtual MicroGEM</h1>
-    <p>A GEC MicroGEM style programmable controller running in software. Flip the inputs, watch the outputs and the ladder, and program it from the hand-held programmer or the text editor. <span class="conn" id="conn">Connecting…</span></p>
+    <p>A GEC MicroGEM60 controller running in software. Flip the inputs, watch the relay outputs and the ladder, and program it from the MicroGEM Programmer or the text editor. <span class="conn" id="conn">Connecting…</span></p>
   </header>
 
   <div class="hw">
-    <section aria-label="MicroGEM controller">
+    <section aria-label="MicroGEM60 controller">
       <div class="unit" id="unit"></div>
       <div class="sim">
         <div class="sim-head">
-          <span>INPUT SIMULATOR</span>
+          <span>INPUT SIMULATOR · switches wired to the input terminals</span>
           <span class="seg" id="mode"><button data-mode="toggle" class="active">LATCH</button><button data-mode="momentary">PUSH</button></span>
         </div>
         <div class="toggles" id="toggles"></div>
       </div>
     </section>
 
-    <section aria-label="Hand-held programmer">
-      <div class="prog" id="prog" tabindex="0">
-        <div class="prog-top"><span>MICROGEM PROGRAMMER</span><span id="prog-mode">MON</span></div>
-        <div class="lcd"><div id="lcd1"></div><div id="lcd2"></div><div class="lbl"><span>ADDR</span><span>VALUE</span></div></div>
-        <div class="keys" id="keys"></div>
-        <p class="prog-help" id="prog-help"></p>
-      </div>
+    <section class="progwrap" aria-label="MicroGEM Programmer">
       <div class="cable"></div>
+      <div class="prog" id="prog" tabindex="0">
+        <div class="prog-head">
+          <button class="keyswitch" id="keyswitch" title="Key switch: RUN / HALT"><span class="barrel"></span></button>
+          <div class="keypos"><span id="kp-run">RUN</span><br><span id="kp-halt">HALT</span></div>
+          <div class="brand">MICROGEM<small>PROGRAMMER</small></div>
+        </div>
+        <div class="lcdbox">
+          <div class="lcd"><div id="lcd1"></div><div id="lcd2"></div></div>
+          <div class="lcd-labels"><span>ADDR</span><span>VALUE</span><span>LOC'N</span></div>
+        </div>
+        <div class="keys" id="keys"></div>
+      </div>
+      <p class="prog-help" id="prog-help"></p>
     </section>
   </div>
 
   <section class="panel">
     <h2>Ladder diagram</h2>
-    <p class="hint">Live: green wires carry power, lit contacts are closed. Click a rung to select it in the programmer and the text.</p>
+    <p class="hint">Live: green wires carry power, lit contacts are closed. Click a rung to select it on the programmer and in the text.</p>
     <div class="crt" id="ladder"></div>
   </section>
 
@@ -153,7 +172,7 @@ const MARKUP = `
       <div class="row"><button class="btn primary" id="load">Load program</button><span class="message" id="message"></span></div>
       <details>
         <summary>Language reference</summary>
-        <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A, outputs are B, workspace is G H L N O U, retained workspace is R W.</p>
+        <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A (terminals 00–11 are <code>A0.0</code>–<code>A0.11</code>), relay outputs are B (<code>B0.0</code>–<code>B0.7</code>), workspace is G H L N O S U, retained workspace is R W.</p>
         <p><b>Contacts:</b> <code>A0.0</code>, <code>NOT A0.0</code>, <code>RISE A0.0</code>, <code>FALL A0.0</code>, <code>TRUE</code>, joined with <code>AND</code>, <code>OR</code> and brackets. Word comparisons: <code>G1 GE 5</code> (EQ NE GT LT GE LE).</p>
         <p><b>Outputs:</b> a bit address is a coil; <code>SET B0.0</code>, <code>RESET B0.0</code>; <code>DELAY 2.5s G0.1</code>; <code>COUNT 10 G1 G0.2</code>; <code>CLEAR G1</code>; <code>OUT 42 G2</code>; <code>ADD G1 G2 G3</code> (also SUB MULT DIV). Separate several with commas.</p>
         <p><b>Flags (read-only):</b> <code>E0.0</code> pulses every 0.1 s, <code>E0.1</code> every second, <code>E0.6</code> after a program load, <code>E0.7</code> when ADD or SUB hits the limit. <code>E1</code> to <code>E6</code> hold the time and date, <code>E7</code> the last scan time in ms. Hex numbers: <code>@00FF</code>.</p>
@@ -169,7 +188,104 @@ const MARKUP = `
   </div>
 </main>`;
 
-/** Talks to the standalone server at ./ws */
+// ---------------------------------------------------------------------------
+// The MicroGEM60 controller front panel, drawn as SVG from a photo of the real
+// unit. The real panel has no per-terminal LEDs; we add a small lamp beside
+// each terminal number so the I/O state is visible.
+
+function inputLabels(n) {
+  if (n === 12) return ["00", "01", "02", "C", "03", "04", "05", "HI", "06", "07", "08", "C", "09", "10", "11", "LO"];
+  const out = [];
+  for (let i = 0; i < n; i++) { out.push(String(i).padStart(2, "0")); if (i % 3 === 2 && i < n - 1) out.push("C"); }
+  return out.concat(["HI", "LO"]);
+}
+
+function unitSvg(nIn, nOut) {
+  const W = 1024, H = 318;
+  const screw = (x, y, r = 11) => `<g><circle cx="${x}" cy="${y}" r="${r}" fill="url(#screwg)" stroke="#111" stroke-width="1.5"/>
+    <path d="M${x - r * .55} ${y}h${r * 1.1}M${x} ${y - r * .55}v${r * 1.1}" stroke="#2a2a2a" stroke-width="2.4"/></g>`;
+  const block = (x, y, w, h, n, sy) => {
+    let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="#5b5f5d"/>
+      <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="3" fill="url(#cover)"/>`;
+    const st = w / n;
+    for (let i = 0; i < n; i++) s += `<circle cx="${x + st * (i + .5)}" cy="${sy}" r="${Math.min(12, st / 2 - 3)}" fill="#3f4342" stroke="#2a2c2b"/>
+      <circle cx="${x + st * (i + .5)}" cy="${sy}" r="${Math.min(8, st / 2 - 6)}" fill="#4f5352"/>`;
+    return s;
+  };
+
+  // Inputs: one terminal per label, label strip underneath.
+  const labels = inputLabels(nIn);
+  const ix = 106, iw = 535, ist = iw / labels.length;
+  let inputs = block(ix, 6, iw, 80, labels.length, 34);
+  let k = 0;
+  labels.forEach((lab, i) => {
+    const cx = ix + ist * (i + .5);
+    inputs += `<rect x="${ix + ist * i + 1}" y="90" width="${ist - 2}" height="22" fill="#222" stroke="#555" stroke-width=".6"/>`;
+    if (/^\d+$/.test(lab)) {
+      inputs += `<circle class="led g" id="in-${k}" cx="${cx - 11}" cy="101" r="3.4"/>
+        <text x="${cx + 3}" y="106" class="tl">${lab}</text>`;
+      k++;
+    } else inputs += `<text x="${cx}" y="106" class="tl">${lab}</text>`;
+  });
+
+  // Relay outputs: two terminals per output, label strip above.
+  const ox = 382, ow = 538, ost = ow / nOut;
+  let outputs = block(ox, 172, ow, 98, nOut * 2, 236);
+  for (let i = 0; i < nOut; i++) {
+    const x = ox + ost * i;
+    outputs += `<rect x="${x + 1}" y="146" width="${ost - 2}" height="22" fill="#222" stroke="#555" stroke-width=".6"/>
+      <circle class="led" id="out-${i}" cx="${x + ost / 2 - 14}" cy="157" r="3.6"/>
+      <text x="${x + ost / 2 + 2}" y="162" class="tl">${String(i).padStart(2, "0")}</text>`;
+  }
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="GEC MicroGEM60 controller with ${nIn} inputs and ${nOut} relay outputs">
+  <defs>
+    <radialGradient id="screwg" cx=".35" cy=".35" r=".8"><stop offset="0" stop-color="#6a6a6a"/><stop offset="1" stop-color="#1e1e1e"/></radialGradient>
+    <linearGradient id="cover" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#232323"/><stop offset="1" stop-color="#101010"/></linearGradient>
+    <filter id="glow" x="-2" y="-2" width="5" height="5"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>
+      .tl{font:700 12px Arial,sans-serif;fill:#eee;text-anchor:middle}
+      .lb{font:700 12.5px Arial,sans-serif;fill:#eee;text-anchor:middle;letter-spacing:.02em}
+    </style>
+  </defs>
+  <rect x="2" y="${H - 26}" width="${W - 4}" height="24" rx="4" fill="#e3c25a"/>
+  <rect x="0" y="0" width="${W}" height="${H - 18}" rx="10" fill="url(#body)" stroke="#000" stroke-width="2"/>
+  ${screw(52, 36)}${screw(966, 36)}${screw(52, 226)}${screw(966, 220)}
+  <text x="58" y="94" class="lb" style="text-anchor:middle">SINK/</text>
+  <text x="58" y="110" class="lb">SOURCE</text><text x="58" y="126" class="lb">INPUTS</text>
+  ${inputs}
+  <rect x="676" y="40" width="44" height="34" rx="2" fill="#090909" stroke="#333"/>
+  <g transform="translate(748,14)">
+    <text x="24" y="21" style="font:900 26px Arial Black,Arial,sans-serif;fill:#eee">GEC</text>
+    <text x="96" y="10" style="font:700 11px Arial;fill:#eee">Industrial</text><text x="96" y="23" style="font:700 11px Arial;fill:#eee">Controls Ltd.</text>
+    <text x="96" y="34" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">KIDSGROVE</text><text x="96" y="43" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">ENGLAND</text>
+    <text x="32" y="40" style="font:600 7.5px Arial;fill:#ddd">Made in U.K</text>
+  </g>
+  <rect x="760" y="64" width="222" height="44" rx="2" fill="#0a0a0a"/>
+  <rect x="770" y="70" width="202" height="32" rx="1" fill="#d9d6cc"/>
+  ${Array.from({ length: 20 }, (_, i) => `<rect x="${776 + i * 9.8}" y="76" width="6" height="7" fill="#7d796f"/><rect x="${776 + i * 9.8}" y="89" width="6" height="7" fill="#7d796f"/>`).join("")}
+  <text x="372" y="138" style="font:900 21px Arial Black,Arial,sans-serif;fill:#f2f2f2;letter-spacing:.01em">MICROGEM60</text>
+  <text x="530" y="138" style="font:800 16px Arial,sans-serif;fill:#f2f2f2">CONTROLLER</text>
+  <text x="182" y="146" class="lb">SUPPLY</text><text x="182" y="160" class="lb">ON</text>
+  <circle class="led" id="led-supply" cx="182" cy="176" r="5"/>
+  <text x="252" y="146" class="lb">BATTERY</text><text x="252" y="160" class="lb">LOW</text>
+  <circle class="led" id="led-batt" cx="252" cy="176" r="5"/>
+  <text x="322" y="146" class="lb">W/DOG</text><text x="322" y="160" class="lb">O.K.</text>
+  <circle class="led g" id="led-wdog" cx="322" cy="176" r="5"/>
+  <text x="152" y="196" class="lb">A.C.SUPPLY</text>
+  <text x="114" y="220" style="font:700 18px Arial;fill:#eee;text-anchor:middle">~</text>
+  <text x="152" y="220" style="font:700 18px Arial;fill:#eee;text-anchor:middle">~</text>
+  <text x="186" y="220" style="font:700 14px Arial;fill:#eee;text-anchor:middle">⏚</text>
+  ${block(98, 226, 106, 52, 3, 248)}
+  <rect x="306" y="186" width="68" height="34" fill="none" stroke="#666"/>
+  <text x="340" y="200" class="lb" style="font-size:11px">W/DOG</text><text x="340" y="214" class="lb" style="font-size:11px">OUTPUT</text>
+  ${block(306, 222, 68, 56, 2, 244)}
+  ${outputs}
+  <text x="970" y="146" class="lb">RELAY</text><text x="970" y="160" class="lb">OUTPUTS</text>
+</svg>`;
+}
+
 export function websocketTransport(url) {
   let ws = null;
   return {
@@ -206,56 +322,6 @@ export function homeAssistantTransport(hass, entryId) {
         .catch((err) => deliver({ type: "error", message: err.message || String(err) }));
     },
   };
-}
-
-// ---------------------------------------------------------------------------
-// The MicroGEM unit, drawn as SVG.
-
-function unitSvg(nIn, nOut) {
-  const W = 760, H = 330, x0 = 70, x1 = W - 40;
-  const step = (n) => (x1 - x0) / Math.max(n, 1);
-  const terms = (n, y, kind, prefix) => {
-    let s = "";
-    const st = step(n);
-    for (let i = 0; i < n; i++) {
-      const cx = x0 + st * (i + 0.5);
-      s += `<g><rect x="${cx - st / 2 + 2}" y="${y}" width="${st - 4}" height="30" rx="2" fill="#2a2a27"/>
-        <circle cx="${cx}" cy="${y + 15}" r="${Math.min(9, st / 2 - 4)}" fill="url(#screw)"/>
-        <line x1="${cx - 5}" y1="${y + 15}" x2="${cx + 5}" y2="${y + 15}" stroke="#4b4740" stroke-width="2"/></g>`;
-      const ly = kind === "in" ? y + 54 : y - 26;
-      s += `<circle class="led ${kind}" id="${kind}-${i}" cx="${cx}" cy="${ly}" r="6"/>
-        <text x="${cx}" y="${kind === "in" ? ly + 18 : ly - 11}" text-anchor="middle" class="num">${i}</text>`;
-    }
-    s += `<text x="${x0 - 12}" y="${y + 20}" text-anchor="end" class="cap">${prefix}</text>`;
-    return s;
-  };
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="MicroGEM unit with ${nIn} inputs and ${nOut} outputs">
-  <defs>
-    <linearGradient id="caseg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3dccb"/><stop offset="1" stop-color="#c3b99f"/></linearGradient>
-    <radialGradient id="screw" cx=".35" cy=".35" r=".8"><stop offset="0" stop-color="#f4f1ea"/><stop offset="1" stop-color="#8c8574"/></radialGradient>
-    <filter id="glow" x="-1" y="-1" width="3" height="3"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    <style>.num{font:700 10px Arial,sans-serif;fill:#4a4234}.cap{font:700 11px Arial,sans-serif;fill:#4a4234;letter-spacing:.12em}</style>
-  </defs>
-  <rect x="6" y="6" width="${W - 12}" height="${H - 12}" rx="14" fill="url(#caseg)" stroke="#9c9178" stroke-width="2"/>
-  <rect x="14" y="14" width="${W - 28}" height="${H - 28}" rx="10" fill="none" stroke="#f3eee2" stroke-opacity=".7"/>
-  <circle cx="30" cy="30" r="6" fill="url(#screw)"/><circle cx="${W - 30}" cy="30" r="6" fill="url(#screw)"/>
-  <circle cx="30" cy="${H - 30}" r="6" fill="url(#screw)"/><circle cx="${W - 30}" cy="${H - 30}" r="6" fill="url(#screw)"/>
-  ${terms(nIn, 26, "in", "IN")}
-  <rect x="${x0}" y="134" width="${x1 - x0}" height="62" rx="6" fill="#2f2a24"/>
-  <rect x="${x0 + 14}" y="146" width="62" height="38" rx="3" fill="#f1e7d0"/>
-  <text x="${x0 + 45}" y="173" text-anchor="middle" style="font:900 22px 'Arial Black',Arial,sans-serif;fill:#2f2a24;letter-spacing:.04em">GEC</text>
-  <text x="${x0 + 92}" y="175" style="font:700 24px Arial,sans-serif;fill:#f1e7d0;letter-spacing:.18em">MICROGEM</text>
-  <text x="${x0 + 94}" y="190" style="font:600 8px Arial,sans-serif;fill:#b9ad93;letter-spacing:.2em">PROGRAMMABLE CONTROLLER</text>
-  <g transform="translate(${x1 - 200},152)">
-    <circle class="led amber" id="led-power" cx="10" cy="14" r="6"/><text x="22" y="18" style="font:700 9px Arial;fill:#e9dfc8;letter-spacing:.1em">PWR</text>
-    <circle class="led in" id="led-run" cx="62" cy="14" r="6"/><text x="74" y="18" style="font:700 9px Arial;fill:#e9dfc8;letter-spacing:.1em">RUN</text>
-    <circle class="led out" id="led-halt" cx="112" cy="14" r="6"/><text x="124" y="18" style="font:700 9px Arial;fill:#e9dfc8;letter-spacing:.1em">HALT</text>
-    <circle cx="178" cy="14" r="12" fill="#14120f" stroke="#7b7262" stroke-width="2"/>
-    <circle cx="173" cy="11" r="1.6" fill="#9a917f"/><circle cx="183" cy="11" r="1.6" fill="#9a917f"/><circle cx="178" cy="19" r="1.6" fill="#9a917f"/>
-    <text x="178" y="38" text-anchor="middle" style="font:700 7px Arial;fill:#b9ad93;letter-spacing:.1em">PROG</text>
-  </g>
-  ${terms(nOut, H - 56, "out", "OUT")}
-</svg>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -461,19 +527,55 @@ function rungSvg(rung, index, live, timers, condWidth) {
 }
 
 // ---------------------------------------------------------------------------
-// The hand-held programmer.
+// The MicroGEM Programmer: 25 keys laid out and coloured as on the real one.
+// Each key has a main legend and a second legend (after the slash). The second
+// legend is used after CTRL, and automatically where it is the only sensible
+// meaning: ladder symbols while keying in a rung, table letters at the start
+// of an address.
 
 const KEYS = [
-  [["MON", "fn"], ["PROG", "fn"], ["RUN", "go"], ["HALT", "fn"], ["CLR", "fn"]],
-  [["-] [-", "sym", "NO"], ["-]/[-", "sym", "NC"], ["-( )-", "sym", "COIL"], ["-(S)-", "sym", "SET"], ["-(R)-", "sym", "RESET"]],
-  [["OR", "sym"], ["DELAY", "sym"], ["COUNT", "sym"], ["INS", ""], ["DEL", ""]],
-  [["7", "", "G"], ["8", "", "H"], ["9", "", "W"], ["ADDR", ""], ["PREV", ""]],
-  [["4", "", "C"], ["5", "", "D"], ["6", "", "R"], ["VALUE", ""], ["NEXT", ""]],
-  [["1", "", "A"], ["2", "", "B"], ["3", "", "E"], [".", ""], ["−", ""]],
-  [["TABLE", "fn"], ["0", "", "F"], ["ENTER", "go wide"], ["WRITE", "go"]],
+  ["ESC", "o"], ["◄", "o"], ["►", "y"], ["▲", "g"], ["▼", "g"],
+  ["PROG", "g", "-] [-"], ["7", "g", "-(C)-"], ["8", "g", "-(D)-"], ["9", "g", "I"], ["NEXT", "g", "Q"],
+  ["ADDR", "y", "-]/[-"], ["4", "g", "-(S)-"], ["5", "g", "BLK"], ["6", "g", "G"], ["PREV", "g", "W"],
+  ["CTRL", "y", "-( )-"], ["1", "y", "LINK"], ["2", "y", "JOIN"], ["3", "g", "C"], ["FIND", "o", "D"],
+  ["ENT", "y"], ["OD", "y", "ED"], ["0", "y", "MON"], ["BLNK", "y", "S"], ["DEL", "y"],
 ];
-const LETTER_OF = { 1: "A", 2: "B", 3: "E", 4: "C", 5: "D", 6: "R", 7: "G", 8: "H", 9: "W", 0: "F" };
-const LCD_W = 22;
+const SECOND = Object.fromEntries(KEYS.map(([p, , s]) => [p, s]));
+const SYMBOLS = new Set(["-] [-", "-]/[-", "-( )-", "-(S)-", "-(C)-", "-(D)-", "LINK", "JOIN", "BLK"]);
+// Table letters on the keys. I and Q are taken to mean the input (A) and
+// output (B) tables until we know the MicroGEM's own table names.
+const TABLE_KEY = { I: "A", Q: "B", G: "G", W: "W", C: "C", D: "D", S: "S" };
+const LCD_W = 16;
+
+const ELEMENTS = {
+  "-] [-": { prompts: ["ADDR?"], make: (a) => ["c", a[0]] },
+  "-]/[-": { prompts: ["ADDR?"], make: (a) => ["c", "NOT " + a[0]] },
+  "-( )-": { prompts: ["ADDR?"], make: (a) => ["a", a[0]] },
+  "-(S)-": { prompts: ["ADDR?"], make: (a) => ["a", "SET " + a[0]] },
+  "-(D)-": { prompts: ["TIME s?", "DONE BIT?"], make: (a) => ["a", `DELAY ${a[0]}s ${a[1]}`] },
+  "-(C)-": { prompts: ["PRESET?", "COUNT WORD?", "DONE BIT?"], make: (a) => ["a", `COUNT ${a[0]} ${a[1]} ${a[2]}`] },
+};
+
+// A rung being keyed in: a stack of open LINK sections, each a list of
+// parallel branches, each a list of series terms.
+const newDraft = () => ({ stack: [{ branches: [[]] }], acts: [], history: [] });
+const joinBranches = (sec) => {
+  const bs = sec.branches.filter((b) => b.length).map((b) => b.join(" AND "));
+  if (!bs.length) return "";
+  return bs.length === 1 ? bs[0] : "(" + bs.join(" OR ") + ")";
+};
+function draftCond(d) {
+  const stack = JSON.parse(JSON.stringify(d.stack));
+  while (stack.length > 1) {
+    const s = joinBranches(stack.pop());
+    if (s) stack[stack.length - 1].branches.at(-1).push(s);
+  }
+  return joinBranches(stack[0]);
+}
+const draftText = (d) => {
+  const c = draftCond(d);
+  return (c || "") + (d.acts.length ? " -> " + d.acts.join(", ") : "");
+};
 
 class MicroGemPanel extends HTMLElement {
   constructor() {
@@ -509,13 +611,12 @@ class MicroGemPanel extends HTMLElement {
     let programDirty = false;
     let shownTable = "G";
     let selected = 0;
-    let draftRungs = null; // preview of the rung being keyed in
+    let draftRungs = null;
     let frame = 0;
 
-    // ---- programmer state ----
     const P = {
-      mode: "MON", field: "view", buf: "", addr: "G0", value: null, shift: false,
-      draft: { cond: "", acts: [] }, pending: null, prompts: [], answers: [], confirmDel: false, flash: "",
+      screen: "IDLE", ctrl: false, entry: null, addr: "G0", value: null,
+      draft: null, replace: false, pending: null, answers: [], confirmDel: false, flash: "", hscroll: null,
     };
 
     function el(tag, cls, text) {
@@ -530,7 +631,6 @@ class MicroGemPanel extends HTMLElement {
       $("message").classList.toggle("error", !!isError);
     }
 
-    // ---- build the hardware once we know the I/O count ----
     function build(nIn, nOut) {
       $("unit").innerHTML = unitSvg(nIn, nOut);
       const t = $("toggles");
@@ -538,8 +638,8 @@ class MicroGemPanel extends HTMLElement {
       t.replaceChildren();
       for (let i = 0; i < nIn; i++) {
         const b = el("button", "toggle");
-        b.title = `Input A${Math.floor(i / 16)}.${i % 16}`;
-        b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${i}</small>`;
+        b.title = `Input terminal ${String(i).padStart(2, "0")} (A${Math.floor(i / 16)}.${i % 16})`;
+        b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${String(i).padStart(2, "0")}</small>`;
         b.addEventListener("click", () => { if (mode === "toggle") send({ type: "input", index: i, value: !state.inputs[i] }); });
         const press = (v) => (e) => { if (mode === "momentary") { e.preventDefault(); send({ type: "input", index: i, value: v }); } };
         b.addEventListener("pointerdown", press(true));
@@ -548,13 +648,16 @@ class MicroGemPanel extends HTMLElement {
         t.append(b);
       }
       const keys = $("keys");
-      for (const row of KEYS) for (const [label, cls, sub] of row) {
-        const k = el("button", "key " + (cls || ""));
+      for (const [label, colour, second] of KEYS) {
+        const k = el("button", "k " + colour);
         k.dataset.key = label;
-        k.innerHTML = esc(label) + (sub ? `<small>${esc(sub)}</small>` : "");
-        k.addEventListener("click", () => key(label));
+        const shown = label === "0" ? "Ø" : label;
+        k.innerHTML = `<span class="leg">${esc(shown)}${second ? "/<i>" + esc(second) + "</i>" : ""}</span><span class="cap"></span>`;
+        k.setAttribute("aria-label", label + (second ? " / " + second : ""));
+        k.addEventListener("click", () => press(label));
         keys.append(k);
       }
+      $("keyswitch").addEventListener("click", () => send({ type: state.running ? "halt" : "run" }));
       built = true;
     }
 
@@ -566,10 +669,12 @@ class MicroGemPanel extends HTMLElement {
       const u = $("unit");
       state.inputs.forEach((v, i) => u.querySelector(`#in-${i}`)?.classList.toggle("on", v));
       state.outputs.forEach((v, i) => u.querySelector(`#out-${i}`)?.classList.toggle("on", v));
-      u.querySelector("#led-power")?.classList.add("on");
-      u.querySelector("#led-run")?.classList.toggle("on", state.running);
-      u.querySelector("#led-halt")?.classList.toggle("on", !state.running);
+      u.querySelector("#led-supply")?.classList.add("on");
+      u.querySelector("#led-wdog")?.classList.toggle("on", state.running);
       $("toggles").querySelectorAll(".toggle").forEach((n, i) => n.classList.toggle("on", state.inputs[i]));
+      $("keyswitch").classList.toggle("halt", !state.running);
+      $("kp-run").innerHTML = state.running ? "<b>RUN</b>" : "RUN";
+      $("kp-halt").innerHTML = state.running ? "HALT" : "<b>HALT</b>";
       renderLadder();
       renderTables();
       renderLcd();
@@ -605,55 +710,61 @@ class MicroGemPanel extends HTMLElement {
       }).join("");
     }
 
-    // ---- programmer ----
-    const pad = (s) => (s + " ".repeat(LCD_W)).slice(0, LCD_W);
-    const scroll = (s) => {
-      if (s.length <= LCD_W) return s;
-      const t = Math.floor(Date.now() / 350) % (s.length + 4);
-      return (s + "    " + s).slice(t, t + LCD_W);
-    };
+    // ---- the 2 x 16 display ----
+    const fit = (s) => (s + " ".repeat(LCD_W)).slice(0, LCD_W);
     const cursor = () => (Date.now() % 1000 < 500 ? "_" : " ");
-    const draftText = () => {
-      const d = P.draft;
-      return (d.cond || "") + (d.acts.length ? " -> " + d.acts.join(", ") : "");
+    const window16 = (s, manual) => {
+      if (s.length <= LCD_W) return s;
+      const span = s.length - LCD_W;
+      const auto = Math.floor(Date.now() / 450) % (span + 6);
+      const off = manual !== null ? Math.max(0, Math.min(span, manual)) : Math.max(0, Math.min(span, auto - 3));
+      return s.slice(off, off + LCD_W);
     };
-    const fmtVal = (v) => (typeof v === "boolean" ? (v ? "1  ON" : "0  OFF") : (v < 0 ? "-" : "+") + String(Math.abs(v)).padStart(5, "0"));
+    const fields = (addr, value, loc) =>
+      (addr || "").padEnd(5).slice(0, 5) + " " + (value || "").padStart(6).slice(-6) + " " + (loc || "").padStart(3).slice(-3);
+    const fmtVal = (v) => (v === null || v === undefined ? "" : typeof v === "boolean" ? (v ? "ON" : "OFF") : (v < 0 ? "-" : "+") + String(Math.abs(v)).padStart(5, "0"));
+    const loc = () => String(selected + 1).padStart(3, "0");
+
+    function lcdLines() {
+      const rungs = (state && state.ladder) || [];
+      if (P.flash) return [P.flash, ""];
+      if (P.confirmDel) return [`DELETE RUNG ${loc()}?`, "ENT=YES  ESC=NO"];
+      if (P.entry && P.entry.kind === "find") return ["FIND ADDR?", P.entry.buf + cursor()];
+      if (P.screen === "IDLE") return [state && state.running ? "MICROGEM RUNNING" : "MICROGEM HALTED", "SELECT MODE:"];
+      if (P.screen === "MON") {
+        let l1;
+        if (P.entry && P.entry.kind === "addr") l1 = "ADDR? " + P.entry.buf + cursor();
+        else if (P.entry && P.entry.kind === "value") l1 = "VALUE? " + P.entry.buf + cursor();
+        else if (typeof P.value === "number") l1 = (P.value & 0xffff).toString(2).padStart(16, "0");
+        else if (typeof P.value === "boolean") l1 = "MONITOR BIT " + (P.value ? "1" : "0");
+        else l1 = "MONITOR";
+        return [l1, fields(P.addr, fmtVal(P.value), "")];
+      }
+      // PROG
+      if (P.pending) return [P.pending.name + " " + P.pending.prompts[P.answers.length], "> " + (P.entry ? P.entry.buf : "") + cursor()];
+      if (P.draft) {
+        const t = draftText(P.draft) || "KEY CONTACTS...";
+        return [t.length > LCD_W ? t.slice(-LCD_W) : t, fields(P.replace ? "EDIT" : "NEW", "", loc())];
+      }
+      if (!rungs.length) return ["NO PROGRAM", "BLNK = NEW RUNG"];
+      const r = rungs[selected];
+      const text = r.source.split(";")[0].trim();
+      const out = r.actions[0] && (r.actions[0].addr || r.actions[0].done || r.actions[0].dest);
+      return [window16(text, P.hscroll), fields(out || "", out ? fmtVal(state.live[out]) : "", loc())];
+    }
 
     function renderLcd() {
-      let l1 = "", l2 = "";
-      const rungs = (state && state.ladder) || [];
-      if (P.flash) { l1 = P.flash; l2 = ""; }
-      else if (P.mode === "MON") {
-        l1 = "ADDR  " + (P.field === "addr" ? P.buf + cursor() : P.addr);
-        l2 = "VALUE " + (P.field === "value" ? P.buf + cursor() : P.value === null ? "-----" : fmtVal(P.value));
-      } else if (P.pending) {
-        const prompt = P.prompts[P.answers.length];
-        l1 = P.pending.label + " " + prompt;
-        l2 = "> " + P.buf + cursor();
-      } else if (P.field === "draft") {
-        l1 = "NEW RUNG  ENTER=keep";
-        l2 = scroll(draftText() || "key contacts...") + "";
-      } else if (P.confirmDel) {
-        l1 = `DELETE R${String(selected + 1).padStart(3, "0")}?`;
-        l2 = "ENTER=yes  CLR=no";
-      } else {
-        const r = rungs[selected];
-        l1 = rungs.length ? `R${String(selected + 1).padStart(3, "0")}/${String(rungs.length).padStart(3, "0")} ${r && r.comment ? r.comment : ""}` : "NO PROGRAM  INS=new";
-        l2 = r ? scroll(r.source.split(";")[0].trim()) : "";
-      }
-      $("lcd1").textContent = pad(l1);
-      $("lcd2").textContent = pad(l2);
-      $("prog-mode").textContent = P.mode + (P.shift ? " ·TABLE" : "");
-      root.querySelectorAll(".key").forEach((k) => {
-        const name = k.dataset.key;
-        k.classList.toggle("lit", (name === P.mode) || (name === "TABLE" && P.shift) || (name === "RUN" && state && state.running) || (name === "HALT" && state && !state.running));
-      });
-      $("prog-help").textContent = P.mode === "MON"
-        ? "MON: ADDR, a table (TABLE + key) and word, ENTER to watch. VALUE, number, ENTER to force it. PREV/NEXT step."
-        : "PROG: PREV/NEXT browse rungs. INS starts a rung: contact keys, OR, then a coil or block. ENTER keeps the rung, DEL removes one.";
+      const [l1, l2] = lcdLines();
+      $("lcd1").textContent = fit(l1);
+      $("lcd2").textContent = fit(l2);
+      root.querySelectorAll(".k").forEach((k) => k.classList.toggle("lit", k.dataset.key === "CTRL" && P.ctrl));
+      $("prog-help").innerHTML =
+        P.screen === "MON" ? "<b>Monitor:</b> ADDR, a table key (I = inputs, Q = outputs, G, W, C, D, S) then the word; ► types a dot for a bit. ENT to watch. Then type a number and ENT to force it. ▲▼ step through words."
+        : P.screen === "PROG" ? "<b>Program:</b> ▲▼ step through rungs, ◄► scroll. BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, LINK…JOIN for a parallel branch, then a coil, -(D)- delay or -(C)- count. ENT writes the rung, DEL undoes the last step."
+        : "<b>Select mode:</b> PROG to program, ADDR or Ø (MON) to monitor. The key switch sets RUN or HALT. With the programmer focused you can also use your keyboard.";
     }
     setInterval(() => { if (state) renderLcd(); }, 250);
-    setInterval(() => { if (P.mode === "MON" && P.field !== "addr") send({ type: "read", address: P.addr }); }, 300);
+    setInterval(() => { if (P.screen === "MON" && !(P.entry && P.entry.kind === "addr")) send({ type: "read", address: P.addr }); }, 300);
 
     function flash(text) {
       P.flash = text;
@@ -661,173 +772,236 @@ class MicroGemPanel extends HTMLElement {
       setTimeout(() => { P.flash = ""; renderLcd(); }, 1400);
     }
 
-    const ELEMENTS = {
-      "-] [-": { label: "-] [-", prompts: ["ADDR?"], make: (a) => ["c", a[0]] },
-      "-]/[-": { label: "-]/[-", prompts: ["ADDR?"], make: (a) => ["c", "NOT " + a[0]] },
-      "-( )-": { label: "-( )-", prompts: ["ADDR?"], make: (a) => ["a", a[0]] },
-      "-(S)-": { label: "-(S)-", prompts: ["ADDR?"], make: (a) => ["a", "SET " + a[0]] },
-      "-(R)-": { label: "-(R)-", prompts: ["ADDR?"], make: (a) => ["a", "RESET " + a[0]] },
-      DELAY: { label: "DELAY", prompts: ["TIME s?", "DONE BIT?"], make: (a) => ["a", `DELAY ${a[0]}s ${a[1]}`] },
-      COUNT: { label: "COUNT", prompts: ["PRESET?", "COUNT WORD?", "DONE BIT?"], make: (a) => ["a", `COUNT ${a[0]} ${a[1]} ${a[2]}`] },
-    };
+    // ---- key handling ----
+    const awaitingAddress = () =>
+      P.entry && (P.entry.kind === "addr" || P.entry.kind === "find" ||
+        (P.entry.kind === "prompt" && /ADDR|BIT|WORD/.test(P.pending.prompts[P.answers.length])));
 
-    function previewDraft() {
-      const text = draftText();
-      if (P.draft.acts.length) send({ type: "preview", source: text });
-      else if (P.draft.cond) send({ type: "preview", source: P.draft.cond + " -> G63.15" });
+    function resolve(k) {
+      if (k === "CTRL" && P.screen === "PROG" && P.draft && !P.entry && !P.ctrl) return "-( )-";
+      if (k === "CTRL" && !P.ctrl) { P.ctrl = true; return null; }
+      if (P.ctrl) { P.ctrl = false; return SECOND[k] || k; }
+      const second = SECOND[k];
+      if (P.entry) {
+        if (awaitingAddress() && !P.entry.buf && second && TABLE_KEY[second]) return "L:" + TABLE_KEY[second];
+        return k;
+      }
+      if (P.screen === "IDLE" && k === "0") return "MON";
+      if (P.screen === "PROG" && P.draft && second && SYMBOLS.has(second)) return second;
+      return k;
+    }
+
+    function press(k) {
+      const t = resolve(k);
+      if (t !== null) act(t);
+      renderLcd();
+    }
+
+    function act(t) {
+      // typing into an entry line
+      if (P.entry) {
+        const e = P.entry;
+        if (t.startsWith("L:")) { e.buf += t.slice(2); return; }
+        if (/^[0-9]$/.test(t)) { if (e.buf.length < 10) e.buf += t; return; }
+        if (t === "." || t === "►") { if (awaitingAddress() && e.buf && !e.buf.includes(".")) e.buf += "."; else if (!awaitingAddress() && !e.buf.includes(".")) e.buf += "."; return; }
+        if (t === "◄" || t === "BKSP") { e.buf = e.buf.slice(0, -1); return; }
+        if (t === "DEL") { e.buf = ""; return; }
+        if (t === "ESC") { P.entry = null; if (P.pending) P.pending = null; return; }
+        if (t === "ENT") return submitEntry();
+        if (P.screen === "MON" && e.kind === "value" && t === "-" && !e.buf) { e.buf = "-"; return; }
+        return; // other keys ignored while typing
+      }
+      if (P.confirmDel) {
+        if (t === "ENT") deleteRung();
+        P.confirmDel = false;
+        return;
+      }
+      switch (t) {
+        case "ESC":
+          if (P.draft) { P.draft = null; draftRungs = null; schedule(); }
+          else P.screen = "IDLE";
+          return;
+        case "MON": P.screen = "MON"; P.draft = null; return;
+        case "ADDR":
+          if (P.screen !== "PROG") { P.screen = "MON"; P.entry = { kind: "addr", buf: "" }; }
+          return;
+        case "PROG":
+          P.screen = "PROG"; P.draft = null; P.hscroll = null; selectLine(); schedule();
+          return;
+      }
+      if (P.screen === "MON") {
+        if (/^[0-9]$/.test(t)) { P.entry = { kind: "value", buf: t }; return; }
+        if (t === "▲" || t === "PREV") return stepAddr(-1, false);
+        if (t === "▼" || t === "NEXT") return stepAddr(1, false);
+        if (t === "◄") return stepAddr(-1, true);
+        if (t === "►") return stepAddr(1, true);
+        if (t === "FIND") { P.entry = { kind: "find", buf: "" }; return; }
+        if (t === "ENT") { P.entry = { kind: "value", buf: "" }; return; }
+        return;
+      }
+      if (P.screen === "PROG") return P.draft ? draftKey(t) : browseKey(t);
+      if (P.screen === "IDLE" && t === "FIND") { P.screen = "PROG"; P.entry = { kind: "find", buf: "" }; }
+    }
+
+    function browseKey(t) {
+      const n = (state.ladder || []).length;
+      if ((t === "▲" || t === "PREV") && n) { selected = (selected - 1 + n) % n; P.hscroll = null; selectLine(); schedule(); return; }
+      if ((t === "▼" || t === "NEXT") && n) { selected = (selected + 1) % n; P.hscroll = null; selectLine(); schedule(); return; }
+      if (t === "◄") { P.hscroll = Math.max(0, (P.hscroll ?? 0) - 4); return; }
+      if (t === "►") { P.hscroll = (P.hscroll ?? 0) + 4; return; }
+      if (t === "BLNK") { P.draft = newDraft(); P.replace = false; return; }
+      if (t === "ED" || t === "OD") { if (n) { P.draft = newDraft(); P.replace = true; } return; }
+      if (t === "DEL") { if (n) P.confirmDel = true; return; }
+      if (t === "FIND") { P.entry = { kind: "find", buf: "" }; return; }
+      if (SYMBOLS.has(t)) { P.draft = newDraft(); P.replace = false; return draftKey(t); }
+    }
+
+    function draftKey(t) {
+      const d = P.draft;
+      const snapshot = () => d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+      if (ELEMENTS[t]) {
+        const spec = ELEMENTS[t];
+        if (spec.make([""])[0] === "c" && d.acts.length) return flash("CONTACTS FIRST");
+        P.pending = { name: t, ...spec };
+        P.answers = [];
+        P.entry = { kind: "prompt", buf: "" };
+        return;
+      }
+      if (t === "LINK") {
+        if (d.acts.length) return flash("CONTACTS FIRST");
+        snapshot();
+        const top = d.stack.at(-1);
+        if (d.stack.length === 1 || !top.branches.at(-1).length) d.stack.push({ branches: [[]] });
+        else top.branches.push([]);
+        return preview();
+      }
+      if (t === "JOIN") {
+        if (d.stack.length === 1) return flash("NO LINK OPEN");
+        snapshot();
+        const s = joinBranches(d.stack.pop());
+        if (s) d.stack.at(-1).branches.at(-1).push(s);
+        return preview();
+      }
+      if (t === "BLK") return flash("BLK: USE TEXT");
+      if (t === "DEL") {
+        const h = d.history.pop();
+        if (h) { const o = JSON.parse(h); d.stack = o.stack; d.acts = o.acts; preview(); }
+        else { P.draft = null; draftRungs = null; schedule(); }
+        return;
+      }
+      if (t === "ENT") return writeRung();
+    }
+
+    function submitEntry() {
+      const e = P.entry;
+      const buf = e.buf;
+      if (e.kind === "addr") {
+        if (/^[A-Z]\d+(\.\d+)?$/.test(buf)) { P.addr = buf; P.value = null; send({ type: "read", address: buf }); P.entry = null; }
+        else flash("BAD ADDRESS");
+        return;
+      }
+      if (e.kind === "value") {
+        const v = Number(buf);
+        if (buf !== "" && !Number.isNaN(v)) send({ type: "write", address: P.addr, value: v });
+        P.entry = null;
+        return;
+      }
+      if (e.kind === "find") {
+        P.entry = null;
+        const rungs = state.ladder || [];
+        const n = rungs.length;
+        for (let i = 1; i <= n; i++) {
+          const j = (selected + i) % n;
+          if (new RegExp("(^|[^A-Z0-9.])" + buf.replace(".", "\\.") + "(?![0-9.])").test(rungs[j].source.split(";")[0])) {
+            P.screen = "PROG"; selected = j; P.hscroll = null; selectLine(); schedule(); return;
+          }
+        }
+        return flash("NOT FOUND");
+      }
+      if (e.kind === "prompt") {
+        const prompt = P.pending.prompts[P.answers.length];
+        if (!buf) return;
+        if (/ADDR|BIT/.test(prompt) && !/^[A-Z]\d+\.\d+$/.test(buf)) return flash("NEED BIT eg G0.1");
+        if (/WORD/.test(prompt) && !/^[A-Z]\d+$/.test(buf)) return flash("NEED WORD eg G1");
+        P.answers.push(buf);
+        e.buf = "";
+        if (P.answers.length < P.pending.prompts.length) return;
+        const [kind, text] = P.pending.make(P.answers);
+        const d = P.draft;
+        d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+        if (kind === "c") d.stack.at(-1).branches.at(-1).push(text);
+        else d.acts.push(text);
+        P.pending = null;
+        P.entry = null;
+        preview();
+      }
+    }
+
+    function preview() {
+      const d = P.draft;
+      const cond = draftCond(d);
+      if (d.acts.length) send({ type: "preview", source: (cond || "TRUE") + " -> " + d.acts.join(", ") });
+      else if (cond) send({ type: "preview", source: cond + " -> G63.15" });
       else { draftRungs = null; schedule(); }
     }
 
-    function commitRung() {
-      const text = draftText();
-      if (!P.draft.acts.length) { flash("NEEDS AN OUTPUT"); return; }
+    function writeRung() {
+      const d = P.draft;
+      if (!d.acts.length) return flash("NEEDS A COIL");
+      const text = (draftCond(d) || "TRUE") + " -> " + d.acts.join(", ");
       const lines = (state.program || "").split("\n");
       const rungs = state.ladder || [];
-      const at = rungs[selected] ? rungs[selected].line : lines.length;
-      lines.splice(at, 0, text);
+      if (P.replace && rungs[selected]) lines.splice(rungs[selected].line - 1, 1, text);
+      else {
+        const at = rungs[selected] ? rungs[selected].line : lines.length;
+        lines.splice(at, 0, text);
+        if (rungs.length) selected += 1;
+      }
       send({ type: "load", source: lines.join("\n") });
       programDirty = false;
-      P.field = "view"; P.draft = { cond: "", acts: [] }; draftRungs = null;
-      selected = Math.min(selected + 1, rungs.length);
-      flash("RUNG WRITTEN");
+      P.draft = null; draftRungs = null;
+      flash(P.replace ? "RUNG CHANGED" : "RUNG WRITTEN");
     }
 
-    function key(k) {
-      const digit = /^[0-9]$/.test(k);
-      if (k === "TABLE") { P.shift = !P.shift; return renderLcd(); }
-      if (digit && P.shift) { P.shift = false; return typed(LETTER_OF[k]); }
-      if (digit || k === "." || k === "−") return typed(k === "−" ? "-" : k);
-      P.shift = false;
-      switch (k) {
-        case "MON": case "PROG":
-          P.mode = k; P.field = k === "PROG" ? "view" : "view"; P.buf = ""; P.pending = null; P.confirmDel = false;
-          return renderLcd();
-        case "RUN": return send({ type: "run" });
-        case "HALT": return send({ type: "halt" });
-        case "CLR":
-          if (P.buf) P.buf = "";
-          else if (P.pending) P.pending = null;
-          else if (P.confirmDel) P.confirmDel = false;
-          else if (P.field === "draft") { P.field = "view"; P.draft = { cond: "", acts: [] }; draftRungs = null; schedule(); }
-          else P.field = "view";
-          return renderLcd();
-        case "ADDR": if (P.mode === "MON") { P.field = "addr"; P.buf = ""; } return renderLcd();
-        case "VALUE": if (P.mode === "MON") { P.field = "value"; P.buf = ""; } return renderLcd();
-        case "PREV": case "NEXT": return step(k === "NEXT" ? 1 : -1);
-        case "INS":
-          if (P.mode !== "PROG") { P.mode = "PROG"; }
-          P.field = "draft"; P.draft = { cond: "", acts: [] }; P.pending = null;
-          return renderLcd();
-        case "DEL":
-          if (P.mode === "PROG" && P.field === "view" && (state.ladder || []).length) P.confirmDel = true;
-          return renderLcd();
-        case "OR":
-          if (P.mode === "PROG" && P.field === "draft" && P.draft.cond && !P.draft.acts.length) {
-            P.draft.cond = "(" + P.draft.cond + ") OR";
-            P.orPending = true;
-          }
-          return renderLcd();
-        case "ENTER": return enter();
-        case "WRITE":
-          if (P.mode === "PROG" && P.field === "draft" && !P.pending) return commitRung();
-          return enter();
-      }
-      if (ELEMENTS[k]) {
-        if (P.mode !== "PROG" || P.field !== "draft") { P.mode = "PROG"; P.field = "draft"; P.draft = { cond: "", acts: [] }; }
-        const spec = ELEMENTS[k];
-        if (spec.make([""])[0] === "c" && P.draft.acts.length) { flash("CONTACTS FIRST"); return; }
-        P.pending = spec; P.prompts = spec.prompts; P.answers = []; P.buf = "";
-        return renderLcd();
-      }
+    function deleteRung() {
+      const rungs = state.ladder || [];
+      if (!rungs[selected]) return;
+      const lines = state.program.split("\n");
+      lines.splice(rungs[selected].line - 1, 1);
+      send({ type: "load", source: lines.join("\n") });
+      programDirty = false;
+      selected = Math.max(0, selected - 1);
+      flash("RUNG DELETED");
     }
 
-    function typed(ch) {
-      if (P.mode === "MON" && P.field === "view") { P.field = "addr"; P.buf = ""; }
-      if (P.mode === "PROG" && !P.pending) return;
-      if (P.buf.length < 12) P.buf += ch;
-      renderLcd();
+    function stepAddr(d, bitwise) {
+      const m = /^([A-Z])(\d+)(?:\.(\d+))?$/.exec(P.addr);
+      if (!m) return;
+      const [, t, w, b] = m;
+      let word = Number(w);
+      if (b !== undefined || bitwise) {
+        let bit = (b === undefined ? 0 : Number(b)) + (bitwise ? d : 0);
+        if (!bitwise) word = Math.max(0, word + d);
+        if (bit > 15) { bit = 0; word++; } if (bit < 0) { bit = 15; word = Math.max(0, word - 1); }
+        P.addr = `${t}${word}.${bit}`;
+      } else P.addr = `${t}${Math.max(0, word + d)}`;
+      P.value = null;
+      send({ type: "read", address: P.addr });
     }
 
-    function step(d) {
-      if (P.mode === "MON") {
-        const m = /^([A-Z])(\d+)(?:\.(\d+))?$/.exec(P.addr);
-        if (!m) return;
-        let [, t, w, b] = m;
-        if (b !== undefined) {
-          let bit = Number(b) + d, word = Number(w);
-          if (bit > 15) { bit = 0; word++; } if (bit < 0) { bit = 15; word = Math.max(0, word - 1); }
-          P.addr = `${t}${word}.${bit}`;
-        } else P.addr = `${t}${Math.max(0, Number(w) + d)}`;
-        P.value = null;
-        send({ type: "read", address: P.addr });
-      } else {
-        const n = (state.ladder || []).length;
-        if (n) selected = (selected + d + n) % n;
-        P.confirmDel = false;
-        selectLine();
-        schedule();
-      }
-      renderLcd();
-    }
-
-    function enter() {
-      if (P.mode === "MON") {
-        if (P.field === "addr") {
-          if (/^[A-Z]\d+(\.\d+)?$/.test(P.buf)) { P.addr = P.buf; P.value = null; send({ type: "read", address: P.addr }); }
-          else flash("BAD ADDRESS");
-          P.field = "view"; P.buf = "";
-        } else if (P.field === "value") {
-          const v = P.buf.startsWith("@") ? parseInt(P.buf.slice(1), 16) : Number(P.buf);
-          if (P.buf !== "" && !Number.isNaN(v)) send({ type: "write", address: P.addr, value: v });
-          P.field = "view"; P.buf = "";
-        }
-        return renderLcd();
-      }
-      if (P.confirmDel) {
-        const rungs = state.ladder || [];
-        const lines = state.program.split("\n");
-        lines.splice(rungs[selected].line - 1, 1);
-        send({ type: "load", source: lines.join("\n") });
-        programDirty = false;
-        P.confirmDel = false;
-        selected = Math.max(0, selected - 1);
-        flash("RUNG DELETED");
-        return;
-      }
-      if (P.pending) {
-        if (!P.buf) return;
-        P.answers.push(P.buf);
-        P.buf = "";
-        if (P.answers.length < P.prompts.length) return renderLcd();
-        const [kind, text] = P.pending.make(P.answers);
-        if (kind === "c") {
-          if (!P.draft.cond) P.draft.cond = text;
-          else if (P.orPending) { P.draft.cond += " " + text; P.orPending = false; }
-          else P.draft.cond += " AND " + text;
-        } else {
-          if (!P.draft.cond) P.draft.cond = "TRUE";
-          P.draft.acts.push(text);
-        }
-        P.pending = null;
-        previewDraft();
-        return renderLcd();
-      }
-      if (P.field === "draft") return commitRung();
-    }
-
-    // physical keyboard on the programmer
+    // your computer keyboard works on the programmer too
     $("prog").addEventListener("keydown", (e) => {
-      const map = { Enter: "ENTER", Escape: "CLR", Backspace: "CLR", ArrowDown: "NEXT", ArrowRight: "NEXT", ArrowUp: "PREV", ArrowLeft: "PREV", Delete: "DEL", Insert: "INS", "-": "−", ".": "." };
+      const map = { Enter: "ENT", Escape: "ESC", ArrowUp: "▲", ArrowDown: "▼", ArrowLeft: "◄", ArrowRight: "►", Delete: "DEL", Insert: "BLNK", Control: "CTRL" };
       let k = map[e.key];
+      if (e.key === "Backspace") { e.preventDefault(); if (P.entry) act("BKSP"); else press("DEL"); return renderLcd(); }
+      if (/^[a-zA-Z]$/.test(e.key) && P.entry) { e.preventDefault(); P.entry.buf += e.key.toUpperCase(); return renderLcd(); }
+      if (e.key === "." || e.key === "-") { e.preventDefault(); act(e.key); return renderLcd(); }
       if (!k && /^[0-9]$/.test(e.key)) k = e.key;
-      if (!k && /^[a-zA-Z]$/.test(e.key) && (P.field === "addr" || P.pending)) { e.preventDefault(); return typed(e.key.toUpperCase()); }
-      if (!k && e.key === "@") { e.preventDefault(); return typed("@"); }
       if (!k) return;
       e.preventDefault();
-      if (k === "CLR" && e.key === "Backspace" && P.buf) { P.buf = P.buf.slice(0, -1); return renderLcd(); }
-      const btn = root.querySelector(`.key[data-key="${CSS.escape(k)}"]`);
+      const btn = root.querySelector(`.k[data-key="${CSS.escape(k)}"]`);
       if (btn) { btn.classList.add("down"); setTimeout(() => btn.classList.remove("down"), 120); }
-      key(k);
+      press(k);
     });
 
     function selectLine() {
@@ -844,7 +1018,7 @@ class MicroGemPanel extends HTMLElement {
       const r = e.target.closest(".rung");
       if (!r || r.classList.contains("draft")) return;
       selected = Number(r.dataset.i);
-      P.mode = "PROG"; P.field = "view"; P.pending = null; P.confirmDel = false;
+      P.screen = "PROG"; P.draft = null; P.entry = null; P.pending = null; P.confirmDel = false; P.hscroll = null;
       selectLine();
       schedule();
     });
@@ -853,11 +1027,12 @@ class MicroGemPanel extends HTMLElement {
       if (msg.type === "state") {
         state = Object.assign(state || {}, msg);
         if (state.ladder && selected >= state.ladder.length) selected = Math.max(0, state.ladder.length - 1);
-        if (P.mode === "MON" && state.live && P.addr in state.live) P.value = state.live[P.addr];
+        if (P.screen === "MON" && state.live && P.addr in state.live) P.value = state.live[P.addr];
         schedule();
       } else if (msg.type === "value") {
         if (msg.address === P.addr) { P.value = msg.value; renderLcd(); }
       } else if (msg.type === "preview") {
+        if (!P.draft) return;
         draftRungs = msg.rungs;
         if (!P.draft.acts.length && draftRungs[0]) draftRungs[0].actions = [];
         schedule();
@@ -865,7 +1040,7 @@ class MicroGemPanel extends HTMLElement {
         programDirty = false;
         setMessage("Program loaded.");
       } else if (msg.type === "error") {
-        if (P.mode === "PROG" && P.field === "draft") flash("ERROR: " + msg.message.slice(0, 14));
+        if (P.screen === "PROG" || P.screen === "MON") flash("ERROR");
         setMessage(msg.message, true);
       }
     }

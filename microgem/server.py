@@ -76,8 +76,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--program", type=Path, help="program file to load at start-up")
-    parser.add_argument("--inputs", type=int, default=16)
-    parser.add_argument("--outputs", type=int, default=16)
+    parser.add_argument("--inputs", type=int, default=12)
+    parser.add_argument("--outputs", type=int, default=8)
     args = parser.parse_args(argv)
 
     source = args.program.read_text() if args.program else EXAMPLE_PROGRAM

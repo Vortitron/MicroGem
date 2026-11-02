@@ -8,7 +8,7 @@ Table meanings follow the GEM80-500 Technical Manual (T2025, Table 5-5):
 
 * ``A`` inputs, ``B`` outputs
 * ``C``/``D`` remote I/O receive/transmit, ``J``/``K`` serial receive/transmit
-* ``G H L N O U`` general workspace
+* ``G H L N O U`` general workspace, ``S`` (MicroGEM programmer key) workspace
 * ``R W`` retained workspace (survive a Halt/Run transition)
 * ``E`` flags and clock, ``F`` fault codes, ``P`` presets, ``I`` serial link control
 """
@@ -18,7 +18,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-TABLE_LETTERS = "ABCDEFGHIJKLNOPRUW"
+TABLE_LETTERS = "ABCDEFGHIJKLNOPRSUW"
 
 #: Tables that keep their contents across a Halt -> Run transition.
 RETAINED_TABLES = frozenset("APRW")

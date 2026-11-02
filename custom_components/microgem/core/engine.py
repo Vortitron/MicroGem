@@ -53,8 +53,8 @@ class ControllerConfig:
     """
 
     name: str = "MicroGEM"
-    inputs: int = 16
-    outputs: int = 16
+    inputs: int = 12
+    outputs: int = 8
 
 
 class Controller:

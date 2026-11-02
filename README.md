@@ -16,17 +16,23 @@ python -m microgem --program my_program.txt --port 8080
 
 The page shows:
 
-- the **MicroGEM unit**: input and output terminals with their LEDs, PWR/RUN/HALT;
+- the **MicroGEM60 controller**, drawn from a photo of the real unit: 12
+  sink/source inputs (00 to 11, words A0.0 to A0.11), 8 relay outputs (B0.0 to
+  B0.7), and the SUPPLY ON, BATTERY LOW and W/DOG O.K. lamps. The real unit has
+  no per-terminal LEDs; small ones are added here so you can see the I/O;
 - an **input simulator** board of toggle switches (latching or push-button);
-- the **hand-held programmer**: a 2-line display and full keypad.
-  - *MON*: `ADDR`, then a table (`TABLE` + a key, e.g. `TABLE 7` = G) and word, `ENTER` to
-    watch it live; `VALUE`, a number, `ENTER` to force it; `PREV`/`NEXT` step.
-  - *PROG*: `PREV`/`NEXT` browse rungs; `INS` starts a rung, then contact keys
-    (`-] [-`, `-]/[-`), `OR` for a parallel branch, and a coil or block
-    (`-( )-`, `-(S)-`, `-(R)-`, `DELAY`, `COUNT`), each followed by its address and
-    `ENTER`; `ENTER` again writes the rung. `DEL` removes the selected rung.
-  - With the programmer focused, the computer keyboard works too (digits,
-    letters, Enter, Esc, arrows).
+- the **MicroGEM Programmer**, with its key switch (RUN/HALT), 2×16 display and
+  all 25 keys. `CTRL` gives a key its second legend.
+  - *MON* (`Ø`): `ADDR`, a table key (`I` = A inputs, `Q` = B outputs, `G`,
+    `W`, `C`, `D`, `S`) and a word or bit (`►` types the dot), `ENT` to watch
+    it live; then a number and `ENT` to force it. `NEXT`/`PREV` step.
+  - *PROG*: `▲▼` step through rungs, `◄►` scroll. `BLNK` starts a new rung,
+    `ED` re-keys the selected one, `DEL` then `ENT` deletes it, `FIND` jumps to
+    an address. Inside a rung the keys give their symbols: `-] [-`, `-]/[-`,
+    `-( )-`, `-(S)-` (set), `-(D)-` (delay) and `-(C)-` (count), each followed by
+    an address. `LINK` opens a parallel branch (or starts the next one), `JOIN`
+    closes it. `ENT` writes the rung, `DEL` undoes the last step.
+  - With the programmer focused, the computer keyboard works too.
 - a live **ladder diagram** with power rails, contacts, coils and function
   blocks, where powered wires and closed contacts light up;
 - the full **program text** editor, and a data-table monitor.
@@ -106,10 +112,11 @@ pytest -c tests_ha/pytest.ini --rootdir=. tests_ha
 
 ## Not known yet
 
-- The MicroGEM's real I/O count and front panel. 16 inputs and 16 outputs are
-  placeholders (`--inputs` / `--outputs` change them).
-- How programs were keyed in on the MicroGEM programmer (an ADDR / VALUE
-  keypad).
+- The exact key sequences of the real programmer. The layout and legends come
+  from a photo; what each key did (the I/Q table mapping, `-(S)-` as set, how
+  LINK/JOIN build branches, RESET only in text) is a best guess.
+- The default 12 inputs / 8 outputs match the MicroGEM60; `--inputs` /
+  `--outputs` change them.
 
 ## Tests
 

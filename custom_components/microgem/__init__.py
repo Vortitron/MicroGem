@@ -90,8 +90,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
 
     config = ControllerConfig(
         name=entry.title,
-        inputs=int(entry.data.get(CONF_INPUTS, 16)),
-        outputs=int(entry.data.get(CONF_OUTPUTS, 16)),
+        inputs=int(entry.data.get(CONF_INPUTS, 12)),
+        outputs=int(entry.data.get(CONF_OUTPUTS, 8)),
     )
     try:
         service = ControllerService(config, saved.get("program", EXAMPLE_PROGRAM))
