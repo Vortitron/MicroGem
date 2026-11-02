@@ -18,8 +18,8 @@ The page shows:
 
 - the **MicroGEM60 controller**, drawn from a photo of the real unit: 12
   sink/source inputs (00 to 11, words A0.0 to A0.11), 8 relay outputs (B0.0 to
-  B0.7), and the SUPPLY ON, BATTERY LOW and W/DOG O.K. lamps. The real unit has
-  no per-terminal LEDs; small ones are added here so you can see the I/O;
+  B0.7), a red LED under each terminal number, and the SUPPLY ON, BATTERY LOW
+  and W/DOG O.K. lamps;
 - an **input simulator** board of toggle switches (latching or push-button);
 - the **MicroGEM Programmer**, with its key switch (RUN/HALT), 2×16 display and
   all 25 keys. `CTRL` gives a key its second legend.

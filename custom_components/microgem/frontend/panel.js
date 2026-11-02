@@ -190,8 +190,7 @@ const MARKUP = `
 
 // ---------------------------------------------------------------------------
 // The MicroGEM60 controller front panel, drawn as SVG from a photo of the real
-// unit. The real panel has no per-terminal LEDs; we add a small lamp beside
-// each terminal number so the I/O state is visible.
+// unit. Each input and output has a small red LED under its terminal number.
 
 function inputLabels(n) {
   if (n === 12) return ["00", "01", "02", "C", "03", "04", "05", "HI", "06", "07", "08", "C", "09", "10", "11", "LO"];
@@ -220,12 +219,12 @@ function unitSvg(nIn, nOut) {
   let k = 0;
   labels.forEach((lab, i) => {
     const cx = ix + ist * (i + .5);
-    inputs += `<rect x="${ix + ist * i + 1}" y="90" width="${ist - 2}" height="22" fill="#222" stroke="#555" stroke-width=".6"/>`;
+    inputs += `<rect x="${ix + ist * i + 1}" y="89" width="${ist - 2}" height="27" fill="#222" stroke="#555" stroke-width=".6"/>`;
     if (/^\d+$/.test(lab)) {
-      inputs += `<circle class="led g" id="in-${k}" cx="${cx - 11}" cy="101" r="3.4"/>
-        <text x="${cx + 3}" y="106" class="tl">${lab}</text>`;
+      inputs += `<text x="${cx}" y="101" class="tl">${lab}</text>
+        <circle class="led" id="in-${k}" cx="${cx}" cy="109.5" r="3"/>`;
       k++;
-    } else inputs += `<text x="${cx}" y="106" class="tl">${lab}</text>`;
+    } else inputs += `<text x="${cx}" y="104" class="tl">${lab}</text>`;
   });
 
   // Relay outputs: two terminals per output, label strip above.
@@ -233,9 +232,9 @@ function unitSvg(nIn, nOut) {
   let outputs = block(ox, 172, ow, 98, nOut * 2, 236);
   for (let i = 0; i < nOut; i++) {
     const x = ox + ost * i;
-    outputs += `<rect x="${x + 1}" y="146" width="${ost - 2}" height="22" fill="#222" stroke="#555" stroke-width=".6"/>
-      <circle class="led" id="out-${i}" cx="${x + ost / 2 - 14}" cy="157" r="3.6"/>
-      <text x="${x + ost / 2 + 2}" y="162" class="tl">${String(i).padStart(2, "0")}</text>`;
+    outputs += `<rect x="${x + 1}" y="142" width="${ost - 2}" height="28" fill="#222" stroke="#555" stroke-width=".6"/>
+      <text x="${x + ost / 2}" y="155" class="tl">${String(i).padStart(2, "0")}</text>
+      <circle class="led" id="out-${i}" cx="${x + ost / 2}" cy="163" r="3.2"/>`;
   }
 
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="GEC MicroGEM60 controller with ${nIn} inputs and ${nOut} relay outputs">
