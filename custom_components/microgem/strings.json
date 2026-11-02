@@ -1,0 +1,31 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add a virtual MicroGEM",
+        "description": "A GEM 80 style programmable controller. Its inputs become switches and its outputs become binary sensors, and it gets its own front panel in the sidebar.",
+        "data": {
+          "name": "Name",
+          "inputs": "Number of inputs",
+          "outputs": "Number of outputs"
+        }
+      }
+    }
+  },
+  "services": {
+    "load_program": {
+      "name": "Load program",
+      "description": "Replaces the ladder program on a virtual MicroGEM. The old program is kept if the new one has a mistake.",
+      "fields": {
+        "config_entry_id": {
+          "name": "Controller",
+          "description": "The virtual MicroGEM to program."
+        },
+        "program": {
+          "name": "Program",
+          "description": "One rung per line, for example: A0.0 AND NOT A0.1 -> B0.0"
+        }
+      }
+    }
+  }
+}

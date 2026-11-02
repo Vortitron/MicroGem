@@ -11,6 +11,8 @@ import time
 from collections.abc import Callable
 
 from .engine import Controller, ControllerConfig
+from .program import ProgramError
+from .tables import AddressError
 
 SCAN_INTERVAL_MS = 20
 
@@ -83,7 +85,7 @@ class ControllerService:
         return state
 
     def _notify_if_changed(self, force: bool = False) -> None:
-        state = self.controller.snapshot()
+        state = self.state()
         comparable = {k: v for k, v in state.items() if k != "scan_count"}
         if force or comparable != self._last_state:
             self._last_state = comparable
@@ -108,3 +110,28 @@ class ControllerService:
         """Install a new program; raises ProgramError and keeps the old one on a mistake."""
         self.controller.load(source)
         self._notify_if_changed(force=True)
+
+    def command(self, message: dict) -> dict | None:
+        """Apply one command from a front end and return a reply, if any.
+
+        Commands: ``{"type": "input", "index": 0, "value": true}``, ``{"type": "run"}``,
+        ``{"type": "halt"}`` and ``{"type": "load", "source": "..."}``.
+        """
+        kind = message.get("type")
+        try:
+            if kind == "input":
+                self.set_input(int(message["index"]), bool(message["value"]))
+            elif kind == "run":
+                self.run()
+            elif kind == "halt":
+                self.halt()
+            elif kind == "load":
+                self.load(str(message["source"]))
+                return {"type": "loaded"}
+            else:
+                return {"type": "error", "message": f"unknown command {kind!r}"}
+        except ProgramError as exc:
+            return {"type": "error", "message": str(exc), "line": exc.line}
+        except (AddressError, IndexError, KeyError, TypeError, ValueError) as exc:
+            return {"type": "error", "message": str(exc)}
+        return None

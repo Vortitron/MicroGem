@@ -5,20 +5,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import weakref
 from pathlib import Path
 
 from aiohttp import WSMsgType, web
 
 from .engine import ControllerConfig
-from .program import ProgramError
 from .service import EXAMPLE_PROGRAM, ControllerService
-from .tables import AddressError
 
 WEB_DIR = Path(__file__).parent / "web"
 
 SERVICE_KEY = web.AppKey("service", ControllerService)
-SOCKETS_KEY = web.AppKey("sockets", weakref.WeakSet)
 
 
 async def index(request: web.Request) -> web.FileResponse:
@@ -27,28 +23,6 @@ async def index(request: web.Request) -> web.FileResponse:
 
 async def api_state(request: web.Request) -> web.Response:
     return web.json_response(request.app[SERVICE_KEY].state())
-
-
-def handle_command(service: ControllerService, message: dict) -> dict | None:
-    """Apply one command from a front end. Returns a reply, if any."""
-    kind = message.get("type")
-    try:
-        if kind == "input":
-            service.set_input(int(message["index"]), bool(message["value"]))
-        elif kind == "run":
-            service.run()
-        elif kind == "halt":
-            service.halt()
-        elif kind == "load":
-            service.load(str(message["source"]))
-            return {"type": "loaded"}
-        else:
-            return {"type": "error", "message": f"unknown command {kind!r}"}
-    except ProgramError as exc:
-        return {"type": "error", "message": str(exc), "line": exc.line}
-    except (AddressError, IndexError, KeyError, ValueError) as exc:
-        return {"type": "error", "message": str(exc)}
-    return None
 
 
 async def websocket(request: web.Request) -> web.WebSocketResponse:
@@ -70,7 +44,7 @@ async def websocket(request: web.Request) -> web.WebSocketResponse:
                 message = json.loads(msg.data)
             except json.JSONDecodeError:
                 continue
-            reply = handle_command(service, message)
+            reply = service.command(message)
             if reply:
                 await ws.send_json(reply)
     finally:

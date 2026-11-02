@@ -21,3 +21,6 @@ include = ["microgem*"]
 
 [tool.setuptools.package-data]
 microgem = ["web/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -16,6 +16,8 @@ list of coils and function blocks the rung drives.
     G1 GE 5 -> B0.3
     TRUE -> ADD G1 100 G2
 
+Numbers can be decimal or GEM 80 hex (``@00FF``).
+
 Contacts: ``A0.0`` (normally open), ``NOT A0.0`` (normally closed),
 ``RISE A0.0`` / ``FALL A0.0`` (one-scan pulse on a change), ``TRUE``, and word
 comparisons ``<word|number> EQ|NE|GT|LT|GE|LE <word|number>``.
@@ -223,6 +225,9 @@ class _Parser:
         if token is not None and re.fullmatch(r"-?\d+", token):
             self.pos += 1
             return int(token)
+        if token is not None and re.fullmatch(r"@[0-9A-Fa-f]{1,4}", token):
+            self.pos += 1
+            return to_signed(int(token[1:], 16))  # GEM 80 writes hex as @FFFF
         return self.address(bit=False)
 
     # condition := term (OR term)*

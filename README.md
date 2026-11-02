@@ -52,10 +52,41 @@ G1 GE 5 -> B0.3
 TRUE -> ADD G1 100 G2                ; also SUB MULT DIV, saturating at +/-32767
 ```
 
+Read-only flags follow the GEM80-400 manual (T1614): `E0.0` pulses for one
+scan every 0.1 s, `E0.1` every second, `E0.6` after a program change, `E0.7`
+when ADD/SUB saturates; `E1`-`E6` hold seconds, minutes, hours, day, month,
+year; `E7` the previous scan time in ms. Hex numbers are written `@00FF`.
+
 This notation is **provisional**. The real operand syntax is in the GEM 80
 *Ladder Diagram Language Programming Manual* (T391), which we have not found
 yet. The instruction names and ranges (DELAY, COUNT, SET/RESET coils, data
 tables) come from the GEM80-500 Technical Manual (T2025).
+
+## Home Assistant
+
+`custom_components/microgem` is a custom integration (installable through HACS
+as a custom repository). Add **Virtual MicroGEM** under Settings > Devices &
+services, choose a name and the number of inputs and outputs, and you get:
+
+- a switch for each input (`switch.<name>_input_a0_0` ...): automations can
+  "press" the controller's inputs,
+- a binary sensor for each output (`binary_sensor.<name>_output_b0_0` ...):
+  use these in automations to switch real lights,
+- a **Run** switch (off = HALT, all outputs off),
+- the front panel and program editor in the sidebar (admins only),
+- a `microgem.load_program` action.
+
+The program and Run/Halt state survive restarts. The integration carries a copy
+of the engine in `custom_components/microgem/core`; after changing anything in
+`microgem/`, run `python scripts/sync_ha_core.py` (a test checks they match).
+
+Integration tests use `pytest-homeassistant-custom-component` and
+`home-assistant-frontend`:
+
+```sh
+pip install pytest-homeassistant-custom-component home-assistant-frontend
+pytest -c tests_ha/pytest.ini --rootdir=. tests_ha
+```
 
 ## Not known yet
 

@@ -143,3 +143,31 @@ def test_out_of_range_address_rejected_on_load():
     plc = Controller()
     with pytest.raises(AddressError):
         plc.load("A0.0 -> G999.0")
+
+
+def test_e_table_timing_markers_clock_and_scan_time():
+    import time as _time
+
+    fixed = _time.struct_time((1987, 6, 5, 21, 30, 15, 4, 156, 1))
+    plc = Controller(clock=lambda: fixed)
+    plc.load("E0.1 -> COUNT 100 G0 G1.0\nE0.6 -> SET G2.0")
+    plc.run()
+    for _ in range(150):  # 3 seconds of 20 ms scans
+        plc.scan(20)
+    assert plc.tables.get_word(Address("G", 0)) == 3
+    assert plc.tables.get_bit(Address("G", 2, 0))  # recompile flag seen once
+    assert not plc.tables.get_bit(Address("E", 0, 6))
+    assert [plc.tables.get_word(Address("E", w)) for w in range(1, 7)] == [15, 30, 21, 5, 6, 1987]
+    assert plc.tables.get_word(Address("E", 7)) == 20
+
+
+def test_limit_flag_and_hex_numbers():
+    plc = make("TRUE -> OUT @7FFF G0\nTRUE -> ADD G0 1 G1\nE0.7 -> B0.0\nG0 EQ 32767 -> B0.1")
+    plc.scan(20)
+    assert plc.output(0) and plc.output(1)
+
+
+def test_e_table_is_read_only():
+    plc = Controller()
+    with pytest.raises(ProgramError, match="read-only"):
+        plc.load("A0.0 -> E0.0")
