@@ -1,0 +1,36 @@
+name: Bug report
+description: Something in the virtual MicroGEM does not work as it should
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: program
+    attributes:
+      label: Ladder program
+      description: The program text, if the problem is with how a program runs.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Virtual MicroGEM version
+      placeholder: "0.4.0"
+    validations:
+      required: true
+  - type: input
+    id: ha
+    attributes:
+      label: Home Assistant version
+      description: Leave empty if you run the standalone page.
+      placeholder: "2026.11.0"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log lines
+      description: Anything from the Home Assistant log that mentions microgem.
+      render: text

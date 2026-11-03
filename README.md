@@ -1,21 +1,96 @@
 # Virtual MicroGEM
 
+[![HACS](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
+[![Release](https://img.shields.io/github/v/release/Vortitron/MicroGem)](https://github.com/Vortitron/MicroGem/releases)
+[![Validate](https://github.com/Vortitron/MicroGem/actions/workflows/validate.yml/badge.svg)](https://github.com/Vortitron/MicroGem/actions/workflows/validate.yml)
+[![Tests](https://github.com/Vortitron/MicroGem/actions/workflows/tests.yml/badge.svg)](https://github.com/Vortitron/MicroGem/actions/workflows/tests.yml)
+
 A software emulation of the GEC **MicroGEM** programmable controller, with the
 bigger **GEM 80** as the longer-term goal. It runs a ladder program against
-GEM 80 style data tables and shows a front panel in your browser whose input
-and output lights change live. A Home Assistant integration lets the
-virtual controller switch real lights.
+GEM 80 style data tables and shows a front panel whose input and output lights
+change live. In Home Assistant the virtual controller's relays can switch real
+lights, and its inputs can be wired to real sensors.
 
-## Run it
+![The virtual MicroGEM60 controller and programmer in Home Assistant, with one input and one relay output wired to entities](https://raw.githubusercontent.com/Vortitron/MicroGem/main/docs/images/front-panel.png)
 
-```sh
-pip install -e .
-python -m microgem            # then open http://127.0.0.1:8080
-python -m microgem --program my_program.txt --port 8080
-python -m microgem --expansions 2   # add two expansion units
-```
+## Install in Home Assistant
 
-The page shows:
+Needs Home Assistant 2025.1 or later.
+
+### With HACS
+
+[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Vortitron&repository=MicroGem&category=integration)
+
+Or by hand: open HACS (the **Marketplace** from Home Assistant 2026.11) >
+three-dot menu > **Custom repositories**, add
+`https://github.com/Vortitron/MicroGem` as type **Integration**, download
+**Virtual MicroGEM** and restart Home Assistant.
+
+### Without HACS
+
+Download `microgem.zip` from the [latest release](https://github.com/Vortitron/MicroGem/releases/latest),
+unzip it into `config/custom_components/microgem/` and restart Home Assistant.
+
+## Set up
+
+[![Open your Home Assistant instance and start setting up Virtual MicroGEM.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=microgem)
+
+Add **Virtual MicroGEM** under Settings > Devices & services, choose a name and
+how many expansion units it has (0 to 7; you can change this later under
+**Configure**). You can add more than one controller. You get:
+
+- a switch for each input (`switch.<name>_input_a0_0` ...): automations can
+  "press" the controller's inputs,
+- a binary sensor for each output (`binary_sensor.<name>_output_b0_0` ...):
+  use these in automations to switch real lights,
+- a **Run** switch (off = HALT, all outputs off),
+- a **Watchdog** binary sensor, the W/DOG OUTPUT contacts: on after three
+  clean scans in Run, off in Halt, and off with a trip when the program holds a
+  non-zero code in `F1` for 100 ms (GEM80-400 manual T1614, 2.12; its
+  `trip_code` attribute holds the code). Use it to interlock anything the
+  controller drives,
+- the front panel and program editor in the sidebar (admins only), with links
+  to all of these entities,
+- a `microgem.load_program` action.
+
+The program and Run/Halt state survive restarts.
+
+### Field wiring
+
+You can also wire terminals straight to Home Assistant entities, as you would
+cable a real controller, with no automations. Click an input terminal or a
+relay output on the controller drawing in the panel and pick an entity. The
+picker searches names and ids as you type (`*` matches anything, so
+`kitchen*light` finds "Kitchen ceiling light"), and buttons narrow it to
+switches, lights, sensors, helpers and so on. It starts on switches.
+
+- an **input** follows the entity's state: the contact is closed while it is
+  on, open, home, playing and so on, and open while it is off, closed, away,
+  unavailable and so on. You can read one of its attributes instead, and give a
+  threshold so the contact closes while a number is above it (a temperature,
+  say). **Invert** makes it a normally closed contact, closed while the entity
+  is off. A missing or unavailable entity always leaves the contact open. A
+  wired input's simulator switch is greyed out;
+- a **relay output** switches the entity on and off with the relay
+  (`homeassistant.turn_on` / `turn_off`, so lights, switches, fans, helpers,
+  covers and so on). Buttons are pressed, and scenes, scripts and automations
+  run, each time the relay closes. A newly wired entity is put in step with its
+  relay at once; after that it changes only when the relay does.
+
+The controller's own input switches and output sensors are its internal I/O,
+so they are left out of the list and cannot be wired to a terminal.
+
+The cables and the entity names are drawn on the controller (click a name to change it), and listed under
+**Field wiring** in the panel. The wiring is kept in the config entry's
+options and changes take effect at once.
+
+To remove it, delete the controller under Settings > Devices & services, then
+remove **Virtual MicroGEM** in HACS and restart.
+
+## The front panel
+
+The same panel runs in the Home Assistant sidebar and as a standalone web page.
+It shows:
 
 - the **MicroGEM60 controller**, drawn from a photo of the real unit: 12
   sink/source inputs (00 to 11, words A0.0 to A0.11), 8 relay outputs (B0.0 to
@@ -57,6 +132,17 @@ The page shows:
   paths solid, dead paths dotted, with the time left above each DELAY, the
   count above each COUNT, and values above OUT and word elements;
 - the full **program text** editor, and a data-table monitor.
+
+![The live ladder diagram, drawn like the GEM 80 programmer screen](https://raw.githubusercontent.com/Vortitron/MicroGem/main/docs/images/ladder.png)
+
+## Run it without Home Assistant
+
+```sh
+pip install -e .
+python -m microgem            # then open http://127.0.0.1:8080
+python -m microgem --program my_program.txt --port 8080
+python -m microgem --expansions 2   # add two expansion units
+```
 
 ## How it works
 
@@ -114,71 +200,6 @@ Extensions that are not in a real GEM 80, kept for convenience and marked
 comparisons such as `G1 GE 5` (the real controller uses Special Functions),
 and `SET` / `RESET` outputs (the real one latches with a seal-in branch).
 
-## Home Assistant
-
-`custom_components/microgem` is a custom integration. To install it with HACS,
-open HACS (the **Marketplace** from Home Assistant 2026.11) > three-dot menu > **Custom repositories**, add
-`https://github.com/Vortitron/MicroGem` as type **Integration**, download
-**Virtual MicroGEM** and restart Home Assistant. (Or copy
-`custom_components/microgem` into your `config/custom_components/`.) Then add **Virtual MicroGEM** under Settings > Devices &
-services, choose a name and how many expansion units it has (0 to 7; you can
-change this later under **Configure**), and you get:
-
-- a switch for each input (`switch.<name>_input_a0_0` ...): automations can
-  "press" the controller's inputs,
-- a binary sensor for each output (`binary_sensor.<name>_output_b0_0` ...):
-  use these in automations to switch real lights,
-- a **Run** switch (off = HALT, all outputs off),
-- a **Watchdog** binary sensor, the W/DOG OUTPUT contacts: on after three
-  clean scans in Run, off in Halt, and off with a trip when the program holds a
-  non-zero code in `F1` for 100 ms (GEM80-400 manual T1614, 2.12; its
-  `trip_code` attribute holds the code). Use it to interlock anything the
-  controller drives,
-- the front panel and program editor in the sidebar (admins only), with links
-  to all of these entities,
-- a `microgem.load_program` action.
-
-### Field wiring
-
-You can also wire terminals straight to Home Assistant entities, as you would
-cable a real controller, with no automations. Click an input terminal or a
-relay output on the controller drawing in the panel and pick an entity. The
-picker searches names and ids as you type (`*` matches anything, so
-`kitchen*light` finds "Kitchen ceiling light"), and buttons narrow it to
-switches, lights, sensors, helpers and so on. It starts on switches.
-
-- an **input** follows the entity's state: the contact is closed while it is
-  on, open, home, playing and so on, and open while it is off, closed, away,
-  unavailable and so on. You can read one of its attributes instead, and give a
-  threshold so the contact closes while a number is above it (a temperature,
-  say). **Invert** makes it a normally closed contact, closed while the entity
-  is off. A missing or unavailable entity always leaves the contact open. A
-  wired input's simulator switch is greyed out;
-- a **relay output** switches the entity on and off with the relay
-  (`homeassistant.turn_on` / `turn_off`, so lights, switches, fans, helpers,
-  covers and so on). Buttons are pressed, and scenes, scripts and automations
-  run, each time the relay closes. A newly wired entity is put in step with its
-  relay at once; after that it changes only when the relay does.
-
-The controller's own input switches and output sensors are its internal I/O,
-so they are left out of the list and cannot be wired to a terminal.
-
-The cables and the entity names are drawn on the controller (click a name to change it), and listed under
-**Field wiring** in the panel. The wiring is kept in the config entry's
-options and changes take effect at once.
-
-The program and Run/Halt state survive restarts. The integration carries a copy
-of the engine in `custom_components/microgem/core`; after changing anything in
-`microgem/`, run `python scripts/sync_ha_core.py` (a test checks they match).
-
-Integration tests use `pytest-homeassistant-custom-component` and
-`home-assistant-frontend`:
-
-```sh
-pip install pytest-homeassistant-custom-component home-assistant-frontend
-pytest -c tests_ha/pytest.ini --rootdir=. tests_ha
-```
-
 ## Not known yet
 
 - The MicroGEM's own details. T391 covers the GEM 80; the MicroGEM programmer
@@ -189,9 +210,29 @@ pytest -c tests_ha/pytest.ini --rootdir=. tests_ha
 - The default 12 inputs / 8 outputs match the MicroGEM60; `--inputs` /
   `--outputs` change them.
 
-## Tests
+## Development
 
 ```sh
 pip install -e '.[test]'
-pytest
+pytest                                   # engine and standalone panel
+
+pip install pytest-homeassistant-custom-component home-assistant-frontend
+pytest -c tests_ha/pytest.ini --rootdir=. tests_ha   # Home Assistant integration
 ```
+
+HACS installs only `custom_components/microgem`, so the integration carries a
+copy of the engine in `custom_components/microgem/core`. After changing
+anything in `microgem/`, run `python scripts/sync_ha_core.py` (a test checks
+they match). [RELEASING.md](RELEASING.md) explains how to cut a release.
+
+## Disclaimer
+
+This is an independent hobby project. It is not made, endorsed or supported by
+GEC, GEC Industrial Controls, Cegelec, Alstom, Converteam, GE or any of their
+successors. The names GEC, GEM 80 and MicroGEM are used only to say which
+hardware is being emulated. Do not use it to control anything where a fault
+could hurt someone.
+
+## Licence
+
+[MIT](LICENSE)
