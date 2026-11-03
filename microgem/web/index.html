@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual MicroGEM</title>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #e9e6df; }
+  @media (prefers-color-scheme: dark) { html, body { background: #1b1a18; } }
+</style>
+</head>
+<body>
+<microgem-panel id="panel"></microgem-panel>
+<script type="module">
+  import { websocketTransport } from "./static/panel.js";
+  const url = new URL("ws", location.href);
+  url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  document.getElementById("panel").transport = websocketTransport(url);
+</script>
+</body>
+</html>

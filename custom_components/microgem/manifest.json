@@ -1,0 +1,13 @@
+{
+  "domain": "microgem",
+  "name": "Virtual MicroGEM",
+  "codeowners": ["@Vortitron"],
+  "config_flow": true,
+  "dependencies": ["http", "frontend", "panel_custom", "websocket_api"],
+  "documentation": "https://github.com/Vortitron/MicroGem",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/Vortitron/MicroGem/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

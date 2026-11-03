@@ -1,0 +1,13 @@
+load_program:
+  fields:
+    config_entry_id:
+      required: true
+      selector:
+        config_entry:
+          integration: microgem
+    program:
+      required: true
+      example: "A0.0 AND NOT A0.1 -> B0.0"
+      selector:
+        text:
+          multiline: true

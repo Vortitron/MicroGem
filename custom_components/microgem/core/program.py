@@ -1,0 +1,583 @@
+"""A text form of GEM 80 ladder rungs, and its parser.
+
+The elements and their behaviour follow the GEM 80 *Ladder Diagram Programming
+Manual* (T391, issue 4). A 16-bit word flows along each rung from left to
+right: the left rail feeds in -1 (@FFFF, all bits set), a contact passes the
+word on or blocks it to 0, and a rung is ON when its word is not zero.
+
+Each line is one rung. The elements are written left to right, and ``->``
+comes before the one output element in the top-right corner of the rung::
+
+    ; comment lines above a rung become its title
+    A0.0 AND NOT A0.1 -> B0.0                 contacts in series, then a COIL
+    (A0.2 OR B0.1) AND NOT A0.3 -> B0.1       parallel branches joined (wired OR)
+    A0.4 DELAY G10 VALUE 25 -> B0.2           on-delay of 2.5 s (VALUE is in 0.1 s)
+    A0.5 COUNT G11 VALUE 10 RESET A0.6 -> B0.3
+    E0.1 -> SEQR G12 RESET A0.7               sequencer: one bit walks left
+    AND G1 ADD 5 -> OUT G2                    plant G1 on the rung, add 5, OUT to G2
+    A1.0 AND @00FF -> OUT G3                  mask with a constant (@ is hex)
+    A1.1 -> BLOCK                             OBEY BLOCK: the rungs up to
+    ...                                       the matching END BLOCK only run
+    END BLOCK                                 while A1.1 is on
+
+Contacts: ``A0.0`` (N/O), ``NOT A0.0`` (N/C), ``TRUE`` (a plain wire).
+``AND``, ``OR`` and ``XOR`` between contacts mean series and parallel wiring;
+followed by a number or a word address they are the 16-bit logic elements.
+``INV`` inverts all 16 bits, and ``NOT (...)`` is a group followed by INV.
+
+Word elements: ``AND OR XOR ADD SUB MULT DIV`` take a number, a word address,
+or a second branch in square brackets (``ADD [A0.3 AND G4]``, which the
+programmer builds with JOIN). ``MULT`` and ``DIV`` are the GEM 80 Special
+Functions T10 and T11. ``DELAY w VALUE v`` and ``COUNT w VALUE v [RESET c]``
+work as in the manual: the word ``w`` holds the time left (0.1 s units) or the
+count (bits 0 to 14, with bit 15 the last input).
+
+Output elements: a bit address is a COIL; ``OUT w`` writes the rung word;
+``SEQR w [RESET c]``; ``BLOCK`` (OBEY BLOCK). ``END BLOCK`` (or ``BLOCK`` on
+its own) closes a block.
+
+Not in the GEM 80, kept as marked extensions for convenience: ``RISE``/``FALL``
+contacts (one-scan pulses), word comparisons such as ``G1 GE 5`` (the real
+controller uses Special Functions), and ``SET``/``RESET`` latching outputs (the
+GEM 80 latches with a seal-in branch).
+"""
+
+from __future__ import annotations
+
+import itertools
+import re
+from dataclasses import dataclass, field
+
+from .tables import Address, AddressError, clamp16, parse_address, to_signed
+
+COMPARISONS = {
+    "EQ": lambda a, b: a == b,
+    "NE": lambda a, b: a != b,
+    "GT": lambda a, b: a > b,
+    "LT": lambda a, b: a < b,
+    "GE": lambda a, b: a >= b,
+    "LE": lambda a, b: a <= b,
+}
+
+LOGIC = {
+    "AND": lambda a, b: a & b,
+    "OR": lambda a, b: a | b,
+    "XOR": lambda a, b: a ^ b,
+}
+
+ARITHMETIC = {
+    "ADD": lambda a, b: a + b,
+    "SUB": lambda a, b: a - b,
+    "MULT": lambda a, b: a * b,
+    "DIV": lambda a, b: int(a / b) if b else 0,
+}
+
+# Special Function numbers of the arithmetic that is not a key of its own.
+SPECIAL = {"MULT": "T10", "DIV": "T11"}
+
+VALUE_MAX = 32767
+RAIL = -1  # the left rail feeds 16 bits all set
+
+_TOKEN_RE = re.compile(r"\s*(->|\(|\)|\[|\]|,|(?:(?!->)[^\s()\[\],])+)")
+
+
+class ProgramError(ValueError):
+    def __init__(self, message: str, line: int | None = None) -> None:
+        self.line = line
+        super().__init__(f"line {line}: {message}" if line else message)
+
+
+_ids = itertools.count(1)
+
+
+def _nid() -> int:
+    return next(_ids)
+
+
+# --- rung elements -----------------------------------------------------------
+# Every element has an ``nid`` so the controller can report the word it passed
+# on, which the ladder monitor uses to draw live and dead paths.
+
+@dataclass(frozen=True, eq=False)
+class Contact:
+    address: Address
+    normally_closed: bool = False
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Edge:
+    """Extension: on for one scan when the bit changes."""
+
+    address: Address
+    rising: bool = True
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Constant:
+    value: bool
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Compare:
+    """Extension: -1 when the comparison holds, else 0."""
+
+    op: str
+    left: Address | int
+    right: Address | int
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Branch:
+    """A second rung branch from the left rail, feeding an element (JOIN)."""
+
+    node: object
+
+
+@dataclass(frozen=True, eq=False)
+class Logic:
+    op: str  # AND OR XOR
+    operand: Address | int | Branch
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Inv:
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Arith:
+    op: str  # ADD SUB MULT DIV
+    operand: Address | int | Branch
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Delay:
+    word: Address
+    value: Address | int
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Count:
+    word: Address
+    value: Address | int
+    reset: object | None = None
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Series:
+    items: tuple
+    nid: int = field(default_factory=_nid)
+
+
+@dataclass(frozen=True, eq=False)
+class Parallel:
+    items: tuple
+    nid: int = field(default_factory=_nid)
+
+
+# --- output elements ---------------------------------------------------------
+
+@dataclass(frozen=True, eq=False)
+class Coil:
+    address: Address
+
+
+@dataclass(frozen=True, eq=False)
+class Out:
+    address: Address
+
+
+@dataclass(frozen=True, eq=False)
+class Seqr:
+    address: Address
+    reset: object | None = None
+
+
+@dataclass(frozen=True, eq=False)
+class ObeyBlock:
+    pass
+
+
+@dataclass(frozen=True, eq=False)
+class EndBlock:
+    pass
+
+
+@dataclass(frozen=True, eq=False)
+class Latch:
+    """Extension: SET or RESET a bit while the rung is on."""
+
+    address: Address
+    set: bool
+
+
+@dataclass(frozen=True, eq=False)
+class Rung:
+    condition: object | None  # None: the output joins straight to the left rail
+    output: object
+    line: int
+    source: str
+    comment: str = ""
+    end: int | None = None  # for an OBEY BLOCK, the index of its END BLOCK rung
+
+
+@dataclass
+class Program:
+    rungs: list[Rung] = field(default_factory=list)
+    source: str = ""
+
+    def edge_addresses(self) -> set[Address]:
+        return {n.address for rung in self.rungs for n in walk(rung) if isinstance(n, Edge)}
+
+
+def walk(rung: Rung):
+    """Every element of a rung, including those in RESET and JOIN branches."""
+
+    def visit(node: object):
+        if node is None:
+            return
+        yield node
+        if isinstance(node, (Series, Parallel)):
+            for item in node.items:
+                yield from visit(item)
+        elif isinstance(node, (Logic, Arith)) and isinstance(node.operand, Branch):
+            yield from visit(node.operand.node)
+        elif isinstance(node, Count):
+            yield from visit(node.reset)
+
+    yield from visit(rung.condition)
+    if isinstance(rung.output, Seqr):
+        yield from visit(rung.output.reset)
+
+
+def addresses(rung: Rung) -> list[Address]:
+    found: list[Address] = []
+    for node in itertools.chain(walk(rung), [rung.output]):
+        for name in ("address", "word", "value", "operand", "left", "right"):
+            value = getattr(node, name, None)
+            if isinstance(value, Address):
+                found.append(value)
+    return found
+
+
+# --- JSON form, for drawing ladder diagrams ---------------------------------
+
+def _operand(value: object) -> object:
+    if isinstance(value, Branch):
+        return node_to_json(value.node)
+    return str(value)
+
+
+def node_to_json(node: object) -> dict:
+    if isinstance(node, Contact):
+        return {"t": "contact", "id": node.nid, "addr": str(node.address), "nc": node.normally_closed}
+    if isinstance(node, Edge):
+        return {"t": "edge", "id": node.nid, "addr": str(node.address), "rising": node.rising}
+    if isinstance(node, Constant):
+        return {"t": "const", "id": node.nid, "value": node.value}
+    if isinstance(node, Compare):
+        return {"t": "cmp", "id": node.nid, "op": node.op,
+                "left": _operand(node.left), "right": _operand(node.right)}
+    if isinstance(node, Logic):
+        return {"t": "logic", "id": node.nid, "op": node.op, "arg": _operand(node.operand)}
+    if isinstance(node, Inv):
+        return {"t": "inv", "id": node.nid}
+    if isinstance(node, Arith):
+        return {"t": "arith", "id": node.nid, "op": node.op, "spec": SPECIAL.get(node.op),
+                "arg": _operand(node.operand)}
+    if isinstance(node, Delay):
+        return {"t": "delay", "id": node.nid, "word": str(node.word), "value": str(node.value)}
+    if isinstance(node, Count):
+        return {"t": "count", "id": node.nid, "word": str(node.word), "value": str(node.value),
+                "reset": node_to_json(node.reset) if node.reset is not None else None}
+    if isinstance(node, Series):
+        return {"t": "series", "id": node.nid, "items": [node_to_json(i) for i in node.items]}
+    if isinstance(node, Parallel):
+        return {"t": "parallel", "id": node.nid, "items": [node_to_json(i) for i in node.items]}
+    raise TypeError(f"unknown element {node!r}")
+
+
+def output_to_json(output: object) -> dict:
+    if isinstance(output, Coil):
+        return {"t": "coil", "addr": str(output.address)}
+    if isinstance(output, Out):
+        return {"t": "out", "addr": str(output.address)}
+    if isinstance(output, Seqr):
+        return {"t": "seqr", "addr": str(output.address),
+                "reset": node_to_json(output.reset) if output.reset is not None else None}
+    if isinstance(output, ObeyBlock):
+        return {"t": "block"}
+    if isinstance(output, EndBlock):
+        return {"t": "end"}
+    if isinstance(output, Latch):
+        return {"t": "set" if output.set else "reset", "addr": str(output.address)}
+    raise TypeError(f"unknown output {output!r}")
+
+
+def rung_to_json(rung: Rung) -> dict:
+    return {
+        "line": rung.line,
+        "comment": rung.comment,
+        "source": rung.source,
+        "condition": node_to_json(rung.condition) if rung.condition is not None else None,
+        "output": output_to_json(rung.output),
+    }
+
+
+# --- parser ----------------------------------------------------------------
+
+_CONTACT_STARTS = {"NOT", "RISE", "FALL", "TRUE", "FALSE", "(", "INV", "DELAY", "COUNT"}
+_WORD_ELEMENTS = set(LOGIC) | set(ARITHMETIC)
+
+
+class _Parser:
+    def __init__(self, tokens: list[str], line: int) -> None:
+        self.tokens = tokens
+        self.pos = 0
+        self.line = line
+
+    def error(self, message: str) -> ProgramError:
+        return ProgramError(message, self.line)
+
+    def peek(self, ahead: int = 0) -> str | None:
+        i = self.pos + ahead
+        return self.tokens[i] if i < len(self.tokens) else None
+
+    def upper(self, ahead: int = 0) -> str:
+        return (self.peek(ahead) or "").upper()
+
+    def take(self) -> str:
+        token = self.peek()
+        if token is None:
+            raise self.error("rung ends too early")
+        self.pos += 1
+        return token
+
+    def expect(self, wanted: str) -> None:
+        token = self.take()
+        if token.upper() != wanted:
+            raise self.error(f"expected {wanted!r} but found {token!r}")
+
+    def address(self, *, bit: bool | None) -> Address:
+        token = self.take()
+        try:
+            address = parse_address(token)
+        except AddressError as exc:
+            raise self.error(str(exc)) from None
+        if bit is True and not address.is_bit:
+            raise self.error(f"{token} is a word; a bit address such as {token}.0 is needed here")
+        if bit is False and address.is_bit:
+            raise self.error(f"{token} is a bit; a word address is needed here")
+        return address
+
+    def _is_number(self, token: str | None) -> bool:
+        return token is not None and bool(
+            re.fullmatch(r"-?\d+", token) or re.fullmatch(r"@[0-9A-Fa-f]{1,4}", token)
+        )
+
+    def _is_bit(self, token: str | None) -> bool:
+        if token is None:
+            return False
+        try:
+            return parse_address(token).is_bit
+        except AddressError:
+            return False
+
+    def number_or_word(self) -> Address | int:
+        token = self.peek()
+        if token is not None and re.fullmatch(r"-?\d+", token):
+            self.pos += 1
+            return clamp16(int(token))
+        if token is not None and re.fullmatch(r"@[0-9A-Fa-f]{1,4}", token):
+            self.pos += 1
+            return to_signed(int(token[1:], 16))  # GEM 80 writes hex as @FFFF
+        return self.address(bit=False)
+
+    def operand(self) -> Address | int | Branch:
+        if self.peek() == "[":
+            self.take()
+            node = self.condition()
+            self.expect("]")
+            return Branch(node)
+        return self.number_or_word()
+
+    def _contact_follows(self, ahead: int = 1) -> bool:
+        token = self.peek(ahead)
+        if token is None:
+            return False
+        if self.upper(ahead + 1) in COMPARISONS:  # extension: AND G1 GE 5
+            return True
+        return token.upper() in _CONTACT_STARTS or self._is_bit(token)
+
+    # condition := term (OR term)*     -- OR before a contact is a parallel branch
+    def condition(self) -> object:
+        items = [self.term()]
+        while self.upper() == "OR" and self._contact_follows():
+            self.take()
+            items.append(self.term())
+        return items[0] if len(items) == 1 else Parallel(tuple(items))
+
+    # term := item+                     -- elements in series, AND between contacts optional
+    def term(self) -> object:
+        items = [self.item()]
+        while True:
+            upper = self.upper()
+            if upper == "AND" and self._contact_follows():
+                self.take()
+                items.append(self.item())
+            elif upper in ("", "->", ")", "]", "RESET") or (upper == "OR" and self._contact_follows()):
+                break
+            else:
+                items.append(self.item())
+        return items[0] if len(items) == 1 else Series(tuple(items))
+
+    def item(self) -> object:
+        token = self.peek()
+        if token is None:
+            raise self.error("an element is missing")
+        upper = token.upper()
+        if upper == "NOT":
+            self.take()
+            if self._is_bit(self.peek()):
+                return Contact(self.address(bit=True), normally_closed=True)
+            inner = self.item()
+            return Series((inner, Inv()))
+        if token == "(":
+            self.take()
+            inner = self.condition()
+            self.expect(")")
+            return inner
+        if upper in ("RISE", "FALL"):
+            self.take()
+            return Edge(self.address(bit=True), rising=upper == "RISE")
+        if upper in ("TRUE", "FALSE"):
+            self.take()
+            return Constant(upper == "TRUE")
+        if upper == "INV":
+            self.take()
+            return Inv()
+        if upper in LOGIC:
+            self.take()
+            return Logic(upper, self.operand())
+        if upper in ARITHMETIC:
+            self.take()
+            return Arith(upper, self.operand())
+        if upper == "DELAY":
+            self.take()
+            word = self.address(bit=False)
+            self.expect("VALUE")
+            return Delay(word, self.value())
+        if upper == "COUNT":
+            self.take()
+            word = self.address(bit=False)
+            self.expect("VALUE")
+            value = self.value()
+            reset = None
+            if self.upper() == "RESET":
+                self.take()
+                reset = self.item()
+            return Count(word, value, reset)
+        if self._is_bit(token):
+            self.take()
+            return Contact(parse_address(token))
+        # Extension: a word comparison such as G1 GE 5.
+        left = self.number_or_word()
+        op = self.take().upper()
+        if op not in COMPARISONS:
+            raise self.error(f"{token} is not an element; expected a contact, AND, ADD, DELAY, COUNT …")
+        return Compare(op, left, self.number_or_word())
+
+    def value(self) -> Address | int:
+        value = self.number_or_word()
+        if isinstance(value, int) and not 0 <= value <= VALUE_MAX:
+            raise self.error(f"VALUE must be 0 to {VALUE_MAX}, found {value}")
+        return value
+
+    def output(self) -> object:
+        token = self.peek()
+        if token is None:
+            raise self.error("the output element is missing after '->'")
+        upper = token.upper()
+        if upper in ("SET", "RESET"):
+            self.take()
+            return Latch(self.address(bit=True), upper == "SET")
+        if upper == "OUT":
+            self.take()
+            return Out(self.address(bit=False))
+        if upper == "SEQR":
+            self.take()
+            address = self.address(bit=False)
+            reset = None
+            if self.upper() == "RESET":
+                self.take()
+                reset = self.item()
+            return Seqr(address, reset)
+        if upper == "BLOCK":
+            self.take()
+            return ObeyBlock()
+        address = self.address(bit=None)
+        if not address.is_bit:
+            raise self.error(f"{token} is a word: use OUT {token}, or a bit such as {token}.0 for a COIL")
+        return Coil(address)
+
+
+def parse_program(source: str) -> Program:
+    program = Program(source=source)
+    comments: list[str] = []
+    open_blocks: list[int] = []
+    for number, raw in enumerate(source.splitlines(), start=1):
+        text, _, note = raw.partition(";")
+        text = text.strip()
+        if not text:
+            # Comment lines directly above a rung become its title; a blank line resets.
+            comments = comments + [note.strip()] if note.strip() else []
+            continue
+        title = " ".join(comments) or note.strip()
+        comments = []
+        if text.upper() in ("END BLOCK", "BLOCK", "END"):
+            if not open_blocks:
+                raise ProgramError("END BLOCK without an OBEY BLOCK above it", number)
+            start = open_blocks.pop()
+            program.rungs[start] = _with_end(program.rungs[start], len(program.rungs))
+            program.rungs.append(Rung(None, EndBlock(), number, raw.strip(), title))
+            continue
+        tokens = _TOKEN_RE.findall(text)
+        if "->" not in tokens:
+            raise ProgramError("a rung needs '->' before its output element", number)
+        parser = _Parser(tokens, number)
+        condition = None if parser.peek() == "->" else parser.condition()
+        parser.expect("->")
+        output = parser.output()
+        if parser.peek() is not None:
+            extra = parser.peek()
+            hint = " (a rung has one output element)" if extra == "," else ""
+            raise ProgramError(f"unexpected {extra!r}{hint}", number)
+        if isinstance(output, ObeyBlock):
+            if condition is None:
+                raise ProgramError("an OBEY BLOCK needs a condition; use END BLOCK to close a block", number)
+            open_blocks.append(len(program.rungs))
+        program.rungs.append(Rung(condition, output, number, raw.strip(), title))
+    if open_blocks:
+        raise ProgramError("OBEY BLOCK without a matching END BLOCK", program.rungs[open_blocks[-1]].line)
+    return program
+
+
+def _with_end(rung: Rung, end: int) -> Rung:
+    return Rung(rung.condition, rung.output, rung.line, rung.source, rung.comment, end)
+
+
+__all__ = [
+    "Arith", "Branch", "Coil", "Compare", "Constant", "Contact", "Count", "Delay", "Edge",
+    "EndBlock", "Inv", "Latch", "Logic", "ObeyBlock", "Out", "Parallel", "Program",
+    "ProgramError", "Rung", "Seqr", "Series", "ARITHMETIC", "COMPARISONS", "LOGIC", "RAIL",
+    "SPECIAL", "VALUE_MAX", "addresses", "clamp16", "parse_program", "rung_to_json",
+    "to_signed", "walk",
+]
