@@ -5,8 +5,9 @@
 // custom panel (transport over Home Assistant's own connection).
 
 // The maker's badge on the drawing. The real units carried the GEC Industrial
-// Controls mark; this emulator is not theirs, so it shows a fictional maker.
-const MAKER = { mark: "HARECASTLE", line2: "INDUSTRIAL CONTROLS", place: "KIDSGROVE ENGLAND" };
+// Controls mark; this emulator is not theirs, so it shows a fictional maker in
+// the same style.
+const MAKER = { mark: "CEG", line1: "Industrial", line2: "Controls Ltd.", place: ["KIDSGROVE", "ENGLAND"] };
 
 const STYLE = `
 :host {
@@ -381,10 +382,10 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
   ${inputs}
   <rect x="676" y="40" width="44" height="34" rx="2" fill="#090909" stroke="#333"/>
   <g transform="translate(748,14)">
-    <text x="24" y="19" textLength="150" lengthAdjust="spacingAndGlyphs" style="font:900 20px Arial Black,Arial,sans-serif;fill:#eee">${MAKER.mark}</text>
-    <text x="24" y="32" textLength="150" lengthAdjust="spacing" style="font:700 9px Arial;fill:#eee">${MAKER.line2}</text>
-    <text x="24" y="44" style="font:600 7.5px Arial;fill:#ddd">Made in U.K</text>
-    <text x="174" y="44" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em;text-anchor:end">${MAKER.place}</text>
+    <text x="24" y="21" style="font:900 26px Arial Black,Arial,sans-serif;fill:#eee">${MAKER.mark}</text>
+    <text x="96" y="10" style="font:700 11px Arial;fill:#eee">${MAKER.line1}</text><text x="96" y="23" style="font:700 11px Arial;fill:#eee">${MAKER.line2}</text>
+    <text x="96" y="34" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">${MAKER.place[0]}</text><text x="96" y="43" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">${MAKER.place[1]}</text>
+    <text x="32" y="40" style="font:600 7.5px Arial;fill:#ddd">Made in U.K</text>
   </g>
   ${socket}
   <text x="372" y="138" style="font:900 21px Arial Black,Arial,sans-serif;fill:#f2f2f2;letter-spacing:.01em">${exp ? "MICROGEM" : "MICROGEM60"}</text>

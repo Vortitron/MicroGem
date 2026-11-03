@@ -25,7 +25,7 @@ class MicroGemEntity(Entity):
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry_id)},
             name=title,
-            manufacturer="Harecastle Controls (fictional)",
+            manufacturer="CEG Industrial Controls (fictional)",
             model="MicroGEM",
             sw_version=__version__,
         )
