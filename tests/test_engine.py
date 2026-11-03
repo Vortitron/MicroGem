@@ -1,6 +1,6 @@
 import pytest
 
-from microgem import AddressError, Controller, ProgramError, parse_address, parse_program
+from microgem import AddressError, Controller, ControllerConfig, ProgramError, parse_address, parse_program
 from microgem.service import EXAMPLE_PROGRAM
 from microgem.tables import Address, to_signed
 
@@ -320,3 +320,69 @@ def test_write_forces_values_but_not_flags():
     assert plc.tables.get_word(Address("G", 5)) == 32767
     with pytest.raises(ProgramError):
         plc.write(parse_address("E0.0"), 1)
+
+
+def test_expansion_units_use_one_word_each():
+    # MicroGEM60 with two expansion units: each unit has 12 inputs and 8 outputs
+    # in its own word, so terminal 03 on the first expansion unit is A1.3.
+    config = ControllerConfig(expansions=2)
+    assert (config.total_inputs, config.total_outputs) == (36, 24)
+    assert config.input_address(11) == Address("A", 0, 11)
+    assert config.input_address(12 + 3) == Address("A", 1, 3)
+    assert config.output_address(8 + 7) == Address("B", 1, 7)
+    assert config.output_address(16) == Address("B", 2, 0)
+
+    plc = Controller(config)
+    plc.load("A1.3 AND A2.11 -> B2.7")
+    plc.run()
+    plc.set_input(12 + 3, True)
+    plc.set_input(24 + 11, True)
+    plc.scan(20)
+    assert plc.outputs() == [False] * 23 + [True]
+    assert plc.snapshot()["io"] == {"units": 3, "inputs": 12, "outputs": 8}
+    with pytest.raises(IndexError):
+        plc.set_input(36, True)
+
+
+def test_expansion_limits():
+    assert ControllerConfig(expansions=7).total_inputs + ControllerConfig(expansions=7).total_outputs == 160
+    with pytest.raises(ValueError):
+        ControllerConfig(expansions=8)
+    # Without expansions, wider units keep the old contiguous numbering.
+    assert ControllerConfig(inputs=32).input_address(20) == Address("A", 1, 4)
+
+
+def test_watchdog_closes_after_clean_scans_and_opens_in_halt():
+    plc = make("A0.0 -> B0.0")
+    assert not plc.watchdog
+    for _ in range(2):
+        plc.scan(20)
+    assert not plc.watchdog  # still doing its first checks
+    plc.scan(20)
+    assert plc.watchdog
+    plc.halt()
+    assert not plc.watchdog
+    plc.run()
+    plc.scan(20)
+    assert not plc.watchdog
+
+
+def test_user_program_trips_the_watchdog_through_f1():
+    # T1614 2.12: hold a non-zero code in F1 (inside an obey block) to trip.
+    plc = make("A0.5 -> BLOCK\nAND 123 -> OUT F1\nEND BLOCK\nTRUE -> B0.0")
+    for _ in range(4):
+        plc.scan(20)
+    assert plc.watchdog and plc.output(0)
+    plc.set_input(5, True)
+    for _ in range(4):
+        plc.scan(20)
+    assert plc.running and plc.watchdog  # held for 80 ms only
+    plc.scan(20)
+    assert not plc.running and not plc.watchdog and not plc.output(0)
+    assert plc.trip_code == 123
+    plc.set_input(5, False)
+    plc.run()  # Halt -> Run clears F and the trip
+    assert plc.trip_code == 0
+    for _ in range(3):
+        plc.scan(20)
+    assert plc.watchdog

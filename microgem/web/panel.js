@@ -27,6 +27,7 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 /* ---------- hardware row ---------- */
 .hw { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
 .unit svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 10px 16px rgba(0,0,0,.35)); }
+.unit svg + svg { margin-top: 14px; }
 .led { fill: #3a1414; transition: fill .04s; }
 .led.g { fill: #15301a; }
 .led.on { fill: #ff3b2f; filter: url(#glow); }
@@ -35,6 +36,7 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .sim { margin-top: 16px; background: #2b2926; border-radius: 8px; padding: 10px 12px 12px; color: #e8e1d2;
   box-shadow: inset 0 2px 0 rgba(255,255,255,.06), 0 3px 8px rgba(0,0,0,.25); }
 .sim-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 .72rem/1 Arial, sans-serif; letter-spacing: .12em; }
+.group-label { margin-top: 10px; font: 600 .62rem/1 Arial, sans-serif; letter-spacing: .1em; color: #b8ad95; }
 .toggles { display: grid; grid-template-columns: repeat(var(--n, 12), minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
 .toggle { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; touch-action: manipulation; }
 .toggle .plate { width: 22px; height: 34px; border-radius: 4px; background: linear-gradient(#5a554d, #2b2824); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.6); }
@@ -78,6 +80,17 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .k.g .cap { background: linear-gradient(#9fa39c, #7d817a); }
 .k.lit .cap { outline: 2px solid #fff; outline-offset: 1px; }
 .prog-help { font-size: .78rem; color: var(--muted); margin: 10px 0 0; max-width: 340px; }
+
+/* ---------- Home Assistant entities ---------- */
+.ha-links a { color: var(--accent); }
+.chips-label { margin: 10px 0 4px; font-size: .75rem; color: var(--muted); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 12px/1 var(--mono); padding: 5px 9px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #8a8478; }
+.chip.on .dot { background: #e53b2f; box-shadow: 0 0 5px #ff5b4f; }
+.chip.run.on .dot { background: #2fbf4a; box-shadow: 0 0 5px #4dff6a; }
 
 /* ---------- ladder ---------- */
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-width: 0; margin-top: 20px; }
@@ -130,14 +143,14 @@ const MARKUP = `
   </header>
 
   <div class="hw">
-    <section aria-label="MicroGEM60 controller">
+    <section aria-label="MicroGEM60 controller and expansion units">
       <div class="unit" id="unit"></div>
       <div class="sim">
         <div class="sim-head">
           <span>INPUT SIMULATOR · switches wired to the input terminals</span>
           <span class="seg" id="mode"><button data-mode="toggle" class="active">LATCH</button><button data-mode="momentary">PUSH</button></span>
         </div>
-        <div class="toggles" id="toggles"></div>
+        <div id="toggles"></div>
       </div>
     </section>
 
@@ -159,6 +172,12 @@ const MARKUP = `
     </section>
   </div>
 
+  <section class="panel ha-links" id="ha-links" hidden>
+    <h2>In Home Assistant</h2>
+    <p class="hint">Every input is a switch and every output is a binary sensor, so automations can use them. Open one below, or see them all on the <a id="device-link" href="#">device page</a>.</p>
+    <div id="chips"></div>
+  </section>
+
   <section class="panel">
     <h2>Ladder diagram</h2>
     <p class="hint">Live: green wires carry power, lit contacts are closed. Click a rung to select it on the programmer and in the text.</p>
@@ -173,12 +192,13 @@ const MARKUP = `
       <div class="row"><button class="btn primary" id="load">Load program</button><span class="message" id="message"></span></div>
       <details>
         <summary>Language reference</summary>
-        <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A (terminals 00–11 are <code>A0.0</code>–<code>A0.11</code>), relay outputs are B (<code>B0.0</code>–<code>B0.7</code>), workspace is G H L N O S U, retained workspace is R W.</p>
+        <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A (terminals 00–11 are <code>A0.0</code>–<code>A0.11</code>), relay outputs are B (<code>B0.0</code>–<code>B0.7</code>). Expansion unit 1 uses <code>A1</code> and <code>B1</code>, unit 2 <code>A2</code> and <code>B2</code>, and so on. Workspace is G H L N O S U, retained workspace is R W.</p>
         <p><b>Signal flow:</b> as on the GEM 80, a 16-bit word flows along each rung. The left rail gives -1 (@FFFF); a contact passes the word on or gives 0; the rung is ON when its word is not 0.</p>
         <p><b>Contacts:</b> <code>A0.0</code> (N/O), <code>NOT A0.0</code> (N/C), <code>TRUE</code>. <code>AND</code> between contacts wires them in series, <code>OR</code> in parallel; use brackets for branches.</p>
         <p><b>In the rung:</b> <code>DELAY G10 VALUE 25</code> (on-delay, VALUE in 0.1 s, G10 counts down the time left); <code>COUNT G11 VALUE 10 RESET A0.6</code> (counts OFF-to-ON changes); <code>INV</code>; <code>AND OR XOR</code> with a number or word (<code>AND @00FF</code>); <code>ADD SUB</code> and the Special Functions <code>MULT</code> (T10) and <code>DIV</code> (T11). A second input from its own branch goes in square brackets: <code>ADD [AND G4]</code>.</p>
         <p><b>Output (one per rung):</b> a bit address is a COIL; <code>OUT G2</code> writes the rung word; <code>SEQR G12 RESET A0.7</code> walks one bit left each scan; <code>BLOCK</code> obeys the rungs down to the next <code>END BLOCK</code> only while the rung is on.</p>
         <p><b>Flags (read-only):</b> <code>E0.0</code> pulses every 0.1 s, <code>E0.1</code> every second, <code>E0.6</code> after a program load, <code>E0.7</code> when ADD or SUB was limited to ±32767. <code>E1</code> to <code>E6</code> hold the time and date, <code>E7</code> the last scan time in ms. Hex numbers: <code>@00FF</code>.</p>
+        <p><b>Watchdog:</b> the W/DOG O.K. light and W/DOG OUTPUT close after three clean scans in Run and open in Halt. To trip it from the program, hold a non-zero code in <code>F1</code> for 100 ms (GEM80-400 manual T1614, 2.12), for example <code>A0.5 -&gt; BLOCK</code>, <code>AND 123 -&gt; OUT F1</code>, <code>END BLOCK</code>. The controller stops; switch it back to Run to clear the trip.</p>
         <p><b>Extensions</b> (not in a real GEM 80): <code>RISE A0.0</code>/<code>FALL A0.0</code> one-scan pulses, comparisons such as <code>G1 GE 5</code>, and <code>SET</code>/<code>RESET</code> outputs. On the real controller you latch with a seal-in branch.</p>
         <p>Elements and behaviour follow the GEM 80 Ladder Diagram Programming Manual (T391). The MicroGEM's own table letters (I and Q on the programmer) are not documented yet, so inputs and outputs use the GEM 80 A and B tables.</p>
       </details>
@@ -203,7 +223,10 @@ function inputLabels(n) {
   return out.concat(["HI", "LO"]);
 }
 
-function unitSvg(nIn, nOut) {
+// unit 0 is the controller; 1 to 7 are expansion units on its expansion port.
+// inBase / outBase number the LEDs across all units.
+function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0) {
+  const exp = unit > 0;
   const W = 1024, H = 318;
   const screw = (x, y, r = 11) => `<g><circle cx="${x}" cy="${y}" r="${r}" fill="url(#screwg)" stroke="#111" stroke-width="1.5"/>
     <path d="M${x - r * .55} ${y}h${r * 1.1}M${x} ${y - r * .55}v${r * 1.1}" stroke="#2a2a2a" stroke-width="2.4"/></g>`;
@@ -226,7 +249,7 @@ function unitSvg(nIn, nOut) {
     inputs += `<rect x="${ix + ist * i + 1}" y="89" width="${ist - 2}" height="27" fill="#222" stroke="#555" stroke-width=".6"/>`;
     if (/^\d+$/.test(lab)) {
       inputs += `<text x="${cx}" y="101" class="tl">${lab}</text>
-        <circle class="led" id="in-${k}" cx="${cx}" cy="109.5" r="3"/>`;
+        <circle class="led" id="in-${inBase + k}" cx="${cx}" cy="109.5" r="3"/>`;
       k++;
     } else inputs += `<text x="${cx}" y="104" class="tl">${lab}</text>`;
   });
@@ -238,10 +261,26 @@ function unitSvg(nIn, nOut) {
     const x = ox + ost * i;
     outputs += `<rect x="${x + 1}" y="142" width="${ost - 2}" height="28" fill="#222" stroke="#555" stroke-width=".6"/>
       <text x="${x + ost / 2}" y="155" class="tl">${String(i).padStart(2, "0")}</text>
-      <circle class="led" id="out-${i}" cx="${x + ost / 2}" cy="163" r="3.2"/>`;
+      <circle class="led" id="out-${outBase + i}" cx="${x + ost / 2}" cy="163" r="3.2"/>`;
   }
 
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="GEC MicroGEM60 controller with ${nIn} inputs and ${nOut} relay outputs">
+  const what = exp ? `MicroGEM expansion unit ${unit}` : "GEC MicroGEM60 controller";
+  // The controller has the programmer socket and watchdog; an expansion unit
+  // shows its number and the A and B words it occupies there instead.
+  const socket = exp
+    ? `<text x="871" y="88" style="font:900 26px Arial Black,Arial,sans-serif;fill:#eee;text-anchor:middle">UNIT ${unit}</text>
+       <text x="871" y="106" style="font:700 11px Arial;fill:#bbb;text-anchor:middle;letter-spacing:.06em">INPUTS A${unit} · OUTPUTS B${unit}</text>`
+    : `<rect x="760" y="64" width="222" height="44" rx="2" fill="#0a0a0a"/>
+  <rect x="770" y="70" width="202" height="32" rx="1" fill="#d9d6cc"/>
+  ${Array.from({ length: 20 }, (_, i) => `<rect x="${776 + i * 9.8}" y="76" width="6" height="7" fill="#7d796f"/><rect x="${776 + i * 9.8}" y="89" width="6" height="7" fill="#7d796f"/>`).join("")}`;
+  const status = exp ? "" : `<text x="252" y="146" class="lb">BATTERY</text><text x="252" y="160" class="lb">LOW</text>
+  <circle class="led" id="led-batt" cx="252" cy="176" r="5"/>
+  <text x="322" y="146" class="lb">W/DOG</text><text x="322" y="160" class="lb">O.K.</text>
+  <circle class="led g" id="led-wdog" cx="322" cy="176" r="5"/>
+  <rect x="306" y="186" width="68" height="34" fill="none" stroke="#666"/>
+  <text x="340" y="200" class="lb" style="font-size:11px">W/DOG</text><text x="340" y="214" class="lb" style="font-size:11px">OUTPUT</text>
+  ${block(306, 222, 68, 56, 2, 244)}`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${what} with ${nIn} inputs and ${nOut} relay outputs">
   <defs>
     <radialGradient id="screwg" cx=".35" cy=".35" r=".8"><stop offset="0" stop-color="#6a6a6a"/><stop offset="1" stop-color="#1e1e1e"/></radialGradient>
     <linearGradient id="cover" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>
@@ -265,25 +304,17 @@ function unitSvg(nIn, nOut) {
     <text x="96" y="34" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">KIDSGROVE</text><text x="96" y="43" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">ENGLAND</text>
     <text x="32" y="40" style="font:600 7.5px Arial;fill:#ddd">Made in U.K</text>
   </g>
-  <rect x="760" y="64" width="222" height="44" rx="2" fill="#0a0a0a"/>
-  <rect x="770" y="70" width="202" height="32" rx="1" fill="#d9d6cc"/>
-  ${Array.from({ length: 20 }, (_, i) => `<rect x="${776 + i * 9.8}" y="76" width="6" height="7" fill="#7d796f"/><rect x="${776 + i * 9.8}" y="89" width="6" height="7" fill="#7d796f"/>`).join("")}
-  <text x="372" y="138" style="font:900 21px Arial Black,Arial,sans-serif;fill:#f2f2f2;letter-spacing:.01em">MICROGEM60</text>
-  <text x="530" y="138" style="font:800 16px Arial,sans-serif;fill:#f2f2f2">CONTROLLER</text>
+  ${socket}
+  <text x="372" y="138" style="font:900 21px Arial Black,Arial,sans-serif;fill:#f2f2f2;letter-spacing:.01em">${exp ? "MICROGEM" : "MICROGEM60"}</text>
+  <text x="${exp ? 498 : 530}" y="138" style="font:800 16px Arial,sans-serif;fill:#f2f2f2">${exp ? "EXPANSION UNIT" : "CONTROLLER"}</text>
   <text x="182" y="146" class="lb">SUPPLY</text><text x="182" y="160" class="lb">ON</text>
-  <circle class="led" id="led-supply" cx="182" cy="176" r="5"/>
-  <text x="252" y="146" class="lb">BATTERY</text><text x="252" y="160" class="lb">LOW</text>
-  <circle class="led" id="led-batt" cx="252" cy="176" r="5"/>
-  <text x="322" y="146" class="lb">W/DOG</text><text x="322" y="160" class="lb">O.K.</text>
-  <circle class="led g" id="led-wdog" cx="322" cy="176" r="5"/>
+  <circle class="led supply" cx="182" cy="176" r="5"/>
   <text x="152" y="196" class="lb">A.C.SUPPLY</text>
   <text x="114" y="220" style="font:700 18px Arial;fill:#eee;text-anchor:middle">~</text>
   <text x="152" y="220" style="font:700 18px Arial;fill:#eee;text-anchor:middle">~</text>
   <text x="186" y="220" style="font:700 14px Arial;fill:#eee;text-anchor:middle">⏚</text>
   ${block(98, 226, 106, 52, 3, 248)}
-  <rect x="306" y="186" width="68" height="34" fill="none" stroke="#666"/>
-  <text x="340" y="200" class="lb" style="font-size:11px">W/DOG</text><text x="340" y="214" class="lb" style="font-size:11px">OUTPUT</text>
-  ${block(306, 222, 68, 56, 2, 244)}
+  ${status}
   ${outputs}
   <text x="970" y="146" class="lb">RELAY</text><text x="970" y="160" class="lb">OUTPUTS</text>
 </svg>`;
@@ -681,6 +712,7 @@ class MicroGemPanel extends HTMLElement {
 
     let state = null;
     let built = false;
+    let ha = null; // { device_id, entities: { run, input_0, output_0, ... } } inside Home Assistant
     let mode = "toggle";
     let programDirty = false;
     let shownTable = "G";
@@ -705,22 +737,40 @@ class MicroGemPanel extends HTMLElement {
       $("message").classList.toggle("error", !!isError);
     }
 
-    function build(nIn, nOut) {
-      $("unit").innerHTML = unitSvg(nIn, nOut);
+    // I/O point i -> its address; unit n (0 = controller) uses word n of A and B.
+    function ioAddress(table, i, perUnit) {
+      const unit = Math.floor(i / perUnit), point = i % perUnit;
+      return `${table}${unit * Math.ceil(perUnit / 16) + Math.floor(point / 16)}.${point % 16}`;
+    }
+    const io = () => state.io || { units: 1, inputs: state.inputs.length, outputs: state.outputs.length };
+
+    function build() {
+      const { units, inputs: nIn, outputs: nOut } = io();
+      let svgs = "";
+      for (let u = 0; u < units; u++) svgs += unitSvg(nIn, nOut, u, u * nIn, u * nOut);
+      $("unit").innerHTML = svgs;
       const t = $("toggles");
-      t.style.setProperty("--n", Math.min(nIn, 16));
       t.replaceChildren();
-      for (let i = 0; i < nIn; i++) {
-        const b = el("button", "toggle");
-        b.title = `Input terminal ${String(i).padStart(2, "0")} (A${Math.floor(i / 16)}.${i % 16})`;
-        b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${String(i).padStart(2, "0")}</small>`;
-        b.addEventListener("click", () => { if (mode === "toggle") send({ type: "input", index: i, value: !state.inputs[i] }); });
-        const press = (v) => (e) => { if (mode === "momentary") { e.preventDefault(); send({ type: "input", index: i, value: v }); } };
-        b.addEventListener("pointerdown", press(true));
-        b.addEventListener("pointerup", press(false));
-        b.addEventListener("pointerleave", (e) => { if (mode === "momentary" && state.inputs[i]) press(false)(e); });
-        t.append(b);
+      for (let u = 0; u < units; u++) {
+        if (units > 1) t.append(el("div", "group-label", u === 0 ? "CONTROLLER" : `EXPANSION UNIT ${u}`));
+        const group = el("div", "toggles");
+        group.style.setProperty("--n", Math.min(nIn, 16));
+        for (let p = 0; p < nIn; p++) {
+          const i = u * nIn + p;
+          const b = el("button", "toggle");
+          b.title = `Input terminal ${String(p).padStart(2, "0")}${u ? ` on expansion unit ${u}` : ""} (${ioAddress("A", i, nIn)})`;
+          b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${String(p).padStart(2, "0")}</small>`;
+          b.addEventListener("click", () => { if (mode === "toggle") send({ type: "input", index: i, value: !state.inputs[i] }); });
+          const press = (v) => (e) => { if (mode === "momentary") { e.preventDefault(); send({ type: "input", index: i, value: v }); } };
+          b.addEventListener("pointerdown", press(true));
+          b.addEventListener("pointerup", press(false));
+          b.addEventListener("pointerleave", (e) => { if (mode === "momentary" && state.inputs[i]) press(false)(e); });
+          group.append(b);
+        }
+        t.append(group);
       }
+      if (keysBuilt) { built = true; buildLinks(); return; }
+      keysBuilt = true;
       const keys = $("keys");
       for (const [label, colour, second] of KEYS) {
         const k = el("button", "k " + colour);
@@ -733,18 +783,69 @@ class MicroGemPanel extends HTMLElement {
       }
       $("keyswitch").addEventListener("click", () => send({ type: state.running ? "halt" : "run" }));
       built = true;
+      buildLinks();
+    }
+    let keysBuilt = false;
+    let builtFor = "";
+
+    // ---- links to the Home Assistant entities ----
+    const host = this;
+    function moreInfo(entityId) {
+      host.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId }, bubbles: true, composed: true }));
+    }
+    function navigate(path) {
+      history.pushState(null, "", path);
+      window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+    }
+    function buildLinks() {
+      if (!ha || !state) return;
+      const box = $("chips");
+      box.replaceChildren();
+      const { inputs: nIn, outputs: nOut } = io();
+      const chip = (key, label, cls) => {
+        const id = ha.entities[key];
+        if (!id) return null;
+        const c = el("button", "chip " + cls);
+        c.dataset.key = key;
+        c.title = id;
+        c.innerHTML = `<span class="dot"></span>${esc(label)}`;
+        c.addEventListener("click", () => moreInfo(id));
+        return c;
+      };
+      const row = (title, chips) => {
+        const shown = chips.filter(Boolean);
+        if (!shown.length) return;
+        box.append(el("div", "chips-label", title));
+        const r = el("div", "chips");
+        r.append(...shown);
+        box.append(r);
+      };
+      const first = (k) => ha.entities[k] ? ` (${ha.entities[k].replace(/_a0_0$|_b0_0$/, "_…")})` : "";
+      row("Controller", [chip("run", "Run", "run"), chip("watchdog", "Watchdog", "run")]);
+      row(`Inputs: switches${first("input_0")}`, state.inputs.map((_, i) => chip(`input_${i}`, ioAddress("A", i, nIn), "in")));
+      row(`Outputs: binary sensors${first("output_0")}`, state.outputs.map((_, i) => chip(`output_${i}`, ioAddress("B", i, nOut), "out")));
+      const link = $("device-link");
+      link.href = ha.device_id ? `/config/devices/device/${ha.device_id}` : "/config/integrations/integration/microgem";
+      link.onclick = (e) => { e.preventDefault(); navigate(link.getAttribute("href")); };
+      $("ha-links").hidden = false;
     }
 
     // ---- rendering ----
     function render() {
       frame = 0;
       if (!state) return;
-      if (!built) build(state.inputs.length, state.outputs.length);
+      const shape = JSON.stringify(io());
+      if (!built || shape !== builtFor) { builtFor = shape; build(); }
       const u = $("unit");
       state.inputs.forEach((v, i) => u.querySelector(`#in-${i}`)?.classList.toggle("on", v));
       state.outputs.forEach((v, i) => u.querySelector(`#out-${i}`)?.classList.toggle("on", v));
-      u.querySelector("#led-supply")?.classList.add("on");
-      u.querySelector("#led-wdog")?.classList.toggle("on", state.running);
+      u.querySelectorAll(".supply").forEach((n) => n.classList.add("on"));
+      $("chips").querySelectorAll(".chip").forEach((c) => {
+        const [kind, n] = c.dataset.key.split("_");
+        const on = kind === "run" ? state.running : kind === "watchdog" ? state.watchdog : (kind === "input" ? state.inputs : state.outputs)[Number(n)];
+        c.classList.toggle("on", !!on);
+      });
+      u.querySelector("#led-wdog")?.classList.toggle("on", !!state.watchdog);
       $("toggles").querySelectorAll(".toggle").forEach((n, i) => n.classList.toggle("on", state.inputs[i]));
       $("keyswitch").classList.toggle("halt", !state.running);
       $("kp-run").innerHTML = state.running ? "<b>RUN</b>" : "RUN";
@@ -813,7 +914,10 @@ class MicroGemPanel extends HTMLElement {
       if (P.flash) return [P.flash, ""];
       if (P.confirmDel) return [`DELETE RUNG ${loc()}?`, "ENT=YES  ESC=NO"];
       if (P.entry && P.entry.kind === "find") return ["FIND ADDR?", P.entry.buf + cursor()];
-      if (P.screen === "IDLE") return [state && state.running ? "MICROGEM RUNNING" : "MICROGEM HALTED", "SELECT MODE:"];
+      if (P.screen === "IDLE") {
+        if (state && !state.running && state.trip_code) return ["W/DOG TRIPPED", `F1 CODE ${state.trip_code}`.padEnd(16)];
+        return [state && state.running ? "MICROGEM RUNNING" : "MICROGEM HALTED", "SELECT MODE:"];
+      }
       if (P.screen === "MON") {
         let l1;
         if (P.entry && P.entry.kind === "addr") l1 = "ADDR? " + P.entry.buf + cursor();
@@ -1119,6 +1223,10 @@ class MicroGemPanel extends HTMLElement {
         state = Object.assign(state || {}, msg);
         if (state.ladder && selected >= state.ladder.length) selected = Math.max(0, state.ladder.length - 1);
         if (P.screen === "MON" && state.live && P.addr in state.live) P.value = state.live[P.addr];
+        schedule();
+      } else if (msg.type === "entities") {
+        ha = msg;
+        buildLinks();
         schedule();
       } else if (msg.type === "value") {
         if (msg.address === P.addr) { P.value = msg.value; renderLcd(); }

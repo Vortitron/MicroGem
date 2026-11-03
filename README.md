@@ -3,8 +3,8 @@
 A software emulation of the GEC **MicroGEM** programmable controller, with the
 bigger **GEM 80** as the longer-term goal. It runs a ladder program against
 GEM 80 style data tables and shows a front panel in your browser whose input
-and output lights change live. A Home Assistant integration is planned so the
-virtual controller can switch real lights.
+and output lights change live. A Home Assistant integration lets the
+virtual controller switch real lights.
 
 ## Run it
 
@@ -12,6 +12,7 @@ virtual controller can switch real lights.
 pip install -e .
 python -m microgem            # then open http://127.0.0.1:8080
 python -m microgem --program my_program.txt --port 8080
+python -m microgem --expansions 2   # add two expansion units
 ```
 
 The page shows:
@@ -20,6 +21,13 @@ The page shows:
   sink/source inputs (00 to 11, words A0.0 to A0.11), 8 relay outputs (B0.0 to
   B0.7), a red LED under each terminal number, and the SUPPLY ON, BATTERY LOW
   and W/DOG O.K. lamps;
+- any **expansion units** on its expansion port (`--expansions`, 0 to 7). The
+  original MicroGEM took one (40 I/O); the MicroGEM60 takes up to 160 I/O,
+  which matches seven units of 12 inputs and 8 outputs. Unit *n* uses word *n*
+  of the A and B tables, so terminal 03 on expansion unit 1 is `A1.3`. The
+  expansion units' size and addressing are our best guess: no MicroGEM manual
+  has turned up yet, and T1282 describes the GEM 80's 9007/9008 remote I/O
+  units, not MicroGEM expansions;
 - an **input simulator** board of toggle switches (latching or push-button);
 - the **MicroGEM Programmer**, with its key switch (RUN/HALT), 2×16 display and
   all 25 keys. `CTRL` gives a key its second legend.
@@ -104,14 +112,21 @@ open HACS (the **Marketplace** from Home Assistant 2026.11) > three-dot menu > *
 `https://github.com/Vortitron/MicroGem` as type **Integration**, download
 **Virtual MicroGEM** and restart Home Assistant. (Or copy
 `custom_components/microgem` into your `config/custom_components/`.) Then add **Virtual MicroGEM** under Settings > Devices &
-services, choose a name and the number of inputs and outputs, and you get:
+services, choose a name and how many expansion units it has (0 to 7; you can
+change this later under **Configure**), and you get:
 
 - a switch for each input (`switch.<name>_input_a0_0` ...): automations can
   "press" the controller's inputs,
 - a binary sensor for each output (`binary_sensor.<name>_output_b0_0` ...):
   use these in automations to switch real lights,
 - a **Run** switch (off = HALT, all outputs off),
-- the front panel and program editor in the sidebar (admins only),
+- a **Watchdog** binary sensor, the W/DOG OUTPUT contacts: on after three
+  clean scans in Run, off in Halt, and off with a trip when the program holds a
+  non-zero code in `F1` for 100 ms (GEM80-400 manual T1614, 2.12; its
+  `trip_code` attribute holds the code). Use it to interlock anything the
+  controller drives,
+- the front panel and program editor in the sidebar (admins only), with links
+  to all of these entities,
 - a `microgem.load_program` action.
 
 The program and Run/Halt state survive restarts. The integration carries a copy

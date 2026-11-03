@@ -1,6 +1,6 @@
 """A virtual GEC MicroGEM / GEM 80 programmable controller."""
 
-from .engine import Controller, ControllerConfig
+from .engine import MAX_EXPANSIONS, Controller, ControllerConfig
 from .program import ProgramError, parse_program
 from .tables import Address, AddressError, DataTables, parse_address
 
@@ -9,6 +9,7 @@ __all__ = [
     "AddressError",
     "Controller",
     "ControllerConfig",
+    "MAX_EXPANSIONS",
     "DataTables",
     "ProgramError",
     "parse_address",

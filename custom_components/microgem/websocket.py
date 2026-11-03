@@ -8,6 +8,10 @@ import voluptuous as vol
 
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
+
+from .const import DOMAIN
 
 
 @callback
@@ -42,7 +46,23 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
 
     connection.subscriptions[msg["id"]] = service.subscribe(forward)
     connection.send_result(msg["id"])
+    connection.send_message(
+        websocket_api.event_message(msg["id"], {"type": "entities", **entities(hass, msg["entry_id"])})
+    )
     forward(service.state())
+
+
+def entities(hass: HomeAssistant, entry_id: str) -> dict[str, Any]:
+    """The device and entity ids, so the panel can link to them.
+
+    ``entities`` maps a key (``run``, ``input_3``, ``output_0``) to its entity id.
+    """
+    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry_id)})
+    found = {
+        entity.unique_id.removeprefix(f"{entry_id}_"): entity.entity_id
+        for entity in er.async_entries_for_config_entry(er.async_get(hass), entry_id)
+    }
+    return {"device_id": device.id if device else None, "entities": found}
 
 
 @websocket_api.websocket_command(

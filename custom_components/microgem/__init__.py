@@ -15,6 +15,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
@@ -28,6 +29,7 @@ from .const import (
     SAVE_DELAY_S,
     STORAGE_VERSION,
 )
+from .config_flow import expansions_of
 from .core import ControllerConfig, ProgramError, __version__
 from .core.service import EXAMPLE_PROGRAM, ControllerService
 
@@ -92,7 +94,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
         name=entry.title,
         inputs=int(entry.data.get(CONF_INPUTS, 12)),
         outputs=int(entry.data.get(CONF_OUTPUTS, 8)),
+        expansions=expansions_of(entry),
     )
+    remove_missing_io(hass, entry, config)
     replaced_saved = False
     try:
         service = ControllerService(config, saved.get("program", EXAMPLE_PROGRAM))
@@ -138,7 +142,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
         require_admin=True,
     )
     entry.async_on_unload(lambda: frontend.async_remove_panel(hass, panel_path(entry)))
+    entry.async_on_unload(entry.add_update_listener(_options_updated))
     return True
+
+
+async def _options_updated(hass: HomeAssistant, entry: MicroGemConfigEntry) -> None:
+    """Expansion units added or removed: rebuild the controller and its entities."""
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+def remove_missing_io(hass: HomeAssistant, entry: ConfigEntry, config: ControllerConfig) -> None:
+    """Drop the entities of I/O that went away with a removed expansion unit."""
+    registry = er.async_get(hass)
+    limits = {"input": config.total_inputs, "output": config.total_outputs}
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        kind, _, index = entity.unique_id.removeprefix(f"{entry.entry_id}_").partition("_")
+        if kind in limits and index.isdigit() and int(index) >= limits[kind]:
+            registry.async_remove(entity.entity_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> bool:

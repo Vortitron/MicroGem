@@ -50,17 +50,68 @@ E_LIMIT = Address("E", 0, 7)  # the last ADD/SUB was limited to +/-32767
 E_CLOCK_WORDS = range(1, 7)  # E1..E6: seconds, minutes, hours, day, month, year
 E_LAST_SCAN = Address("E", 7)  # duration of the previous scan in ms
 
+# Watchdog, from the GEM80-400 Technical Manual (T1614, 2.2.1, 2.4 and 2.12):
+# the contacts close only after a few clean scans in Run, are open in Halt, and
+# open (tripping the controller) when the program holds a non-zero code in F1
+# for 100 ms. The MicroGEM60's W/DOG OUTPUT is assumed to behave the same way.
+F_USER_TRIP = Address("F", 1)
+WATCHDOG_CLEAN_SCANS = 3
+USER_TRIP_HOLD_MS = 100
+
+
+#: A MicroGEM60 takes up to seven expansion units: 8 x (12 + 8) = 160 I/O points.
+MAX_EXPANSIONS = 7
+
 
 @dataclass(frozen=True)
 class ControllerConfig:
     """What the virtual device looks like from the outside.
 
-    The defaults match the MicroGEM60: 12 inputs and 8 relay outputs.
+    ``inputs`` and ``outputs`` are per unit; the defaults match the MicroGEM60
+    (12 inputs, 8 relay outputs). ``expansions`` is the number of expansion
+    units on the expansion port, each with the same I/O as the controller.
+    Unit ``n`` (0 is the controller) uses word ``n`` of the A and B tables, so
+    terminal 03 on the first expansion unit is ``A1.3``.
     """
 
     name: str = "MicroGEM"
     inputs: int = 12
     outputs: int = 8
+    expansions: int = 0
+
+    def __post_init__(self) -> None:
+        if self.inputs < 1 or self.outputs < 1:
+            raise ValueError("a unit needs at least one input and one output")
+        if not 0 <= self.expansions <= MAX_EXPANSIONS:
+            raise ValueError(f"a MicroGEM takes 0 to {MAX_EXPANSIONS} expansion units")
+
+    @property
+    def units(self) -> int:
+        return 1 + self.expansions
+
+    @property
+    def total_inputs(self) -> int:
+        return self.inputs * self.units
+
+    @property
+    def total_outputs(self) -> int:
+        return self.outputs * self.units
+
+    def input_address(self, index: int) -> Address:
+        return _unit_address(INPUT_TABLE, index, self.inputs)
+
+    def output_address(self, index: int) -> Address:
+        return _unit_address(OUTPUT_TABLE, index, self.outputs)
+
+    def io(self) -> dict:
+        return {"units": self.units, "inputs": self.inputs, "outputs": self.outputs}
+
+
+def _unit_address(table: str, index: int, per_unit: int) -> Address:
+    """The bit for I/O point ``index``, counting unit by unit."""
+    unit, point = divmod(index, per_unit)
+    words_per_unit = -(-per_unit // 16)
+    return Address(table, unit * words_per_unit + point // 16, point % 16)
 
 
 class Controller:
@@ -72,7 +123,8 @@ class Controller:
         self.config = config or ControllerConfig()
         self._clock = clock
         self._recompiled = False
-        words_needed = max(self.config.inputs, self.config.outputs) // 16 + 1
+        cfg = self.config
+        words_needed = cfg.units * -(-max(cfg.inputs, cfg.outputs) // 16)
         self.tables = DataTables({letter: max(64, words_needed) for letter in TABLE_LETTERS})
         self.program = Program()
         self.running = False
@@ -85,6 +137,10 @@ class Controller:
         self._flow: dict[int, int] = {}
         self._skipped: set[int] = set()
         self._previous_bits: dict[Address, bool] = {}
+        self.watchdog = False  # True while the watchdog contacts are closed
+        self.trip_code = 0  # the F1 code of the last user watchdog trip
+        self._clean_scans = 0
+        self._f1_held_ms = 0
 
     # --- program and mode ---------------------------------------------------
 
@@ -116,29 +172,38 @@ class Controller:
         self.tables.clear("".join(t for t in TABLE_LETTERS if t not in RETAINED_TABLES))
         self._reset_state()
         self.running = True
+        self.trip_code = 0
+        self._clean_scans = 0
+        self._f1_held_ms = 0
 
     def halt(self) -> None:
         self.running = False
+        self.watchdog = False
         self.tables.clear(OUTPUT_TABLE)
+
+    def trip(self, code: int) -> None:
+        """A watchdog trip: the contacts open and the controller stops."""
+        self.halt()
+        self.trip_code = code
 
     # --- physical I/O ---------------------------------------------------------
 
     def set_input(self, index: int, value: bool) -> None:
-        if not 0 <= index < self.config.inputs:
+        if not 0 <= index < self.config.total_inputs:
             raise IndexError(f"input {index} does not exist")
-        self.tables.set_bit(Address(INPUT_TABLE, index // 16, index % 16), value)
+        self.tables.set_bit(self.config.input_address(index), value)
 
     def input(self, index: int) -> bool:
-        return self.tables.get_bit(Address(INPUT_TABLE, index // 16, index % 16))
+        return self.tables.get_bit(self.config.input_address(index))
 
     def output(self, index: int) -> bool:
-        return self.tables.get_bit(Address(OUTPUT_TABLE, index // 16, index % 16))
+        return self.tables.get_bit(self.config.output_address(index))
 
     def inputs(self) -> list[bool]:
-        return [self.input(i) for i in range(self.config.inputs)]
+        return [self.input(i) for i in range(self.config.total_inputs)]
 
     def outputs(self) -> list[bool]:
-        return [self.output(i) for i in range(self.config.outputs)]
+        return [self.output(i) for i in range(self.config.total_outputs)]
 
     # --- scanning -------------------------------------------------------------
 
@@ -167,6 +232,16 @@ class Controller:
         self._snapshot_edges()
         self.scan_count += 1
         self.elapsed_ms += dt_ms
+        self._check_watchdog(dt_ms)
+
+    def _check_watchdog(self, dt_ms: int) -> None:
+        code = to_signed(self.tables.get_word(F_USER_TRIP))
+        self._f1_held_ms = self._f1_held_ms + dt_ms if code else 0
+        if code and self._f1_held_ms >= USER_TRIP_HOLD_MS:
+            self.trip(code)
+            return
+        self._clean_scans += 1
+        self.watchdog = self._clean_scans >= WATCHDOG_CLEAN_SCANS
 
     def _update_flags(self, dt_ms: int) -> None:
         tables = self.tables
@@ -331,7 +406,10 @@ class Controller:
         return {
             "name": self.config.name,
             "running": self.running,
+            "watchdog": self.watchdog,
+            "trip_code": self.trip_code,
             "scan_count": self.scan_count,
+            "io": self.config.io(),
             "inputs": self.inputs(),
             "outputs": self.outputs(),
             "tables": {letter: self.tables.table(letter)[:8] for letter in tables},

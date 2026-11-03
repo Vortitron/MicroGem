@@ -13,10 +13,6 @@ from .core import __version__
 from .core.service import ControllerService
 
 
-def address(table: str, index: int) -> str:
-    return f"{table}{index // 16}.{index % 16}"
-
-
 class MicroGemEntity(Entity):
     """An entity whose state is read from the controller and pushed on change."""
 

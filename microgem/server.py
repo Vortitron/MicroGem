@@ -9,7 +9,7 @@ from pathlib import Path
 
 from aiohttp import WSMsgType, web
 
-from .engine import ControllerConfig
+from .engine import MAX_EXPANSIONS, ControllerConfig
 from .service import EXAMPLE_PROGRAM, ControllerService
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -76,11 +76,16 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8080)
     parser.add_argument("--program", type=Path, help="program file to load at start-up")
-    parser.add_argument("--inputs", type=int, default=12)
-    parser.add_argument("--outputs", type=int, default=8)
+    parser.add_argument("--inputs", type=int, default=12, help="inputs per unit (MicroGEM60: 12)")
+    parser.add_argument("--outputs", type=int, default=8, help="relay outputs per unit (MicroGEM60: 8)")
+    parser.add_argument(
+        "--expansions", type=int, default=0, choices=range(MAX_EXPANSIONS + 1),
+        help="expansion units on the expansion port, each adding 12 inputs and 8 outputs",
+    )
     args = parser.parse_args(argv)
 
     source = args.program.read_text() if args.program else EXAMPLE_PROGRAM
-    service = ControllerService(ControllerConfig(inputs=args.inputs, outputs=args.outputs), source)
+    config = ControllerConfig(inputs=args.inputs, outputs=args.outputs, expansions=args.expansions)
+    service = ControllerService(config, source)
     print(f"Virtual MicroGEM on http://{args.host}:{args.port}")
     web.run_app(create_app(service), host=args.host, port=args.port, print=None)
