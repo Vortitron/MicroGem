@@ -4,6 +4,7 @@ DOMAIN = "microgem"
 
 CONF_INPUTS = "inputs"
 CONF_OUTPUTS = "outputs"
+CONF_EXPANSIONS = "expansions"
 
 FRONTEND_URL = "/microgem_frontend"
 PANEL_ELEMENT = "microgem-panel"

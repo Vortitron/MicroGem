@@ -9,11 +9,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN
+from .core import __version__
 from .core.service import ControllerService
-
-
-def address(table: str, index: int) -> str:
-    return f"{table}{index // 16}.{index % 16}"
 
 
 class MicroGemEntity(Entity):
@@ -30,6 +27,7 @@ class MicroGemEntity(Entity):
             name=title,
             manufacturer="GEC (virtual)",
             model="MicroGEM",
+            sw_version=__version__,
         )
         self._last: Any = None
 

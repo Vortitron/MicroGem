@@ -27,6 +27,42 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 /* ---------- hardware row ---------- */
 .hw { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
 .unit svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 10px 16px rgba(0,0,0,.35)); }
+.unit svg + svg { margin-top: 14px; }
+.unit svg { color: var(--text); overflow: visible; }
+.term { fill: transparent; }
+.unit.wirable .term { cursor: pointer; }
+.unit.wirable .term:hover, .term.sel { fill: rgba(255, 216, 58, .14); stroke: #ffd83a; stroke-width: 1.5; }
+.cable { fill: none; stroke-width: 4; stroke-linecap: round; }
+.cable.in { stroke: #8a5a2b; }
+.cable.out { stroke: #2f6db3; }
+.cable.on { stroke: #ff6a3d; filter: url(#glow); }
+.sheath { fill: #3b3b3b; }
+.wl { font: 600 15px system-ui, sans-serif; fill: currentColor; }
+.wl tspan { fill: var(--muted); font-weight: 400; }
+.toggle:disabled { cursor: not-allowed; opacity: .45; }
+.wire-ed { margin-top: 14px; background: var(--panel); border: 2px solid #ffd83a; border-radius: 8px; padding: 12px 14px; }
+.wire-ed h3 { margin: 0 0 4px; font-size: .95rem; }
+.wire-ed label { display: flex; flex-direction: column; gap: 3px; font-size: .78rem; color: var(--muted); font-weight: 600; flex: 1 1 160px; min-width: 0; }
+.wire-ed input { font: 13px var(--mono); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); width: 100%; }
+.wire-ed [hidden] { display: none !important; }
+.unit.wirable .wl { cursor: pointer; }
+.unit.wirable .wl:hover { fill: var(--accent); text-decoration: underline; }
+.we-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.we-filters button { font: 600 12px/1 system-ui, sans-serif; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+.we-filters button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.we-filters button small { font-weight: 400; opacity: .75; margin-left: 3px; }
+.we-results { margin-top: 8px; max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.we-results button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; width: 100%; text-align: left; padding: 6px 10px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); cursor: pointer; font: inherit; }
+.we-results button:last-child { border-bottom: 0; }
+.we-results button:hover, .we-results button.hl { background: rgba(127, 127, 127, .12); }
+.we-results button.chosen { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.we-results b { font-weight: 600; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.we-results code { grid-column: 1; font-size: .72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.we-results .st { grid-row: 1 / span 2; grid-column: 2; align-self: center; font: 12px var(--mono); color: var(--muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.we-results .none { padding: 10px; font-size: .85rem; color: var(--muted); }
+.wire-ed label.check { flex-direction: row; align-items: center; gap: 8px; flex-basis: 100%; color: var(--text); font-weight: 400; font-size: .85rem; }
+.wire-ed label.check input { width: auto; }
+.wire-ed .fields { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .led { fill: #3a1414; transition: fill .04s; }
 .led.g { fill: #15301a; }
 .led.on { fill: #ff3b2f; filter: url(#glow); }
@@ -35,6 +71,7 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .sim { margin-top: 16px; background: #2b2926; border-radius: 8px; padding: 10px 12px 12px; color: #e8e1d2;
   box-shadow: inset 0 2px 0 rgba(255,255,255,.06), 0 3px 8px rgba(0,0,0,.25); }
 .sim-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 .72rem/1 Arial, sans-serif; letter-spacing: .12em; }
+.group-label { margin-top: 10px; font: 600 .62rem/1 Arial, sans-serif; letter-spacing: .1em; color: #b8ad95; }
 .toggles { display: grid; grid-template-columns: repeat(var(--n, 12), minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
 .toggle { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; touch-action: manipulation; }
 .toggle .plate { width: 22px; height: 34px; border-radius: 4px; background: linear-gradient(#5a554d, #2b2824); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.6); }
@@ -47,13 +84,16 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 
 /* ---------- MicroGEM Programmer ---------- */
 .progwrap { display: flex; flex-direction: column; align-items: center; }
-.cable { width: 6px; height: 26px; background: #111; border-radius: 3px; margin-left: 150px; }
+.lead { width: 6px; height: 26px; background: #111; border-radius: 3px; margin-left: 150px; }
 .prog { position: relative; width: 100%; max-width: 340px; padding: 18px 0 26px; outline: none; color: #f2f0ea;
   background: linear-gradient(170deg, #2a2a2a, #121212 60%, #0c0c0c);
-  clip-path: polygon(13% 0, 87% 0, 87% 40%, 100% 49%, 100% 100%, 0 100%, 0 49%, 13% 40%);
-  border-radius: 0 0 14px 14px; }
+  border-radius: 8px 8px 14px 14px; box-shadow: 0 10px 18px rgba(0,0,0,.35); }
+/* The case is the same width all the way down: the display end only looks
+   narrower in the photo because of the camera angle. The face folds where
+   the keypad starts, so it is drawn with a crease there. */
+.fold { height: 2px; margin: 22px 0 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.1) 6%, rgba(255,255,255,.1) 94%, transparent); box-shadow: 0 1px 0 #000; }
 .prog:focus-visible { filter: drop-shadow(0 0 4px var(--accent)); }
-.prog-head { position: relative; height: 54px; margin: 0 16%; }
+.prog-head { position: relative; height: 54px; margin: 0 9%; }
 .brand { position: absolute; right: 0; top: 4px; text-align: center; font: 900 .78rem/1 Arial, sans-serif; letter-spacing: .02em; }
 .brand small { display: block; font: 800 .55rem/1.1 Arial, sans-serif; letter-spacing: .03em; }
 .keyswitch { position: absolute; left: 0; top: -6px; width: 44px; height: 44px; border-radius: 6px; background: #1d1d1d; border: 2px solid #333;
@@ -63,11 +103,11 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .keyswitch.halt .barrel { transform: rotate(-60deg); }
 .keypos { position: absolute; left: 50px; top: 2px; font: 700 .52rem/1.5 Arial, sans-serif; color: #9a9a9a; letter-spacing: .06em; }
 .keypos b { color: #f2f0ea; }
-.lcdbox { margin: 6px 16% 0; }
+.lcdbox { margin: 6px 10% 0; }
 .lcd { background: linear-gradient(#c9cdbb, #b7bca6); border: 4px solid #3a3a3a; border-radius: 3px; padding: 6px 6px; box-shadow: inset 0 2px 6px rgba(0,0,0,.45); }
 .lcd div { font: 700 17px/1.25 "Courier New", var(--mono); color: #1c2117; white-space: pre; overflow: hidden; letter-spacing: .02em; text-align: center; }
 .lcd-labels { display: flex; justify-content: space-between; padding: 5px 8px 0; font: 800 .62rem/1 Arial, sans-serif; letter-spacing: .03em; }
-.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 10px; margin: 30px 8% 0; }
+.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 10px; margin: 22px 8% 0; }
 .k { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; color: #f2f0ea; touch-action: manipulation; min-width: 0; }
 .k .leg { font: 800 .6rem/1 Arial, sans-serif; white-space: nowrap; letter-spacing: .01em; min-height: .6rem; }
 .k .leg i { font-style: normal; opacity: .95; }
@@ -78,6 +118,17 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .k.g .cap { background: linear-gradient(#9fa39c, #7d817a); }
 .k.lit .cap { outline: 2px solid #fff; outline-offset: 1px; }
 .prog-help { font-size: .78rem; color: var(--muted); margin: 10px 0 0; max-width: 340px; }
+
+/* ---------- Home Assistant entities ---------- */
+.ha-links a { color: var(--accent); }
+.chips-label { margin: 10px 0 4px; font-size: .75rem; color: var(--muted); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 12px/1 var(--mono); padding: 5px 9px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+.chip:hover { border-color: var(--accent); }
+.chip .dot { width: 8px; height: 8px; border-radius: 50%; background: #8a8478; }
+.chip.on .dot { background: #e53b2f; box-shadow: 0 0 5px #ff5b4f; }
+.chip.run.on .dot { background: #2fbf4a; box-shadow: 0 0 5px #4dff6a; }
 
 /* ---------- ladder ---------- */
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; min-width: 0; margin-top: 20px; }
@@ -99,6 +150,8 @@ textarea { width: 100%; min-height: 320px; resize: vertical; font: 13px/1.5 var(
 .btn { font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .message { font-size: .85rem; color: var(--muted); }
+.demo-row { margin: 0 0 8px; }
+select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); max-width: 100%; }
 .message.error { color: var(--error); }
 table { width: 100%; border-collapse: collapse; font: 12px/1.4 var(--mono); }
 th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -130,19 +183,35 @@ const MARKUP = `
   </header>
 
   <div class="hw">
-    <section aria-label="MicroGEM60 controller">
+    <section aria-label="MicroGEM60 controller and expansion units">
       <div class="unit" id="unit"></div>
+      <div class="wire-ed" id="wire-ed" hidden>
+        <h3 id="we-title"></h3>
+        <p class="hint" id="we-hint"></p>
+        <div class="fields">
+          <label style="flex-basis:100%">Find an entity<input id="we-search" type="search" placeholder="Type part of a name or id, * for anything: kitchen*light" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <div class="we-filters" id="we-filters" role="tablist" aria-label="Kinds of entity"></div>
+        <div class="we-results" id="we-results" role="listbox" aria-label="Entities"></div>
+        <div class="fields">
+          <label id="we-attr-box">Read<select id="we-attr"></select></label>
+          <label id="we-above-box">Contact closes above<input id="we-above" type="number" step="any" placeholder="leave empty for on/off"></label>
+          <label class="check" id="we-invert-box"><input type="checkbox" id="we-invert"> Invert: the contact is closed while the entity is <i>off</i> (like a normally closed switch)</label>
+        </div>
+        <p class="message" id="we-now"></p>
+        <div class="row"><button class="btn primary" id="we-save">Connect</button><button class="btn" id="we-remove">Disconnect</button><button class="btn" id="we-cancel">Cancel</button></div>
+      </div>
       <div class="sim">
         <div class="sim-head">
           <span>INPUT SIMULATOR · switches wired to the input terminals</span>
           <span class="seg" id="mode"><button data-mode="toggle" class="active">LATCH</button><button data-mode="momentary">PUSH</button></span>
         </div>
-        <div class="toggles" id="toggles"></div>
+        <div id="toggles"></div>
       </div>
     </section>
 
     <section class="progwrap" aria-label="MicroGEM Programmer">
-      <div class="cable"></div>
+      <div class="lead"></div>
       <div class="prog" id="prog" tabindex="0">
         <div class="prog-head">
           <button class="keyswitch" id="keyswitch" title="Key switch: RUN / HALT"><span class="barrel"></span></button>
@@ -153,11 +222,19 @@ const MARKUP = `
           <div class="lcd"><div id="lcd1"></div><div id="lcd2"></div></div>
           <div class="lcd-labels"><span>ADDR</span><span>VALUE</span><span>LOC'N</span></div>
         </div>
+        <div class="fold"></div>
         <div class="keys" id="keys"></div>
       </div>
       <p class="prog-help" id="prog-help"></p>
     </section>
   </div>
+
+  <section class="panel ha-links" id="ha-links" hidden>
+    <h2>In Home Assistant</h2>
+    <p class="hint">Every input is a switch and every output is a binary sensor, so automations can use them. Open one below, or see them all on the <a id="device-link" href="#">device page</a>.</p>
+    <p class="hint"><b>Field wiring:</b> click a terminal on the controller to wire it to a Home Assistant entity, with no automation. An input follows the entity (or one of its attributes); a relay output switches the entity on and off.</p>
+    <div id="chips"></div>
+  </section>
 
   <section class="panel">
     <h2>Ladder diagram</h2>
@@ -169,16 +246,18 @@ const MARKUP = `
     <section class="panel">
       <h2>Program text</h2>
       <p class="hint">One rung per line: contacts on the left of <code>-&gt;</code>, coils and function blocks on the right. Comment lines above a rung become its title.</p>
+      <div class="row demo-row"><select id="demo" aria-label="Demo programme"><option>Demo programmes…</option></select><button class="btn" id="demo-load" disabled>Load demo</button><span class="message" id="demo-about"></span></div>
       <textarea id="program" spellcheck="false" aria-label="Ladder program"></textarea>
       <div class="row"><button class="btn primary" id="load">Load program</button><span class="message" id="message"></span></div>
       <details>
         <summary>Language reference</summary>
-        <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A (terminals 00–11 are <code>A0.0</code>–<code>A0.11</code>), relay outputs are B (<code>B0.0</code>–<code>B0.7</code>), workspace is G H L N O S U, retained workspace is R W.</p>
+        <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A (terminals 00–11 are <code>A0.0</code>–<code>A0.11</code>), relay outputs are B (<code>B0.0</code>–<code>B0.7</code>). Expansion unit 1 uses <code>A1</code> and <code>B1</code>, unit 2 <code>A2</code> and <code>B2</code>, and so on. Workspace is G H L N O S U, retained workspace is R W.</p>
         <p><b>Signal flow:</b> as on the GEM 80, a 16-bit word flows along each rung. The left rail gives -1 (@FFFF); a contact passes the word on or gives 0; the rung is ON when its word is not 0.</p>
         <p><b>Contacts:</b> <code>A0.0</code> (N/O), <code>NOT A0.0</code> (N/C), <code>TRUE</code>. <code>AND</code> between contacts wires them in series, <code>OR</code> in parallel; use brackets for branches.</p>
         <p><b>In the rung:</b> <code>DELAY G10 VALUE 25</code> (on-delay, VALUE in 0.1 s, G10 counts down the time left); <code>COUNT G11 VALUE 10 RESET A0.6</code> (counts OFF-to-ON changes); <code>INV</code>; <code>AND OR XOR</code> with a number or word (<code>AND @00FF</code>); <code>ADD SUB</code> and the Special Functions <code>MULT</code> (T10) and <code>DIV</code> (T11). A second input from its own branch goes in square brackets: <code>ADD [AND G4]</code>.</p>
         <p><b>Output (one per rung):</b> a bit address is a COIL; <code>OUT G2</code> writes the rung word; <code>SEQR G12 RESET A0.7</code> walks one bit left each scan; <code>BLOCK</code> obeys the rungs down to the next <code>END BLOCK</code> only while the rung is on.</p>
         <p><b>Flags (read-only):</b> <code>E0.0</code> pulses every 0.1 s, <code>E0.1</code> every second, <code>E0.6</code> after a program load, <code>E0.7</code> when ADD or SUB was limited to ±32767. <code>E1</code> to <code>E6</code> hold the time and date, <code>E7</code> the last scan time in ms. Hex numbers: <code>@00FF</code>.</p>
+        <p><b>Watchdog:</b> the W/DOG O.K. light and W/DOG OUTPUT close after three clean scans in Run and open in Halt. To trip it from the program, hold a non-zero code in <code>F1</code> for 100 ms (GEM80-400 manual T1614, 2.12), for example <code>A0.5 -&gt; BLOCK</code>, <code>AND 123 -&gt; OUT F1</code>, <code>END BLOCK</code>. The controller stops; switch it back to Run to clear the trip.</p>
         <p><b>Extensions</b> (not in a real GEM 80): <code>RISE A0.0</code>/<code>FALL A0.0</code> one-scan pulses, comparisons such as <code>G1 GE 5</code>, and <code>SET</code>/<code>RESET</code> outputs. On the real controller you latch with a seal-in branch.</p>
         <p>Elements and behaviour follow the GEM 80 Ladder Diagram Programming Manual (T391). The MicroGEM's own table letters (I and Q on the programmer) are not documented yet, so inputs and outputs use the GEM 80 A and B tables.</p>
       </details>
@@ -203,8 +282,15 @@ function inputLabels(n) {
   return out.concat(["HI", "LO"]);
 }
 
-function unitSvg(nIn, nOut) {
+// unit 0 is the controller; 1 to 7 are expansion units on its expansion port.
+// inBase / outBase number the LEDs across all units.
+function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs: {}, outputs: {} }) {
+  const exp = unit > 0;
   const W = 1024, H = 318;
+  // Field wiring: cables leave the terminals, up from the inputs and down from
+  // the relay outputs, labelled with the entity at the far end.
+  const label = (w, x, y, angle, end, kind, g) => `<text class="wl" data-kind="${kind}" data-index="${g}"${end ? ' text-anchor="end"' : ""} transform="translate(${x} ${y}) rotate(${angle})">${esc(w.name)}${w.detail ? `<tspan> ${esc(w.detail)}</tspan>` : ""}<title>${esc(w.title)}</title></text>`;
+  let cablesIn = "", cablesOut = "", top = 0, bottom = 0;
   const screw = (x, y, r = 11) => `<g><circle cx="${x}" cy="${y}" r="${r}" fill="url(#screwg)" stroke="#111" stroke-width="1.5"/>
     <path d="M${x - r * .55} ${y}h${r * 1.1}M${x} ${y - r * .55}v${r * 1.1}" stroke="#2a2a2a" stroke-width="2.4"/></g>`;
   const block = (x, y, w, h, n, sy) => {
@@ -218,6 +304,7 @@ function unitSvg(nIn, nOut) {
 
   // Inputs: one terminal per label, label strip underneath.
   const labels = inputLabels(nIn);
+  let terms = "";
   const ix = 106, iw = 535, ist = iw / labels.length;
   let inputs = block(ix, 6, iw, 80, labels.length, 34);
   let k = 0;
@@ -225,8 +312,14 @@ function unitSvg(nIn, nOut) {
     const cx = ix + ist * (i + .5);
     inputs += `<rect x="${ix + ist * i + 1}" y="89" width="${ist - 2}" height="27" fill="#222" stroke="#555" stroke-width=".6"/>`;
     if (/^\d+$/.test(lab)) {
+      const g = inBase + k, w = wires.inputs[g];
       inputs += `<text x="${cx}" y="101" class="tl">${lab}</text>
-        <circle class="led" id="in-${k}" cx="${cx}" cy="109.5" r="3"/>`;
+        <circle class="led" id="in-${g}" cx="${cx}" cy="109.5" r="3"/>`;
+      terms += `<rect class="term" data-kind="inputs" data-index="${g}" x="${ix + ist * i}" y="6" width="${ist}" height="110" rx="3"><title>Input terminal ${lab} (${w ? "wired to " + esc(w.title) : "click to wire it to an entity"})</title></rect>`;
+      if (w) {
+        top = 215;
+        cablesIn += `<path class="cable in" id="cable-in-${g}" d="M${cx} 34 C${cx - 7} 14 ${cx + 7} 4 ${cx} -14"/><rect class="sheath" x="${cx - 5}" y="-26" width="10" height="16" rx="2"/>${label(w, cx + 4, -32, -50, false, "inputs", g)}`;
+      }
       k++;
     } else inputs += `<text x="${cx}" y="104" class="tl">${lab}</text>`;
   });
@@ -238,10 +331,34 @@ function unitSvg(nIn, nOut) {
     const x = ox + ost * i;
     outputs += `<rect x="${x + 1}" y="142" width="${ost - 2}" height="28" fill="#222" stroke="#555" stroke-width=".6"/>
       <text x="${x + ost / 2}" y="155" class="tl">${String(i).padStart(2, "0")}</text>
-      <circle class="led" id="out-${i}" cx="${x + ost / 2}" cy="163" r="3.2"/>`;
+      <circle class="led" id="out-${outBase + i}" cx="${x + ost / 2}" cy="163" r="3.2"/>`;
+    const g = outBase + i, w = wires.outputs[g];
+    terms += `<rect class="term" data-kind="outputs" data-index="${g}" x="${x}" y="142" width="${ost}" height="130" rx="3"><title>Relay output ${String(i).padStart(2, "0")} (${w ? "wired to " + esc(w.title) : "click to wire it to an entity"})</title></rect>`;
+    if (w) {
+      bottom = 200;
+      const a = x + ost * .25, b = x + ost * .75, m = x + ost / 2;
+      cablesOut += `<path class="cable out" id="cable-out-${g}" d="M${a} 236 V${H + 4} L${m - 3} ${H + 18} V${H + 30} M${b} 236 V${H + 4} L${m + 3} ${H + 18} V${H + 30}"/>
+        <rect class="sheath" x="${m - 7}" y="${H + 22}" width="14" height="18" rx="2"/>${label(w, m + 6, H + 50, -50, true, "outputs", g)}`;
+    }
   }
 
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="GEC MicroGEM60 controller with ${nIn} inputs and ${nOut} relay outputs">
+  const what = exp ? `MicroGEM expansion unit ${unit}` : "GEC MicroGEM60 controller";
+  // The controller has the programmer socket and watchdog; an expansion unit
+  // shows its number and the A and B words it occupies there instead.
+  const socket = exp
+    ? `<text x="871" y="88" style="font:900 26px Arial Black,Arial,sans-serif;fill:#eee;text-anchor:middle">UNIT ${unit}</text>
+       <text x="871" y="106" style="font:700 11px Arial;fill:#bbb;text-anchor:middle;letter-spacing:.06em">INPUTS A${unit} · OUTPUTS B${unit}</text>`
+    : `<rect x="760" y="64" width="222" height="44" rx="2" fill="#0a0a0a"/>
+  <rect x="770" y="70" width="202" height="32" rx="1" fill="#d9d6cc"/>
+  ${Array.from({ length: 20 }, (_, i) => `<rect x="${776 + i * 9.8}" y="76" width="6" height="7" fill="#7d796f"/><rect x="${776 + i * 9.8}" y="89" width="6" height="7" fill="#7d796f"/>`).join("")}`;
+  const status = exp ? "" : `<text x="252" y="146" class="lb">BATTERY</text><text x="252" y="160" class="lb">LOW</text>
+  <circle class="led" id="led-batt" cx="252" cy="176" r="5"/>
+  <text x="322" y="146" class="lb">W/DOG</text><text x="322" y="160" class="lb">O.K.</text>
+  <circle class="led g" id="led-wdog" cx="322" cy="176" r="5"/>
+  <rect x="306" y="186" width="68" height="34" fill="none" stroke="#666"/>
+  <text x="340" y="200" class="lb" style="font-size:11px">W/DOG</text><text x="340" y="214" class="lb" style="font-size:11px">OUTPUT</text>
+  ${block(306, 222, 68, 56, 2, 244)}`;
+  return `<svg viewBox="0 ${-top} ${W} ${H + top + bottom}" role="img" aria-label="${what} with ${nIn} inputs and ${nOut} relay outputs">
   <defs>
     <radialGradient id="screwg" cx=".35" cy=".35" r=".8"><stop offset="0" stop-color="#6a6a6a"/><stop offset="1" stop-color="#1e1e1e"/></radialGradient>
     <linearGradient id="cover" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>
@@ -265,27 +382,20 @@ function unitSvg(nIn, nOut) {
     <text x="96" y="34" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">KIDSGROVE</text><text x="96" y="43" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">ENGLAND</text>
     <text x="32" y="40" style="font:600 7.5px Arial;fill:#ddd">Made in U.K</text>
   </g>
-  <rect x="760" y="64" width="222" height="44" rx="2" fill="#0a0a0a"/>
-  <rect x="770" y="70" width="202" height="32" rx="1" fill="#d9d6cc"/>
-  ${Array.from({ length: 20 }, (_, i) => `<rect x="${776 + i * 9.8}" y="76" width="6" height="7" fill="#7d796f"/><rect x="${776 + i * 9.8}" y="89" width="6" height="7" fill="#7d796f"/>`).join("")}
-  <text x="372" y="138" style="font:900 21px Arial Black,Arial,sans-serif;fill:#f2f2f2;letter-spacing:.01em">MICROGEM60</text>
-  <text x="530" y="138" style="font:800 16px Arial,sans-serif;fill:#f2f2f2">CONTROLLER</text>
+  ${socket}
+  <text x="372" y="138" style="font:900 21px Arial Black,Arial,sans-serif;fill:#f2f2f2;letter-spacing:.01em">${exp ? "MICROGEM" : "MICROGEM60"}</text>
+  <text x="${exp ? 498 : 530}" y="138" style="font:800 16px Arial,sans-serif;fill:#f2f2f2">${exp ? "EXPANSION UNIT" : "CONTROLLER"}</text>
   <text x="182" y="146" class="lb">SUPPLY</text><text x="182" y="160" class="lb">ON</text>
-  <circle class="led" id="led-supply" cx="182" cy="176" r="5"/>
-  <text x="252" y="146" class="lb">BATTERY</text><text x="252" y="160" class="lb">LOW</text>
-  <circle class="led" id="led-batt" cx="252" cy="176" r="5"/>
-  <text x="322" y="146" class="lb">W/DOG</text><text x="322" y="160" class="lb">O.K.</text>
-  <circle class="led g" id="led-wdog" cx="322" cy="176" r="5"/>
+  <circle class="led supply" cx="182" cy="176" r="5"/>
   <text x="152" y="196" class="lb">A.C.SUPPLY</text>
   <text x="114" y="220" style="font:700 18px Arial;fill:#eee;text-anchor:middle">~</text>
   <text x="152" y="220" style="font:700 18px Arial;fill:#eee;text-anchor:middle">~</text>
   <text x="186" y="220" style="font:700 14px Arial;fill:#eee;text-anchor:middle">⏚</text>
   ${block(98, 226, 106, 52, 3, 248)}
-  <rect x="306" y="186" width="68" height="34" fill="none" stroke="#666"/>
-  <text x="340" y="200" class="lb" style="font-size:11px">W/DOG</text><text x="340" y="214" class="lb" style="font-size:11px">OUTPUT</text>
-  ${block(306, 222, 68, 56, 2, 244)}
+  ${status}
   ${outputs}
   <text x="970" y="146" class="lb">RELAY</text><text x="970" y="160" class="lb">OUTPUTS</text>
+  ${cablesIn}${cablesOut}${terms}
 </svg>`;
 }
 
@@ -323,6 +433,12 @@ export function homeAssistantTransport(hass, entryId) {
         .callWS({ type: "microgem/command", entry_id: entryId, command: message })
         .then((reply) => { if (reply) deliver(reply); })
         .catch((err) => deliver({ type: "error", message: err.message || String(err) }));
+    },
+    /** Wire a terminal to an entity; point null removes the wire. Resolves to the new wiring. */
+    wire(kind, index, point) {
+      return hass
+        .callWS({ type: "microgem/wire", entry_id: entryId, kind, index, ...(point || {}) })
+        .then((reply) => reply.wiring);
     },
   };
 }
@@ -617,6 +733,129 @@ const SYMBOLS = new Set(["-] [-", "-]/[-", "-( )-", "-(S)-", "-(C)-", "-(D)-", "
 const TABLE_KEY = { I: "A", Q: "B", G: "G", W: "W", C: "C", D: "D", S: "S" };
 const LCD_W = 16;
 
+// A rung drawn as text, the way the GEM 80 manual (T391) and its programmers
+// draw ladder: each element's symbol on one line and its address on the line
+// below, branches joined with + and !, rails at both ends. The programmer's
+// 2 x 16 display is a window onto this that the arrow keys move around.
+// Live wires are dashes and dead ones dots, as on the GEM 80 monitor.
+const CELL = 8;
+
+function textRung(rung, flow) {
+  const cells = []; // the elements the cursor can sit on
+  const live = (id) => (flow ? (flow[String(id)] ?? 0) !== 0 : true);
+  const wire = (on) => (on ? "-" : ".");
+  const opnd = (a) => (a && typeof a === "object" ? null : a);
+  const leaf = (n) => {
+    switch (n.t) {
+      case "contact": return { sym: n.nc ? "]/[" : "] [", addr: n.addr };
+      case "edge": return { sym: n.rising ? "]^[" : "]v[", addr: n.addr };
+      case "const": return { sym: "", addr: "" };
+      case "cmp": return { sym: `<${n.op}>`, addr: `${opnd(n.left) ?? ""} ${opnd(n.right) ?? ""}` };
+      case "inv": return { sym: "<INV>", addr: "" };
+      case "logic": case "arith": {
+        const a = opnd(n.arg);
+        return n.spec ? { sym: "SPEC.", addr: n.spec + (a !== null ? " " + a : "") } : { sym: `<${n.op}>`, addr: a ?? "" };
+      }
+      case "delay": return { sym: "<DELAY>--VALUE", addr: `${n.word}`.padEnd(9) + n.value };
+      case "count": return { sym: "<COUNT>--VALUE", addr: `${n.word}`.padEnd(9) + n.value };
+    }
+    return { sym: "?", addr: "" };
+  };
+  const branchOf = (n) => (n.t === "count" ? n.reset : (n.t === "logic" || n.t === "arith") && n.arg && typeof n.arg === "object" ? n.arg : null);
+  const width = (n) => Math.max(CELL, leaf(n).sym.length + 4);
+
+  function measure(n) {
+    if (!n) return { w: 0, h: 1 };
+    if (n.t === "series") return n.items.map(measure).reduce((a, b) => ({ w: a.w + b.w, h: Math.max(a.h, b.h) }), { w: 0, h: 1 });
+    if (n.t === "parallel") {
+      const ms = n.items.map(measure);
+      return { w: Math.max(...ms.map((m) => m.w)) + 2, h: ms.reduce((a, m) => a + m.h, 0) };
+    }
+    const b = branchOf(n);
+    if (b) { const m = measure(b); return { w: m.w + 2 + width(n), h: 1 + m.h }; }
+    return { w: width(n), h: 1 };
+  }
+
+  const m = measure(rung.condition);
+  const out = rung.output || {};
+  const OUT = { coil: "( )", out: "<OUT>", seqr: "<SEQR>", block: "<OBEY BLOCK>", end: "END OF BLOCK", set: "(L)", reset: "(U)" };
+  const osym = OUT[out.t] || "";
+  const ow = osym.length + 5;
+  const seqrReset = out.t === "seqr" && out.reset ? out.reset : null;
+  const rm = seqrReset ? measure(seqrReset) : { w: 0, h: 0 };
+  const W = Math.max(1 + m.w + ow, 1 + rm.w + ow + 2, 2 * CELL);
+  const rows = m.h + rm.h;
+  const lines = Array.from({ length: rows * 2 }, () => Array(W).fill(" "));
+  const put = (line, x, str) => { for (let k = 0; k < str.length; k++) if (x + k < W && lines[line]) lines[line][x + k] = str[k]; };
+  const vline = (x, fromRow, toRow) => { for (let l = fromRow * 2 + 1; l < toRow * 2; l++) put(l, x, "!"); put(toRow * 2, x, "+"); };
+
+  function draw(n, x, y, on, w) {
+    if (!n) { put(y * 2, x, wire(on).repeat(w)); return on; }
+    if (n.t === "series") {
+      const ms = n.items.map(measure);
+      const total = ms.reduce((a, b) => a + b.w, 0);
+      let cx = x;
+      n.items.forEach((item, k) => {
+        const iw = ms[k].w + (k === n.items.length - 1 ? w - total : 0);
+        on = draw(item, cx, y, on, iw);
+        cx += iw;
+      });
+      return on;
+    }
+    if (n.t === "parallel") {
+      // Branches hang from a + on the line above; right after the left rail
+      // they hang from the rail itself, as in the manual.
+      let row = y, any = false;
+      const left = x === 1 ? 0 : x, right = x + w - 1;
+      const starts = [];
+      n.items.forEach((item) => {
+        starts.push(row);
+        put(row * 2, x, wire(on));
+        any = draw(item, x + 1, row, on, w - 2) || any;
+        row += measure(item).h;
+      });
+      const last = starts.at(-1);
+      vline(left, y, last);
+      vline(right, y, last);
+      for (const r of starts) { put(r * 2, left, "+"); put(r * 2, right, "+"); }
+      return any;
+    }
+    const b = branchOf(n);
+    const L = leaf(n), o = live(n.id);
+    let ex = x;
+    if (b) {
+      // A second input from a lower branch, which starts at the left rail.
+      const bm = measure(b);
+      put(y * 2, x, wire(on).repeat(bm.w + 2));
+      draw(b, x, y + 1, true, bm.w + 1);
+      vline(x + bm.w + 1, y, y + 1);
+      // Lead the branch back to the left rail where the way is clear.
+      let lx = x - 1;
+      while (lx > 0 && lines[(y + 1) * 2][lx] === " ") put((y + 1) * 2, lx--, "-");
+      if (lx === 0) put((y + 1) * 2, 0, "+");
+      ex = x + bm.w + 2;
+    }
+    const ew = w - (ex - x);
+    put(y * 2, ex, wire(on).repeat(2) + L.sym + wire(o).repeat(Math.max(0, ew - 2 - L.sym.length)));
+    put(y * 2 + 1, ex + 2, String(L.addr).slice(0, ew - 2));
+    if (n.t !== "const") cells.push({ row: y, x: ex + 2, len: L.sym.length, addr: n.addr || n.word || null, node: n });
+    return n.t === "const" ? on : o;
+  }
+
+  // Left rail, then the condition, then wire across to the output and the right rail.
+  for (let l = 0; l < rows * 2; l++) put(l, 0, l === 0 ? "+" : "!");
+  const con = rung.condition ? draw(rung.condition, 1, 0, true, m.w) : true;
+  const ox = W - ow;
+  put(0, 1 + m.w, wire(con).repeat(Math.max(0, ox - 1 - m.w)));
+  if (seqrReset) { draw(seqrReset, 1, m.h, true, ox - 1); vline(ox, 0, m.h); put(m.h * 2, 0, "+"); }
+  put(0, ox, wire(con).repeat(2) + osym + wire(con).repeat(2) + "+");
+  put(1, ox + 2, (out.addr || "").slice(0, ow - 3));
+  for (let l = 1; l < rows * 2; l++) put(l, W - 1, "!");
+  if (osym) cells.push({ row: 0, x: ox + 2, len: osym.length, addr: out.addr || null, node: out });
+  cells.sort((a, b) => a.row - b.row || a.x - b.x);
+  return { lines: lines.map((l) => l.join("")), cells, width: W };
+}
+
 // What each element key asks for. DELAY and COUNT sit in the rung like
 // contacts (as on the GEM 80, their output passes along the rung); the coil,
 // -(S)- (taken to be the sequencer, SEQR) and BLK end the rung.
@@ -681,6 +920,8 @@ class MicroGemPanel extends HTMLElement {
 
     let state = null;
     let built = false;
+    let examples = null; // demo programmes, fetched once connected
+    let ha = null; // { device_id, entities: { run, input_0, output_0, ... } } inside Home Assistant
     let mode = "toggle";
     let programDirty = false;
     let shownTable = "G";
@@ -690,7 +931,7 @@ class MicroGemPanel extends HTMLElement {
 
     const P = {
       screen: "IDLE", ctrl: false, entry: null, addr: "G0", value: null,
-      draft: null, replace: false, pending: null, answers: [], confirmDel: false, flash: "", hscroll: null,
+      draft: null, replace: false, pending: null, answers: [], confirmDel: false, flash: "", cell: 0,
     };
 
     function el(tag, cls, text) {
@@ -705,22 +946,46 @@ class MicroGemPanel extends HTMLElement {
       $("message").classList.toggle("error", !!isError);
     }
 
-    function build(nIn, nOut) {
-      $("unit").innerHTML = unitSvg(nIn, nOut);
-      const t = $("toggles");
-      t.style.setProperty("--n", Math.min(nIn, 16));
-      t.replaceChildren();
-      for (let i = 0; i < nIn; i++) {
-        const b = el("button", "toggle");
-        b.title = `Input terminal ${String(i).padStart(2, "0")} (A${Math.floor(i / 16)}.${i % 16})`;
-        b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${String(i).padStart(2, "0")}</small>`;
-        b.addEventListener("click", () => { if (mode === "toggle") send({ type: "input", index: i, value: !state.inputs[i] }); });
-        const press = (v) => (e) => { if (mode === "momentary") { e.preventDefault(); send({ type: "input", index: i, value: v }); } };
-        b.addEventListener("pointerdown", press(true));
-        b.addEventListener("pointerup", press(false));
-        b.addEventListener("pointerleave", (e) => { if (mode === "momentary" && state.inputs[i]) press(false)(e); });
-        t.append(b);
+    // I/O point i -> its address; unit n (0 = controller) uses word n of A and B.
+    function ioAddress(table, i, perUnit) {
+      const unit = Math.floor(i / perUnit), point = i % perUnit;
+      return `${table}${unit * Math.ceil(perUnit / 16) + Math.floor(point / 16)}.${point % 16}`;
+    }
+    const io = () => state.io || { units: 1, inputs: state.inputs.length, outputs: state.outputs.length };
+
+    function build() {
+      const { units, inputs: nIn, outputs: nOut } = io();
+      let svgs = "";
+      const wires = { inputs: {}, outputs: {} };
+      for (const kind of ["inputs", "outputs"]) {
+        for (const [i, point] of Object.entries(wiring()[kind])) wires[kind][i] = describe(point);
       }
+      for (let u = 0; u < units; u++) svgs += unitSvg(nIn, nOut, u, u * nIn, u * nOut, wires);
+      $("unit").innerHTML = svgs;
+      $("unit").classList.toggle("wirable", canWire());
+      const t = $("toggles");
+      t.replaceChildren();
+      for (let u = 0; u < units; u++) {
+        if (units > 1) t.append(el("div", "group-label", u === 0 ? "CONTROLLER" : `EXPANSION UNIT ${u}`));
+        const group = el("div", "toggles");
+        group.style.setProperty("--n", Math.min(nIn, 16));
+        for (let p = 0; p < nIn; p++) {
+          const i = u * nIn + p;
+          const b = el("button", "toggle");
+          b.title = `Input terminal ${String(p).padStart(2, "0")}${u ? ` on expansion unit ${u}` : ""} (${ioAddress("A", i, nIn)})`;
+          b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${String(p).padStart(2, "0")}</small>`;
+          if (wires.inputs[i]) { b.disabled = true; b.title += `: wired to ${wires.inputs[i].title}`; }
+          b.addEventListener("click", () => { if (mode === "toggle") send({ type: "input", index: i, value: !state.inputs[i] }); });
+          const press = (v) => (e) => { if (mode === "momentary") { e.preventDefault(); send({ type: "input", index: i, value: v }); } };
+          b.addEventListener("pointerdown", press(true));
+          b.addEventListener("pointerup", press(false));
+          b.addEventListener("pointerleave", (e) => { if (mode === "momentary" && state.inputs[i]) press(false)(e); });
+          group.append(b);
+        }
+        t.append(group);
+      }
+      if (keysBuilt) { built = true; buildLinks(); return; }
+      keysBuilt = true;
       const keys = $("keys");
       for (const [label, colour, second] of KEYS) {
         const k = el("button", "k " + colour);
@@ -733,18 +998,298 @@ class MicroGemPanel extends HTMLElement {
       }
       $("keyswitch").addEventListener("click", () => send({ type: state.running ? "halt" : "run" }));
       built = true;
+      buildLinks();
     }
+    let keysBuilt = false;
+    let builtFor = "";
+
+    // ---- links to the Home Assistant entities ----
+    const host = this;
+    function moreInfo(entityId) {
+      host.dispatchEvent(new CustomEvent("hass-more-info", { detail: { entityId }, bubbles: true, composed: true }));
+    }
+    function navigate(path) {
+      history.pushState(null, "", path);
+      window.dispatchEvent(new CustomEvent("location-changed", { detail: { replace: false } }));
+    }
+    function buildLinks() {
+      if (!ha || !state) return;
+      const box = $("chips");
+      box.replaceChildren();
+      const { inputs: nIn, outputs: nOut } = io();
+      const chip = (key, label, cls) => {
+        const id = ha.entities[key];
+        if (!id) return null;
+        const c = el("button", "chip " + cls);
+        c.dataset.key = key;
+        c.title = id;
+        c.innerHTML = `<span class="dot"></span>${esc(label)}`;
+        c.addEventListener("click", () => moreInfo(id));
+        return c;
+      };
+      const row = (title, chips) => {
+        const shown = chips.filter(Boolean);
+        if (!shown.length) return;
+        box.append(el("div", "chips-label", title));
+        const r = el("div", "chips");
+        r.append(...shown);
+        box.append(r);
+      };
+      const first = (k) => ha.entities[k] ? ` (${ha.entities[k].replace(/_a0_0$|_b0_0$/, "_…")})` : "";
+      row("Controller", [chip("run", "Run", "run"), chip("watchdog", "Watchdog", "run")]);
+      row(`Inputs: switches${first("input_0")}`, state.inputs.map((_, i) => chip(`input_${i}`, ioAddress("A", i, nIn), "in")));
+      row(`Outputs: binary sensors${first("output_0")}`, state.outputs.map((_, i) => chip(`output_${i}`, ioAddress("B", i, nOut), "out")));
+      const wired = [];
+      for (const [kind, table, per, arrow] of [["inputs", "A", nIn, "←"], ["outputs", "B", nOut, "→"]]) {
+        for (const [i, point] of Object.entries(wiring()[kind]).sort((a, b) => a[0] - b[0])) {
+          const c = el("button", "chip wire");
+          c.title = `Edit the wiring of ${ioAddress(table, Number(i), per)}`;
+          c.innerHTML = `${ioAddress(table, Number(i), per)} ${arrow} ${esc(describe(point).name)}`;
+          c.addEventListener("click", () => openEditor(kind, Number(i)));
+          wired.push(c);
+        }
+      }
+      row("Field wiring", wired);
+      const link = $("device-link");
+      link.href = ha.device_id ? `/config/devices/device/${ha.device_id}` : "/config/integrations/integration/microgem";
+      link.onclick = (e) => { e.preventDefault(); navigate(link.getAttribute("href")); };
+      $("ha-links").hidden = false;
+    }
+
+    // ---- field wiring: terminals connected to Home Assistant entities ----
+    const OFF = new Set(["off", "closed", "not_home", "away", "idle", "standby", "paused", "locked", "false", "0", "none", "", "unavailable", "unknown"]);
+    const TRIGGERED = new Set(["button", "input_button", "scene", "script", "automation"]);
+    const SWITCHABLE = new Set(["switch", "light", "fan", "input_boolean", "siren", "cover", "valve", "climate", "humidifier", "media_player", "water_heater", "vacuum", "remote", ...TRIGGERED]);
+    const wiring = () => (ha && ha.wiring) || { inputs: {}, outputs: {} };
+    const canWire = () => !!(ha && transport.wire);
+    const hassState = (id) => host._hass && host._hass.states[id];
+    function describe(point) {
+      const st = hassState(point.entity_id);
+      const name = (st && st.attributes.friendly_name) || point.entity_id;
+      const short = name.length > 28 ? name.slice(0, 12) + "…" + name.slice(-15) : name;
+      let detail = point.attribute ? `· ${point.attribute}${point.above != null ? " > " + point.above : ""}` : point.above != null ? `> ${point.above}` : "";
+      if (point.invert) detail = (detail ? detail + " " : "") + "· inverted";
+      return { name: short, detail, title: `${name} (${point.entity_id})${detail ? " " + detail : ""}` };
+    }
+    function closes(st, point) {
+      // A missing or unavailable entity always leaves the contact open, inverted or not.
+      if (!st || st.state === "unavailable" || st.state === "unknown") return false;
+      return contact(st, point) !== !!point.invert;
+    }
+    function contact(st, point) {
+      const attr = point.attribute;
+      const v = attr ? st.attributes[attr] : st.state;
+      if (point.above != null) { const n = Number(v); return v !== null && v !== "" && !Number.isNaN(n) && n > point.above; }
+      if (typeof v === "boolean") return v;
+      if (typeof v === "number") return v !== 0;
+      return !OFF.has(String(v).trim().toLowerCase());
+    }
+
+    let editing = null; // { kind, index }
+    function openEditor(kind, index) {
+      if (!canWire()) return;
+      editing = { kind, index };
+      const { inputs: nIn, outputs: nOut } = io();
+      const per = kind === "inputs" ? nIn : nOut, unit = Math.floor(index / per);
+      const where = `${kind === "inputs" ? "input terminal" : "relay output"} ${String(index % per).padStart(2, "0")}${unit ? ` on expansion unit ${unit}` : ""}`;
+      const addr = ioAddress(kind === "inputs" ? "A" : "B", index, per);
+      const point = wiring()[kind][index];
+      $("we-title").textContent = `Wire ${where} (${addr})`;
+      $("we-hint").textContent = kind === "inputs"
+        ? `${addr} follows the entity: its contact is closed while the entity is on, open, home, playing and so on, or while a number is above the value you set.`
+        : `The relay switches the entity on when ${addr} is on and off when it is off. Buttons, scenes and scripts are pressed or run each time the relay closes.`;
+      chosen = point ? point.entity_id : "";
+      $("we-search").value = "";
+      const domain = chosen.split(".")[0];
+      filter = (chosen && FILTERS.find((f) => f.key !== "all" && filterHas(f, domain) && allowed(kind, f))?.key) || "switch";
+      $("we-above").value = point && point.above != null ? point.above : "";
+      $("we-invert").checked = !!(point && point.invert);
+      $("we-attr-box").hidden = $("we-above-box").hidden = $("we-invert-box").hidden = kind !== "inputs";
+      $("we-remove").hidden = !point;
+      fillAttributes(point && point.attribute);
+      renderPicker(true);
+      $("unit").querySelectorAll(".term").forEach((t) => t.classList.toggle("sel", t.dataset.kind === kind && Number(t.dataset.index) === index));
+      $("wire-ed").hidden = false;
+      $("wire-ed").scrollIntoView({ block: "nearest", behavior: "smooth" });
+      $("we-search").focus();
+    }
+    function closeEditor() {
+      editing = null;
+      $("wire-ed").hidden = true;
+      $("unit").querySelectorAll(".term.sel").forEach((t) => t.classList.remove("sel"));
+    }
+    function fillAttributes(chosen) {
+      const st = hassState(chosen);
+      const attrs = st ? Object.keys(st.attributes).filter((a) => a !== "friendly_name" && !/^(icon|entity_picture|supported_features|attribution)$/.test(a)) : [];
+      if (chosen && !attrs.includes(chosen)) attrs.unshift(chosen);
+      $("we-attr").replaceChildren(el("option", "", "State"), ...attrs.map((a) => { const o = el("option", "", a); o.value = a; return o; }));
+      $("we-attr").firstChild.value = "";
+      $("we-attr").value = chosen || "";
+      wirePreview();
+    }
+    function editedPoint() {
+      const entity_id = chosen;
+      if (!entity_id) return null;
+      const point = { entity_id };
+      if (editing.kind === "inputs") {
+        if ($("we-attr").value) point.attribute = $("we-attr").value;
+        if ($("we-above").value !== "") point.above = Number($("we-above").value);
+        if ($("we-invert").checked) point.invert = true;
+      }
+      return point;
+    }
+    function wirePreview() {
+      const now = $("we-now");
+      now.classList.remove("error");
+      const point = editing && editedPoint();
+      if (!point) { now.textContent = "Pick an entity from the list."; return; }
+      const st = hassState(point.entity_id);
+      if (!st) { now.textContent = `${point.entity_id} is not in Home Assistant at the moment.`; now.classList.add("error"); return; }
+      const value = point.attribute ? st.attributes[point.attribute] : st.state;
+      const shown = typeof value === "object" ? JSON.stringify(value) : String(value);
+      now.textContent = editing.kind === "inputs"
+        ? `${describe(point).name} is ${shown.slice(0, 60)} now, so ${io_addr()} would be ${closes(st, point) ? "closed (on)" : "open (off)"}.`
+        : `${describe(point).name} is ${shown.slice(0, 60)} now.${TRIGGERED.has(point.entity_id.split(".")[0]) ? " Pressed or run when the relay closes." : ""}`;
+    }
+    function io_addr() {
+      const { inputs: nIn, outputs: nOut } = io();
+      return editing.kind === "inputs" ? ioAddress("A", editing.index, nIn) : ioAddress("B", editing.index, nOut);
+    }
+
+    // The entity picker: kinds of entity as filter buttons, a live search, a list.
+    const FILTERS = [
+      { key: "switch", label: "Switches", domains: ["switch"] },
+      { key: "light", label: "Lights", domains: ["light"] },
+      { key: "binary_sensor", label: "Binary sensors", domains: ["binary_sensor"], inputsOnly: true },
+      { key: "sensor", label: "Sensors", domains: ["sensor"], inputsOnly: true },
+      { key: "helper", label: "Helpers", domains: ["input_boolean", "input_number", "input_select", "counter", "timer"] },
+      { key: "action", label: "Buttons, scenes, scripts", domains: ["button", "input_button", "scene", "script", "automation"] },
+      { key: "other", label: "Other" },
+      { key: "all", label: "All" },
+    ];
+    const NAMED = new Set(FILTERS.flatMap((f) => f.domains || []));
+    const filterHas = (f, domain) => f.key === "all" || (f.domains ? f.domains.includes(domain) : !NAMED.has(domain));
+    const allowed = (kind, f) => kind === "inputs" || !f.inputsOnly;
+    let chosen = "", filter = "switch", highlight = 0, shownIds = [];
+    function matcher(text) {
+      const terms = text.trim().toLowerCase().split(/\s+/).filter(Boolean).map((t) =>
+        t.includes("*") || t.includes("?")
+          ? new RegExp(t.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, "."))
+          : t);
+      return (hay) => terms.every((t) => (typeof t === "string" ? hay.includes(t) : t.test(hay)));
+    }
+    function candidates() {
+      const states = (host._hass && host._hass.states) || {};
+      // This controller's own switches and sensors are its internal I/O, not field devices.
+      const own = new Set(Object.values(ha.entities || {}));
+      return Object.keys(states).filter((id) => !own.has(id) && (editing.kind === "inputs" || SWITCHABLE.has(id.split(".")[0])));
+    }
+    function renderPicker(scrollToChosen) {
+      const states = (host._hass && host._hass.states) || {};
+      const match = matcher($("we-search").value);
+      const nameOf = (id) => (states[id] && states[id].attributes.friendly_name) || id;
+      const found = candidates().filter((id) => match(`${id} ${nameOf(id)}`.toLowerCase()));
+      const box = $("we-filters");
+      box.replaceChildren();
+      for (const f of FILTERS) {
+        if (!allowed(editing.kind, f)) continue;
+        const total = candidates().filter((id) => filterHas(f, id.split(".")[0])).length;
+        if (!total && f.key !== "all") continue;
+        const n = found.filter((id) => filterHas(f, id.split(".")[0])).length;
+        const b = el("button");
+        b.type = "button";
+        b.setAttribute("role", "tab");
+        b.className = f.key === filter ? "active" : "";
+        b.innerHTML = `${esc(f.label)}<small>${n}</small>`;
+        b.addEventListener("click", () => { filter = f.key; highlight = 0; renderPicker(); $("we-search").focus(); });
+        box.append(b);
+      }
+      const f = FILTERS.find((x) => x.key === filter);
+      shownIds = found.filter((id) => filterHas(f, id.split(".")[0]))
+        .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+      const list = $("we-results");
+      list.replaceChildren();
+      const LIMIT = 150;
+      shownIds.slice(0, LIMIT).forEach((id, i) => {
+        const st = states[id];
+        const r = el("button");
+        r.type = "button";
+        r.setAttribute("role", "option");
+        r.className = (id === chosen ? "chosen " : "") + (i === highlight ? "hl" : "");
+        r.innerHTML = `<b>${esc(nameOf(id))}</b><code>${esc(id)}</code><span class="st">${esc(st ? st.state : "")}</span>`;
+        r.addEventListener("click", () => choose(id));
+        list.append(r);
+      });
+      if (!shownIds.length) {
+        const elsewhere = found.length ? ` ${found.length} ${found.length === 1 ? "match is" : "matches are"} under the other buttons.` : "";
+        list.append(el("div", "none", `Nothing here matches.${elsewhere}`));
+      } else if (shownIds.length > LIMIT) list.append(el("div", "none", `…and ${shownIds.length - LIMIT} more. Keep typing to narrow it down.`));
+      if (scrollToChosen) list.querySelector(".chosen")?.scrollIntoView({ block: "nearest" });
+    }
+    function choose(id) {
+      chosen = id;
+      fillAttributes(editing.kind === "inputs" ? $("we-attr").value : "");
+      renderPicker();
+    }
+
+    function saveWire(point) {
+      const { kind, index } = editing;
+      if (point && !hassState(point.entity_id)) { wirePreview(); return; }
+      if (point && Object.values(ha.entities || {}).includes(point.entity_id)) {
+        $("we-now").textContent = "That is one of this controller's own switches or sensors. Wire terminals to other devices.";
+        $("we-now").classList.add("error");
+        return;
+      }
+      transport.wire(kind, index, point)
+        .then((w) => { ha.wiring = w; closeEditor(); built = false; schedule(); })
+        .catch((err) => { $("we-now").textContent = "Not saved: " + (err.message || err.code || err); $("we-now").classList.add("error"); });
+    }
+    $("unit").addEventListener("click", (e) => {
+      const t = e.target.closest && e.target.closest(".term, .wl");
+      if (t) openEditor(t.dataset.kind, Number(t.dataset.index));
+    });
+    $("we-search").addEventListener("input", () => { highlight = 0; renderPicker(); });
+    $("we-search").addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        highlight = Math.max(0, Math.min(Math.min(shownIds.length, 150) - 1, highlight + (e.key === "ArrowDown" ? 1 : -1)));
+        renderPicker();
+        $("we-results").querySelector(".hl")?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter" && shownIds[highlight] && shownIds[highlight] !== chosen) {
+        e.preventDefault();
+        e.stopPropagation();
+        choose(shownIds[highlight]);
+      }
+    });
+    $("we-attr").addEventListener("change", wirePreview);
+    $("we-above").addEventListener("input", wirePreview);
+    $("we-invert").addEventListener("change", wirePreview);
+    $("we-save").addEventListener("click", () => saveWire(editedPoint()));
+    $("we-remove").addEventListener("click", () => saveWire(null));
+    $("we-cancel").addEventListener("click", closeEditor);
+    $("wire-ed").addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeEditor();
+      if (e.key === "Enter" && e.target.tagName === "INPUT") saveWire(editedPoint());
+    });
 
     // ---- rendering ----
     function render() {
       frame = 0;
       if (!state) return;
-      if (!built) build(state.inputs.length, state.outputs.length);
+      const shape = JSON.stringify(io());
+      if (!built || shape !== builtFor) { builtFor = shape; build(); }
       const u = $("unit");
       state.inputs.forEach((v, i) => u.querySelector(`#in-${i}`)?.classList.toggle("on", v));
       state.outputs.forEach((v, i) => u.querySelector(`#out-${i}`)?.classList.toggle("on", v));
-      u.querySelector("#led-supply")?.classList.add("on");
-      u.querySelector("#led-wdog")?.classList.toggle("on", state.running);
+      state.inputs.forEach((v, i) => u.querySelector(`#cable-in-${i}`)?.classList.toggle("on", v));
+      state.outputs.forEach((v, i) => u.querySelector(`#cable-out-${i}`)?.classList.toggle("on", v));
+      u.querySelectorAll(".supply").forEach((n) => n.classList.add("on"));
+      $("chips").querySelectorAll(".chip[data-key]").forEach((c) => {
+        const [kind, n] = c.dataset.key.split("_");
+        const on = kind === "run" ? state.running : kind === "watchdog" ? state.watchdog : (kind === "input" ? state.inputs : state.outputs)[Number(n)];
+        c.classList.toggle("on", !!on);
+      });
+      u.querySelector("#led-wdog")?.classList.toggle("on", !!state.watchdog);
       $("toggles").querySelectorAll(".toggle").forEach((n, i) => n.classList.toggle("on", state.inputs[i]));
       $("keyswitch").classList.toggle("halt", !state.running);
       $("kp-run").innerHTML = state.running ? "<b>RUN</b>" : "RUN";
@@ -766,14 +1311,26 @@ class MicroGemPanel extends HTMLElement {
       const skipped = new Set(state.skipped || []);
       const blocks = [];
       let next = 1;
-      box.innerHTML = all.map((r, i) => {
+      const parts = all.map((r, i) => {
         let no = "";
         if (r.output && r.output.t === "block") { no = next++; blocks.push(no); }
         else if (r.output && r.output.t === "end") no = blocks.pop() ?? "";
         const c = r.draft ? { ...ctx, draft: true } : ctx;
         const cls = `rung${i === selected && !r.draft ? " sel" : ""}${r.draft ? " draft" : ""}${skipped.has(i) ? " skipped" : ""}`;
-        return `<div class="${cls}" data-i="${i}">${rungSvg(r, i, c, condWidth, no)}</div>`;
-      }).join("");
+        return { cls, svg: rungSvg(r, i, c, condWidth, no) };
+      });
+      // Update the rungs in place, touching only those that changed. Replacing
+      // every rung on each state update made the hover highlight flicker.
+      let rows = [...box.children].filter((n) => n.classList.contains("rung"));
+      if (rows.length !== parts.length) {
+        box.replaceChildren(...parts.map((_, i) => { const d = el("div"); d.dataset.i = i; return d; }));
+        rows = [...box.children];
+      }
+      parts.forEach(({ cls, svg }, i) => {
+        const row = rows[i];
+        if (row.className !== cls) row.className = cls;
+        if (row._svg !== svg) { row._svg = svg; row.innerHTML = svg; }
+      });
     }
 
     function renderTables() {
@@ -796,24 +1353,69 @@ class MicroGemPanel extends HTMLElement {
     // ---- the 2 x 16 display ----
     const fit = (s) => (s + " ".repeat(LCD_W)).slice(0, LCD_W);
     const cursor = () => (Date.now() % 1000 < 500 ? "_" : " ");
-    const window16 = (s, manual) => {
-      if (s.length <= LCD_W) return s;
-      const span = s.length - LCD_W;
-      const auto = Math.floor(Date.now() / 450) % (span + 6);
-      const off = manual !== null ? Math.max(0, Math.min(span, manual)) : Math.max(0, Math.min(span, auto - 3));
-      return s.slice(off, off + LCD_W);
-    };
     const fields = (addr, value, loc) =>
       (addr || "").padEnd(5).slice(0, 5) + " " + (value || "").padStart(6).slice(-6) + " " + (loc || "").padStart(3).slice(-3);
     const fmtVal = (v) => (v === null || v === undefined ? "" : typeof v === "boolean" ? (v ? "ON" : "OFF") : (v < 0 ? "-" : "+") + String(Math.abs(v)).padStart(5, "0"));
     const loc = () => String(selected + 1).padStart(3, "0");
+
+    // The display is a 2 x 16 window onto the rung drawn as text: the symbol
+    // line of the cursor's branch and the address line under it. The element
+    // under the cursor blinks.
+    function ladderLines(rung, keying) {
+      const t = textRung(rung, keying ? null : state.flow);
+      if (!t.cells.length) return [t.lines[0].slice(0, LCD_W), t.lines[1].slice(0, LCD_W)];
+      const c = keying ? t.cells.filter((x) => x.node.t !== "coil").at(-1) || t.cells.at(-1) : t.cells[Math.min(P.cell, t.cells.length - 1)];
+      const off = Math.max(0, Math.min(c.x <= 8 ? 0 : c.x - 4, t.width - LCD_W));
+      let l1 = t.lines[c.row * 2].slice(off, off + LCD_W);
+      const l2 = t.lines[c.row * 2 + 1].slice(off, off + LCD_W);
+      if (Date.now() % 1000 >= 650) {
+        const a = c.x - off, b = Math.min(LCD_W, a + c.len);
+        if (a >= 0) l1 = l1.slice(0, a) + " ".repeat(Math.max(0, b - a)) + l1.slice(b);
+      }
+      return [l1, l2];
+    }
+
+    // Arrow keys move the cursor around the drawn rung: ◄► along a branch,
+    // ▲▼ to the branch above or below, and on to the next or previous rung.
+    function moveCursor(t) {
+      const rungs = state.ladder || [];
+      if (!rungs.length) return;
+      const cells = textRung(rungs[selected], null).cells;
+      const here = cells[Math.min(P.cell, cells.length - 1)] || { row: 0, x: 0 };
+      const rowCells = (r) => cells.map((c, k) => ({ ...c, k })).filter((c) => c.row === r);
+      if (t === "◄" || t === "►") {
+        const same = rowCells(here.row);
+        const at = same.findIndex((c) => c.k === P.cell);
+        const next = same[at + (t === "►" ? 1 : -1)];
+        if (next) P.cell = next.k;
+        return;
+      }
+      const rowsBelow = [...new Set(cells.map((c) => c.row))].sort((a, b) => a - b);
+      const ri = rowsBelow.indexOf(here.row);
+      const target = rowsBelow[ri + (t === "▼" ? 1 : -1)];
+      if (target === undefined) {
+        // Off the top or bottom of the rung: on to the previous or next one.
+        selected = (selected + (t === "▼" ? 1 : -1) + rungs.length) % rungs.length;
+        const nc = textRung(rungs[selected], null).cells;
+        P.cell = t === "▼" ? 0 : Math.max(0, nc.findIndex((c) => c.row === Math.max(...nc.map((x) => x.row))));
+        selectLine();
+        schedule();
+        return;
+      }
+      const cand = rowCells(target);
+      cand.sort((a, b) => Math.abs(a.x - here.x) - Math.abs(b.x - here.x));
+      P.cell = cand[0].k;
+    }
 
     function lcdLines() {
       const rungs = (state && state.ladder) || [];
       if (P.flash) return [P.flash, ""];
       if (P.confirmDel) return [`DELETE RUNG ${loc()}?`, "ENT=YES  ESC=NO"];
       if (P.entry && P.entry.kind === "find") return ["FIND ADDR?", P.entry.buf + cursor()];
-      if (P.screen === "IDLE") return [state && state.running ? "MICROGEM RUNNING" : "MICROGEM HALTED", "SELECT MODE:"];
+      if (P.screen === "IDLE") {
+        if (state && !state.running && state.trip_code) return ["W/DOG TRIPPED", `F1 CODE ${state.trip_code}`.padEnd(16)];
+        return [state && state.running ? "MICROGEM RUNNING" : "MICROGEM HALTED", "SELECT MODE:"];
+      }
       if (P.screen === "MON") {
         let l1;
         if (P.entry && P.entry.kind === "addr") l1 = "ADDR? " + P.entry.buf + cursor();
@@ -826,14 +1428,13 @@ class MicroGemPanel extends HTMLElement {
       // PROG
       if (P.pending) return [P.pending.name + " " + P.pending.prompts[P.answers.length], "> " + (P.entry ? P.entry.buf : "") + cursor()];
       if (P.draft) {
-        const t = draftText(P.draft) || "KEY CONTACTS...";
-        return [t.length > LCD_W ? t.slice(-LCD_W) : t, fields(P.replace ? "EDIT" : "NEW", "", loc())];
+        // While keying in, show the rung so far as symbols, ending at the last element.
+        const rung = draftRungs && draftRungs[0];
+        if (!rung || !draftText(P.draft)) return ["KEY CONTACTS...", fields(P.replace ? "EDIT" : "NEW", "", loc())];
+        return ladderLines(rung, true);
       }
       if (!rungs.length) return ["NO PROGRAM", "BLNK = NEW RUNG"];
-      const r = rungs[selected];
-      const text = r.source.split(";")[0].trim();
-      const out = r.output && r.output.addr;
-      return [window16(text, P.hscroll), fields(out || "", out ? fmtVal(state.live[out]) : "", loc())];
+      return ladderLines(rungs[selected], false);
     }
 
     function renderLcd() {
@@ -843,7 +1444,7 @@ class MicroGemPanel extends HTMLElement {
       root.querySelectorAll(".k").forEach((k) => k.classList.toggle("lit", k.dataset.key === "CTRL" && P.ctrl));
       $("prog-help").innerHTML =
         P.screen === "MON" ? "<b>Monitor:</b> ADDR, a table key (I = inputs, Q = outputs, G, W, C, D, S) then the word; ► types a dot for a bit. ENT to watch. Then type a number and ENT to force it. ▲▼ step through words."
-        : P.screen === "PROG" ? "<b>Program:</b> ▲▼ step through rungs, ◄► scroll. BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, -(D)- delay and -(C)- count; ▼ opens a parallel branch and JOIN closes it; end with a coil -( )-, -(S)- sequencer or BLK (OBEY BLOCK, or END OF BLOCK on an empty rung). ENT writes the rung, DEL undoes the last step."
+        : P.screen === "PROG" ? "<b>Program:</b> The display is a window onto the ladder, drawn as in the GEM 80 manual: symbols on the top line, addresses underneath, live wires as dashes and dead ones as dots. ◄► move along a branch and ▲▼ between branches and on to the next rung; NEXT/PREV jump a rung. BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, -(D)- delay and -(C)- count; ▼ opens a parallel branch and JOIN closes it; end with a coil -( )-, -(S)- sequencer or BLK (OBEY BLOCK, or END OF BLOCK on an empty rung). ENT writes the rung, DEL undoes the last step."
         : "<b>Select mode:</b> PROG to program, ADDR or Ø (MON) to monitor. The key switch sets RUN or HALT. With the programmer focused you can also use your keyboard.";
     }
     setInterval(() => { if (state) renderLcd(); }, 250);
@@ -909,7 +1510,7 @@ class MicroGemPanel extends HTMLElement {
           if (P.screen !== "PROG") { P.screen = "MON"; P.entry = { kind: "addr", buf: "" }; }
           return;
         case "PROG":
-          P.screen = "PROG"; P.draft = null; P.hscroll = null; selectLine(); schedule();
+          P.screen = "PROG"; P.draft = null; P.cell = 0; selectLine(); schedule();
           return;
       }
       if (P.screen === "MON") {
@@ -928,10 +1529,9 @@ class MicroGemPanel extends HTMLElement {
 
     function browseKey(t) {
       const n = (state.ladder || []).length;
-      if ((t === "▲" || t === "PREV") && n) { selected = (selected - 1 + n) % n; P.hscroll = null; selectLine(); schedule(); return; }
-      if ((t === "▼" || t === "NEXT") && n) { selected = (selected + 1) % n; P.hscroll = null; selectLine(); schedule(); return; }
-      if (t === "◄") { P.hscroll = Math.max(0, (P.hscroll ?? 0) - 4); return; }
-      if (t === "►") { P.hscroll = (P.hscroll ?? 0) + 4; return; }
+      if (t === "PREV" && n) { selected = (selected - 1 + n) % n; P.cell = 0; selectLine(); schedule(); return; }
+      if (t === "NEXT" && n) { selected = (selected + 1) % n; P.cell = 0; selectLine(); schedule(); return; }
+      if (["◄", "►", "▲", "▼"].includes(t)) return moveCursor(t);
       if (t === "BLNK") { P.draft = newDraft(); P.replace = false; return; }
       if (t === "ED" || t === "OD") { if (n) { P.draft = newDraft(); P.replace = true; } return; }
       if (t === "DEL") { if (n) P.confirmDel = true; return; }
@@ -1003,7 +1603,7 @@ class MicroGemPanel extends HTMLElement {
         for (let i = 1; i <= n; i++) {
           const j = (selected + i) % n;
           if (new RegExp("(^|[^A-Z0-9.])" + buf.replace(".", "\\.") + "(?![0-9.])").test(rungs[j].source.split(";")[0])) {
-            P.screen = "PROG"; selected = j; P.hscroll = null; selectLine(); schedule(); return;
+            P.screen = "PROG"; selected = j; P.cell = 0; selectLine(); schedule(); return;
           }
         }
         return flash("NOT FOUND");
@@ -1109,16 +1709,29 @@ class MicroGemPanel extends HTMLElement {
       const r = e.target.closest(".rung");
       if (!r || r.classList.contains("draft")) return;
       selected = Number(r.dataset.i);
-      P.screen = "PROG"; P.draft = null; P.entry = null; P.pending = null; P.confirmDel = false; P.hscroll = null;
+      P.screen = "PROG"; P.draft = null; P.entry = null; P.pending = null; P.confirmDel = false; P.cell = 0;
       selectLine();
       schedule();
     });
 
     function onMessage(msg) {
       if (msg.type === "state") {
+        if (!examples) { examples = []; send({ type: "examples" }); }
         state = Object.assign(state || {}, msg);
         if (state.ladder && selected >= state.ladder.length) selected = Math.max(0, state.ladder.length - 1);
         if (P.screen === "MON" && state.live && P.addr in state.live) P.value = state.live[P.addr];
+        schedule();
+      } else if (msg.type === "examples") {
+        examples = msg.examples;
+        const sel = $("demo");
+        sel.replaceChildren(el("option", "", "Demo programmes…"), ...examples.map((e, i) => {
+          const o = el("option", "", e.title);
+          o.value = String(i);
+          return o;
+        }));
+      } else if (msg.type === "entities") {
+        ha = msg;
+        buildLinks();
         schedule();
       } else if (msg.type === "value") {
         if (msg.address === P.addr) { P.value = msg.value; renderLcd(); }
@@ -1137,6 +1750,20 @@ class MicroGemPanel extends HTMLElement {
     }
 
     $("program").addEventListener("input", () => { programDirty = true; setMessage("Edited, not loaded yet."); });
+    $("demo").addEventListener("change", () => {
+      const e = examples && examples[Number($("demo").value)];
+      $("demo-load").disabled = !e;
+      $("demo-about").textContent = e ? e.description : "";
+    });
+    $("demo-load").addEventListener("click", () => {
+      const e = examples && examples[Number($("demo").value)];
+      if (!e) return;
+      // Replaces the program on the controller; the wiring is in its first comment lines.
+      $("program").value = e.source;
+      programDirty = true;
+      send({ type: "load", source: e.source });
+      selected = 0;
+    });
     $("load").addEventListener("click", () => send({ type: "load", source: $("program").value }));
     $("program").addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); $("load").click(); }

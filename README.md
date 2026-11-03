@@ -3,8 +3,8 @@
 A software emulation of the GEC **MicroGEM** programmable controller, with the
 bigger **GEM 80** as the longer-term goal. It runs a ladder program against
 GEM 80 style data tables and shows a front panel in your browser whose input
-and output lights change live. A Home Assistant integration is planned so the
-virtual controller can switch real lights.
+and output lights change live. A Home Assistant integration lets the
+virtual controller switch real lights.
 
 ## Run it
 
@@ -12,6 +12,7 @@ virtual controller can switch real lights.
 pip install -e .
 python -m microgem            # then open http://127.0.0.1:8080
 python -m microgem --program my_program.txt --port 8080
+python -m microgem --expansions 2   # add two expansion units
 ```
 
 The page shows:
@@ -20,13 +21,25 @@ The page shows:
   sink/source inputs (00 to 11, words A0.0 to A0.11), 8 relay outputs (B0.0 to
   B0.7), a red LED under each terminal number, and the SUPPLY ON, BATTERY LOW
   and W/DOG O.K. lamps;
+- any **expansion units** on its expansion port (`--expansions`, 0 to 7). The
+  original MicroGEM took one (40 I/O); the MicroGEM60 takes up to 160 I/O,
+  which matches seven units of 12 inputs and 8 outputs. Unit *n* uses word *n*
+  of the A and B tables, so terminal 03 on expansion unit 1 is `A1.3`. The
+  expansion units' size and addressing are our best guess: no MicroGEM manual
+  has turned up yet, and T1282 describes the GEM 80's 9007/9008 remote I/O
+  units, not MicroGEM expansions;
 - an **input simulator** board of toggle switches (latching or push-button);
 - the **MicroGEM Programmer**, with its key switch (RUN/HALT), 2×16 display and
   all 25 keys. `CTRL` gives a key its second legend.
   - *MON* (`Ø`): `ADDR`, a table key (`I` = A inputs, `Q` = B outputs, `G`,
     `W`, `C`, `D`, `S`) and a word or bit (`►` types the dot), `ENT` to watch
     it live; then a number and `ENT` to force it. `NEXT`/`PREV` step.
-  - *PROG*: `▲▼` step through rungs, `◄►` scroll. `BLNK` starts a new rung,
+  - *PROG*: the display is a 2 × 16 window onto the ladder, drawn as in the
+    GEM 80 manual (T391): symbols on the top line (`+--] [-----]/[-----( )--+`),
+    addresses underneath, branches hanging from `+` and `!`, live wires as
+    dashes and dead ones as dots. The element under the cursor blinks. `◄►`
+    move along a branch, `▲▼` between branches and on to the next rung, and
+    `NEXT`/`PREV` jump a rung. `BLNK` starts a new rung,
     `ED` re-keys the selected one, `DEL` then `ENT` deletes it, `FIND` jumps to
     an address. Inside a rung the keys give their symbols: contacts `-] [-` and
     `-]/[-`, `-(D)-` (DELAY word and VALUE in 0.1 s) and `-(C)-` (COUNT word and
@@ -36,6 +49,10 @@ The page shows:
     (sequencer) or `BLK` (OBEY BLOCK, or END OF BLOCK on an empty rung). `ENT`
     writes the rung, `DEL` undoes the last step.
   - With the programmer focused, the computer keyboard works too.
+- **demo programmes** to load from a picker above the program text: bedroom
+  lighting, a pelican crossing (SEQR), a star-delta starter, a duty/standby
+  pumping station and a bottle packing conveyor. Each one's first comment
+  lines say which inputs and outputs do what;
 - a live **ladder diagram** drawn like the GEM 80 programmer screen: live
   paths solid, dead paths dotted, with the time left above each DELAY, the
   count above each COUNT, and values above OUT and word elements;
@@ -100,19 +117,55 @@ and `SET` / `RESET` outputs (the real one latches with a seal-in branch).
 ## Home Assistant
 
 `custom_components/microgem` is a custom integration. To install it with HACS,
-open HACS > three-dot menu > **Custom repositories**, add
+open HACS (the **Marketplace** from Home Assistant 2026.11) > three-dot menu > **Custom repositories**, add
 `https://github.com/Vortitron/MicroGem` as type **Integration**, download
 **Virtual MicroGEM** and restart Home Assistant. (Or copy
 `custom_components/microgem` into your `config/custom_components/`.) Then add **Virtual MicroGEM** under Settings > Devices &
-services, choose a name and the number of inputs and outputs, and you get:
+services, choose a name and how many expansion units it has (0 to 7; you can
+change this later under **Configure**), and you get:
 
 - a switch for each input (`switch.<name>_input_a0_0` ...): automations can
   "press" the controller's inputs,
 - a binary sensor for each output (`binary_sensor.<name>_output_b0_0` ...):
   use these in automations to switch real lights,
 - a **Run** switch (off = HALT, all outputs off),
-- the front panel and program editor in the sidebar (admins only),
+- a **Watchdog** binary sensor, the W/DOG OUTPUT contacts: on after three
+  clean scans in Run, off in Halt, and off with a trip when the program holds a
+  non-zero code in `F1` for 100 ms (GEM80-400 manual T1614, 2.12; its
+  `trip_code` attribute holds the code). Use it to interlock anything the
+  controller drives,
+- the front panel and program editor in the sidebar (admins only), with links
+  to all of these entities,
 - a `microgem.load_program` action.
+
+### Field wiring
+
+You can also wire terminals straight to Home Assistant entities, as you would
+cable a real controller, with no automations. Click an input terminal or a
+relay output on the controller drawing in the panel and pick an entity. The
+picker searches names and ids as you type (`*` matches anything, so
+`kitchen*light` finds "Kitchen ceiling light"), and buttons narrow it to
+switches, lights, sensors, helpers and so on. It starts on switches.
+
+- an **input** follows the entity's state: the contact is closed while it is
+  on, open, home, playing and so on, and open while it is off, closed, away,
+  unavailable and so on. You can read one of its attributes instead, and give a
+  threshold so the contact closes while a number is above it (a temperature,
+  say). **Invert** makes it a normally closed contact, closed while the entity
+  is off. A missing or unavailable entity always leaves the contact open. A
+  wired input's simulator switch is greyed out;
+- a **relay output** switches the entity on and off with the relay
+  (`homeassistant.turn_on` / `turn_off`, so lights, switches, fans, helpers,
+  covers and so on). Buttons are pressed, and scenes, scripts and automations
+  run, each time the relay closes. A newly wired entity is put in step with its
+  relay at once; after that it changes only when the relay does.
+
+The controller's own input switches and output sensors are its internal I/O,
+so they are left out of the list and cannot be wired to a terminal.
+
+The cables and the entity names are drawn on the controller (click a name to change it), and listed under
+**Field wiring** in the panel. The wiring is kept in the config entry's
+options and changes take effect at once.
 
 The program and Run/Halt state survive restarts. The integration carries a copy
 of the engine in `custom_components/microgem/core`; after changing anything in

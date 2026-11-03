@@ -15,10 +15,12 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from . import websocket
+from .wiring import CONF_WIRING, Wiring
 from .const import (
     CONF_INPUTS,
     CONF_OUTPUTS,
@@ -28,7 +30,8 @@ from .const import (
     SAVE_DELAY_S,
     STORAGE_VERSION,
 )
-from .core import ControllerConfig, ProgramError
+from .config_flow import expansions_of
+from .core import ControllerConfig, ProgramError, __version__
 from .core.service import EXAMPLE_PROGRAM, ControllerService
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,6 +52,7 @@ LOAD_PROGRAM_SCHEMA = vol.Schema(
 class MicroGemData:
     service: ControllerService
     store: Store
+    wiring: Wiring
 
 
 type MicroGemConfigEntry = ConfigEntry[MicroGemData]
@@ -92,16 +96,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
         name=entry.title,
         inputs=int(entry.data.get(CONF_INPUTS, 12)),
         outputs=int(entry.data.get(CONF_OUTPUTS, 8)),
+        expansions=expansions_of(entry),
     )
+    remove_missing_io(hass, entry, config)
+    replaced_saved = False
     try:
         service = ControllerService(config, saved.get("program", EXAMPLE_PROGRAM))
     except (ProgramError, ValueError) as exc:
+        # Programs saved by an older release may use notation this one no longer reads.
         _LOGGER.warning("Saved MicroGEM program could not be loaded (%s); using the example", exc)
         service = ControllerService(config, EXAMPLE_PROGRAM)
+        replaced_saved = True
     if saved.get("running") is False:
         service.halt()
 
-    entry.runtime_data = MicroGemData(service, store)
+    wiring = Wiring(hass, service, entry.entry_id)
+    entry.runtime_data = MicroGemData(service, store, wiring)
 
     # Keep the program and the Run/Halt state across restarts.
     last_saved = {"program": service.controller.program.source, "running": service.controller.running}
@@ -113,9 +123,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
             last_saved.update(current)
             store.async_delay_save(lambda: dict(last_saved), SAVE_DELAY_S)
 
+    if replaced_saved:
+        # Save the example now so the warning is not repeated on every restart.
+        store.async_delay_save(lambda: dict(last_saved), SAVE_DELAY_S)
+
     entry.async_on_unload(service.subscribe(persist))
     service.start()
     entry.async_on_unload(service.stop)
+    wiring.apply(entry.options.get(CONF_WIRING))
+    entry.async_on_unload(wiring.stop)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -125,12 +141,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
         webcomponent_name=PANEL_ELEMENT,
         sidebar_title=entry.title,
         sidebar_icon="mdi:chip",
-        module_url=f"{FRONTEND_URL}/panel.js?v={entry.entry_id[:6]}",
+        # The version busts the browser cache when an update ships a new panel.
+        module_url=f"{FRONTEND_URL}/panel.js?v={__version__}",
         config={"entry_id": entry.entry_id},
         require_admin=True,
     )
     entry.async_on_unload(lambda: frontend.async_remove_panel(hass, panel_path(entry)))
+    entry.async_on_unload(entry.add_update_listener(_options_updated))
     return True
+
+
+async def _options_updated(hass: HomeAssistant, entry: MicroGemConfigEntry) -> None:
+    """New wiring is applied in place; added or removed expansion units rebuild
+    the controller and its entities."""
+    data = entry.runtime_data
+    if expansions_of(entry) != data.service.controller.config.expansions:
+        await hass.config_entries.async_reload(entry.entry_id)
+    else:
+        data.wiring.apply(entry.options.get(CONF_WIRING))
+
+
+def remove_missing_io(hass: HomeAssistant, entry: ConfigEntry, config: ControllerConfig) -> None:
+    """Drop the entities of I/O that went away with a removed expansion unit."""
+    registry = er.async_get(hass)
+    limits = {"input": config.total_inputs, "output": config.total_outputs}
+    for entity in er.async_entries_for_config_entry(registry, entry.entry_id):
+        kind, _, index = entity.unique_id.removeprefix(f"{entry.entry_id}_").partition("_")
+        if kind in limits and index.isdigit() and int(index) >= limits[kind]:
+            registry.async_remove(entity.entity_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> bool:

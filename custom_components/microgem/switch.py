@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import MicroGemConfigEntry
-from .entity import MicroGemEntity, address
+from .entity import MicroGemEntity
 
 
 async def async_setup_entry(
@@ -19,7 +19,7 @@ async def async_setup_entry(
     entities: list[SwitchEntity] = [RunSwitch(entry.entry_id, entry.title, service)]
     entities += [
         InputSwitch(entry.entry_id, entry.title, service, i)
-        for i in range(service.controller.config.inputs)
+        for i in range(service.controller.config.total_inputs)
     ]
     async_add_entities(entities)
 
@@ -32,7 +32,7 @@ class InputSwitch(MicroGemEntity, SwitchEntity):
     def __init__(self, entry_id, title, service, index: int) -> None:
         super().__init__(entry_id, title, service, f"input_{index}")
         self._index = index
-        self._attr_name = f"Input {address('A', index)}"
+        self._attr_name = f"Input {service.controller.config.input_address(index)}"
 
     def current(self) -> bool:
         return self._service.controller.input(self._index)

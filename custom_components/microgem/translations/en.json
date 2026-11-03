@@ -3,11 +3,13 @@
     "step": {
       "user": {
         "title": "Add a virtual MicroGEM",
-        "description": "A GEM 80 style programmable controller. Its inputs become switches and its outputs become binary sensors, and it gets its own front panel in the sidebar.",
+        "description": "A MicroGEM60 controller with 12 inputs and 8 relay outputs. Each expansion unit adds 12 inputs and 8 outputs (up to 7, for 160 I/O in all). Inputs become switches, outputs become binary sensors, and it gets its own front panel in the sidebar.",
         "data": {
           "name": "Name",
-          "inputs": "Number of inputs",
-          "outputs": "Number of outputs"
+          "expansions": "Expansion units"
+        },
+        "data_description": {
+          "expansions": "0 to 7. Expansion unit 1 uses A1 and B1, unit 2 uses A2 and B2, and so on. You can change this later."
         }
       }
     }
@@ -24,6 +26,17 @@
         "program": {
           "name": "Program",
           "description": "One rung per line, for example: A0.0 AND NOT A0.1 -> B0.0"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Expansion units",
+        "description": "Each expansion unit adds 12 inputs and 8 relay outputs on the next A and B words. Removing a unit removes its entities.",
+        "data": {
+          "expansions": "Expansion units"
         }
       }
     }
