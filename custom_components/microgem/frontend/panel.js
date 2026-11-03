@@ -292,7 +292,7 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
       terms += `<rect class="term" data-kind="inputs" data-index="${g}" x="${ix + ist * i}" y="6" width="${ist}" height="110" rx="3"><title>Input terminal ${lab} (${w ? "wired to " + esc(w.title) : "click to wire it to an entity"})</title></rect>`;
       if (w) {
         top = 215;
-        cablesIn += `<path class="cable in" id="cable-in-${g}" d="M${cx} 34 V-14"/><rect class="sheath" x="${cx - 5}" y="-26" width="10" height="16" rx="2"/>${label(w, cx + 4, -32, -50)}`;
+        cablesIn += `<path class="cable in" id="cable-in-${g}" d="M${cx} 34 C${cx - 7} 14 ${cx + 7} 4 ${cx} -14"/><rect class="sheath" x="${cx - 5}" y="-26" width="10" height="16" rx="2"/>${label(w, cx + 4, -32, -50)}`;
       }
       k++;
     } else inputs += `<text x="${cx}" y="104" class="tl">${lab}</text>`;
@@ -1040,7 +1040,7 @@ class MicroGemPanel extends HTMLElement {
     function describe(point) {
       const st = hassState(point.entity_id);
       const name = (st && st.attributes.friendly_name) || point.entity_id;
-      const short = name.length > 26 ? name.slice(0, 25) + "…" : name;
+      const short = name.length > 28 ? name.slice(0, 12) + "…" + name.slice(-15) : name;
       const detail = point.attribute ? `· ${point.attribute}${point.above != null ? " > " + point.above : ""}` : point.above != null ? `> ${point.above}` : "";
       return { name: short, detail, title: `${name} (${point.entity_id})${detail ? " " + detail : ""}` };
     }
