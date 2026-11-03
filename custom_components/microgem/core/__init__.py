@@ -16,4 +16,4 @@ __all__ = [
     "parse_program",
 ]
 
-__version__ = "0.3.3"
+__version__ = "0.3.4"
