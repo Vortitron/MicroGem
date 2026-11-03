@@ -112,6 +112,8 @@ textarea { width: 100%; min-height: 320px; resize: vertical; font: 13px/1.5 var(
 .btn { font: inherit; padding: 7px 14px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border); background: var(--panel); color: var(--text); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .message { font-size: .85rem; color: var(--muted); }
+.demo-row { margin: 0 0 8px; }
+select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); max-width: 100%; }
 .message.error { color: var(--error); }
 table { width: 100%; border-collapse: collapse; font: 12px/1.4 var(--mono); }
 th, td { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--border); white-space: nowrap; }
@@ -188,6 +190,7 @@ const MARKUP = `
     <section class="panel">
       <h2>Program text</h2>
       <p class="hint">One rung per line: contacts on the left of <code>-&gt;</code>, coils and function blocks on the right. Comment lines above a rung become its title.</p>
+      <div class="row demo-row"><select id="demo" aria-label="Demo programme"><option>Demo programmes…</option></select><button class="btn" id="demo-load" disabled>Load demo</button><span class="message" id="demo-about"></span></div>
       <textarea id="program" spellcheck="false" aria-label="Ladder program"></textarea>
       <div class="row"><button class="btn primary" id="load">Load program</button><span class="message" id="message"></span></div>
       <details>
@@ -648,6 +651,48 @@ const SYMBOLS = new Set(["-] [-", "-]/[-", "-( )-", "-(S)-", "-(C)-", "-(D)-", "
 const TABLE_KEY = { I: "A", Q: "B", G: "G", W: "W", C: "C", D: "D", S: "S" };
 const LCD_W = 16;
 
+// A rung as the programmer steps through it: one element at a time, in the
+// order it is keyed in, each with its symbol, address and value. Line 1 of
+// the display shows the symbols, line 2 the ADDR / VALUE / LOC'N fields that
+// are printed under the real programmer's display.
+function rungSteps(r) {
+  const out = [];
+  const opnd = (a) => (a && typeof a === "object" ? null : a);
+  const walk = (n) => {
+    if (!n) return;
+    switch (n.t) {
+      case "series": n.items.forEach(walk); break;
+      case "parallel":
+        n.items.forEach((item, i) => { if (i) out.push({ sym: "▼" }); walk(item); });
+        out.push({ sym: "JOIN" });
+        break;
+      case "contact": out.push({ sym: n.nc ? "]/[" : "] [", addr: n.addr, id: n.id }); break;
+      case "edge": out.push({ sym: n.rising ? "RISE" : "FALL", addr: n.addr, id: n.id }); break;
+      case "const": out.push({ sym: "---", id: n.id }); break;
+      case "cmp": out.push({ sym: n.op, addr: opnd(n.left), num: opnd(n.right), id: n.id }); break;
+      case "inv": out.push({ sym: "INV", id: n.id }); break;
+      case "logic": case "arith": {
+        const a = opnd(n.arg);
+        const isAddr = a && /^[A-Z]/.test(a);
+        out.push({ sym: n.spec || n.op, addr: isAddr ? a : null, num: isAddr ? null : a, id: n.id });
+        if (a === null) { out.push({ sym: "▼" }); walk(n.arg); out.push({ sym: "JOIN" }); }
+        break;
+      }
+      case "delay": out.push({ sym: "(D)", addr: n.word, num: n.value, id: n.id }); break;
+      case "count":
+        out.push({ sym: "(C)", addr: n.word, num: n.value, id: n.id });
+        if (n.reset) { out.push({ sym: "RST" }); walk(n.reset); }
+        break;
+    }
+  };
+  walk(r.condition);
+  const o = r.output || {};
+  const OUT = { coil: "( )", out: "OUT", seqr: "(S)", block: "BLK", end: "EOB", set: "(L)", reset: "(U)" };
+  if (OUT[o.t]) out.push({ sym: OUT[o.t], addr: o.addr || null, out: true });
+  if (o.t === "seqr" && o.reset) { out.push({ sym: "RST" }); walk(o.reset); }
+  return out;
+}
+
 // What each element key asks for. DELAY and COUNT sit in the rung like
 // contacts (as on the GEM 80, their output passes along the rung); the coil,
 // -(S)- (taken to be the sequencer, SEQR) and BLK end the rung.
@@ -712,6 +757,7 @@ class MicroGemPanel extends HTMLElement {
 
     let state = null;
     let built = false;
+    let examples = null; // demo programmes, fetched once connected
     let ha = null; // { device_id, entities: { run, input_0, output_0, ... } } inside Home Assistant
     let mode = "toggle";
     let programDirty = false;
@@ -867,14 +913,26 @@ class MicroGemPanel extends HTMLElement {
       const skipped = new Set(state.skipped || []);
       const blocks = [];
       let next = 1;
-      box.innerHTML = all.map((r, i) => {
+      const parts = all.map((r, i) => {
         let no = "";
         if (r.output && r.output.t === "block") { no = next++; blocks.push(no); }
         else if (r.output && r.output.t === "end") no = blocks.pop() ?? "";
         const c = r.draft ? { ...ctx, draft: true } : ctx;
         const cls = `rung${i === selected && !r.draft ? " sel" : ""}${r.draft ? " draft" : ""}${skipped.has(i) ? " skipped" : ""}`;
-        return `<div class="${cls}" data-i="${i}">${rungSvg(r, i, c, condWidth, no)}</div>`;
-      }).join("");
+        return { cls, svg: rungSvg(r, i, c, condWidth, no) };
+      });
+      // Update the rungs in place, touching only those that changed. Replacing
+      // every rung on each state update made the hover highlight flicker.
+      let rows = [...box.children].filter((n) => n.classList.contains("rung"));
+      if (rows.length !== parts.length) {
+        box.replaceChildren(...parts.map((_, i) => { const d = el("div"); d.dataset.i = i; return d; }));
+        rows = [...box.children];
+      }
+      parts.forEach(({ cls, svg }, i) => {
+        const row = rows[i];
+        if (row.className !== cls) row.className = cls;
+        if (row._svg !== svg) { row._svg = svg; row.innerHTML = svg; }
+      });
     }
 
     function renderTables() {
@@ -897,17 +955,42 @@ class MicroGemPanel extends HTMLElement {
     // ---- the 2 x 16 display ----
     const fit = (s) => (s + " ".repeat(LCD_W)).slice(0, LCD_W);
     const cursor = () => (Date.now() % 1000 < 500 ? "_" : " ");
-    const window16 = (s, manual) => {
-      if (s.length <= LCD_W) return s;
-      const span = s.length - LCD_W;
-      const auto = Math.floor(Date.now() / 450) % (span + 6);
-      const off = manual !== null ? Math.max(0, Math.min(span, manual)) : Math.max(0, Math.min(span, auto - 3));
-      return s.slice(off, off + LCD_W);
-    };
     const fields = (addr, value, loc) =>
       (addr || "").padEnd(5).slice(0, 5) + " " + (value || "").padStart(6).slice(-6) + " " + (loc || "").padStart(3).slice(-3);
     const fmtVal = (v) => (v === null || v === undefined ? "" : typeof v === "boolean" ? (v ? "ON" : "OFF") : (v < 0 ? "-" : "+") + String(Math.abs(v)).padStart(5, "0"));
     const loc = () => String(selected + 1).padStart(3, "0");
+
+    // LOC'N is the instruction's location in the program: the steps of all
+    // earlier rungs, plus this one's position in the rung.
+    function stepLines(rung, at, keying) {
+      const steps = rungSteps(rung);
+      if (!steps.length) return ["---", fields("", "", loc())];
+      const i = Math.max(0, Math.min(steps.length - 1, at));
+      // Line 1: the symbols joined by wire, scrolled so the current one shows; it blinks.
+      let strip = "", start = 0, end = 0;
+      steps.forEach((st, k) => {
+        if (k) strip += "-";
+        if (k === i) start = strip.length;
+        strip += st.sym;
+        if (k === i) end = strip.length;
+      });
+      strip = "|-" + strip; // the left rail
+      start += 2; end += 2;
+      const off = Math.max(0, Math.min(start, end - LCD_W));
+      let line1 = strip.slice(off, off + LCD_W);
+      if (!keying && Date.now() % 1000 >= 650) {
+        const a = start - off, b = Math.min(LCD_W, end - off);
+        line1 = line1.slice(0, a) + " ".repeat(Math.max(0, b - a)) + line1.slice(b);
+      }
+      // Line 2: ADDR, VALUE (the live value, or a DELAY/COUNT preset), LOC'N.
+      const st = steps[i];
+      const live = st.addr && state.live ? state.live[st.addr] : undefined;
+      const value = st.num !== undefined && st.num !== null ? "V" + st.num : fmtVal(live);
+      let before = 0;
+      if (!keying) for (let k = 0; k < selected; k++) before += rungSteps(state.ladder[k]).length;
+      const where = keying ? (P.replace ? "ED" : "NEW") : String((before + i + 1) % 1000).padStart(3, "0");
+      return [line1, fields(st.addr || "", value, where)];
+    }
 
     function lcdLines() {
       const rungs = (state && state.ladder) || [];
@@ -930,14 +1013,13 @@ class MicroGemPanel extends HTMLElement {
       // PROG
       if (P.pending) return [P.pending.name + " " + P.pending.prompts[P.answers.length], "> " + (P.entry ? P.entry.buf : "") + cursor()];
       if (P.draft) {
-        const t = draftText(P.draft) || "KEY CONTACTS...";
-        return [t.length > LCD_W ? t.slice(-LCD_W) : t, fields(P.replace ? "EDIT" : "NEW", "", loc())];
+        // While keying in, show the rung so far as symbols, ending at the last element.
+        const rung = draftRungs && draftRungs[0];
+        if (!rung || !draftText(P.draft)) return ["KEY CONTACTS...", fields(P.replace ? "EDIT" : "NEW", "", loc())];
+        return stepLines(rung, Infinity, true);
       }
       if (!rungs.length) return ["NO PROGRAM", "BLNK = NEW RUNG"];
-      const r = rungs[selected];
-      const text = r.source.split(";")[0].trim();
-      const out = r.output && r.output.addr;
-      return [window16(text, P.hscroll), fields(out || "", out ? fmtVal(state.live[out]) : "", loc())];
+      return stepLines(rungs[selected], P.hscroll ?? 0, false);
     }
 
     function renderLcd() {
@@ -947,7 +1029,7 @@ class MicroGemPanel extends HTMLElement {
       root.querySelectorAll(".k").forEach((k) => k.classList.toggle("lit", k.dataset.key === "CTRL" && P.ctrl));
       $("prog-help").innerHTML =
         P.screen === "MON" ? "<b>Monitor:</b> ADDR, a table key (I = inputs, Q = outputs, G, W, C, D, S) then the word; ► types a dot for a bit. ENT to watch. Then type a number and ENT to force it. ▲▼ step through words."
-        : P.screen === "PROG" ? "<b>Program:</b> ▲▼ step through rungs, ◄► scroll. BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, -(D)- delay and -(C)- count; ▼ opens a parallel branch and JOIN closes it; end with a coil -( )-, -(S)- sequencer or BLK (OBEY BLOCK, or END OF BLOCK on an empty rung). ENT writes the rung, DEL undoes the last step."
+        : P.screen === "PROG" ? "<b>Program:</b> ▲▼ step through rungs, ◄► through the elements of a rung: the top line shows the rung's symbols with the current one blinking, the bottom line its ADDR, VALUE (V = a DELAY or COUNT preset) and LOC'N (its step in the program). BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, -(D)- delay and -(C)- count; ▼ opens a parallel branch and JOIN closes it; end with a coil -( )-, -(S)- sequencer or BLK (OBEY BLOCK, or END OF BLOCK on an empty rung). ENT writes the rung, DEL undoes the last step."
         : "<b>Select mode:</b> PROG to program, ADDR or Ø (MON) to monitor. The key switch sets RUN or HALT. With the programmer focused you can also use your keyboard.";
     }
     setInterval(() => { if (state) renderLcd(); }, 250);
@@ -1034,8 +1116,11 @@ class MicroGemPanel extends HTMLElement {
       const n = (state.ladder || []).length;
       if ((t === "▲" || t === "PREV") && n) { selected = (selected - 1 + n) % n; P.hscroll = null; selectLine(); schedule(); return; }
       if ((t === "▼" || t === "NEXT") && n) { selected = (selected + 1) % n; P.hscroll = null; selectLine(); schedule(); return; }
-      if (t === "◄") { P.hscroll = Math.max(0, (P.hscroll ?? 0) - 4); return; }
-      if (t === "►") { P.hscroll = (P.hscroll ?? 0) + 4; return; }
+      if (t === "◄" || t === "►") {
+        const steps = n ? rungSteps(state.ladder[selected]).length : 0;
+        P.hscroll = Math.max(0, Math.min(steps - 1, (P.hscroll ?? 0) + (t === "►" ? 1 : -1)));
+        return;
+      }
       if (t === "BLNK") { P.draft = newDraft(); P.replace = false; return; }
       if (t === "ED" || t === "OD") { if (n) { P.draft = newDraft(); P.replace = true; } return; }
       if (t === "DEL") { if (n) P.confirmDel = true; return; }
@@ -1220,10 +1305,19 @@ class MicroGemPanel extends HTMLElement {
 
     function onMessage(msg) {
       if (msg.type === "state") {
+        if (!examples) { examples = []; send({ type: "examples" }); }
         state = Object.assign(state || {}, msg);
         if (state.ladder && selected >= state.ladder.length) selected = Math.max(0, state.ladder.length - 1);
         if (P.screen === "MON" && state.live && P.addr in state.live) P.value = state.live[P.addr];
         schedule();
+      } else if (msg.type === "examples") {
+        examples = msg.examples;
+        const sel = $("demo");
+        sel.replaceChildren(el("option", "", "Demo programmes…"), ...examples.map((e, i) => {
+          const o = el("option", "", e.title);
+          o.value = String(i);
+          return o;
+        }));
       } else if (msg.type === "entities") {
         ha = msg;
         buildLinks();
@@ -1245,6 +1339,20 @@ class MicroGemPanel extends HTMLElement {
     }
 
     $("program").addEventListener("input", () => { programDirty = true; setMessage("Edited, not loaded yet."); });
+    $("demo").addEventListener("change", () => {
+      const e = examples && examples[Number($("demo").value)];
+      $("demo-load").disabled = !e;
+      $("demo-about").textContent = e ? e.description : "";
+    });
+    $("demo-load").addEventListener("click", () => {
+      const e = examples && examples[Number($("demo").value)];
+      if (!e) return;
+      // Replaces the program on the controller; the wiring is in its first comment lines.
+      $("program").value = e.source;
+      programDirty = true;
+      send({ type: "load", source: e.source });
+      selected = 0;
+    });
     $("load").addEventListener("click", () => send({ type: "load", source: $("program").value }));
     $("program").addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); $("load").click(); }

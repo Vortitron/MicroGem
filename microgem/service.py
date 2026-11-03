@@ -11,34 +11,13 @@ import time
 from collections.abc import Callable
 
 from .engine import Controller, ControllerConfig
+from .examples import BEDROOM, EXAMPLES
 from .program import ProgramError, parse_program, rung_to_json
 from .tables import AddressError, parse_address, to_signed
 
 SCAN_INTERVAL_MS = 20
 
-EXAMPLE_PROGRAM = """\
-; Bedroom lighting, MicroGEM style.
-; Inputs  A0.0 push-button by the door, A0.1 bedside switch, A0.2 "all off"
-; Outputs B0.0 main light, B0.1 bedside lamp, B0.2 landing light (timed)
-
-; One-scan pulse G0.0 each time the door button is pressed
-A0.0 AND NOT G0.1 -> G0.0
-A0.0 -> G0.1
-
-; The pulse toggles the main light; all-off turns it off
-(G0.0 AND NOT B0.0) OR (NOT G0.0 AND B0.0 AND NOT A0.2) -> B0.0
-
-; Bedside switch drives the lamp directly
-A0.1 AND NOT A0.2 -> B0.1
-
-; Landing light: on with the main light, held by its own contact (a seal-in),
-; until 10 s after the main light goes off
-B0.0 OR (B0.2 AND NOT G0.2) -> B0.2
-B0.2 AND NOT B0.0 DELAY G10 VALUE 100 -> G0.2
-
-; Count door presses in G11; all-off resets the count
-A0.0 COUNT G11 VALUE 1000 RESET A0.2 -> G0.15
-"""
+EXAMPLE_PROGRAM = BEDROOM
 
 Listener = Callable[[dict], None]
 
@@ -125,7 +104,8 @@ class ControllerService:
         Commands: ``{"type": "input", "index": 0, "value": true}``, ``{"type": "run"}``,
         ``{"type": "halt"}``, ``{"type": "read", "address": "G12"}``,
         ``{"type": "preview", "source": "..."}`` (parse without loading), ``{"type": "write", "address": "G12", "value": 5}`` and
-        ``{"type": "load", "source": "..."}``.
+        ``{"type": "load", "source": "..."}`` and ``{"type": "examples"}`` (the demo
+        programmes, to pick from).
         """
         kind = message.get("type")
         try:
@@ -145,6 +125,8 @@ class ControllerService:
                 return {"type": "preview", "rungs": [rung_to_json(r) for r in program.rungs]}
             elif kind == "write":
                 self.write(str(message["address"]), int(message["value"]))
+            elif kind == "examples":
+                return {"type": "examples", "examples": [vars(e) for e in EXAMPLES]}
             elif kind == "load":
                 self.load(str(message["source"]))
                 return {"type": "loaded"}

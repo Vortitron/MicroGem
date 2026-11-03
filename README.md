@@ -34,7 +34,10 @@ The page shows:
   - *MON* (`Ø`): `ADDR`, a table key (`I` = A inputs, `Q` = B outputs, `G`,
     `W`, `C`, `D`, `S`) and a word or bit (`►` types the dot), `ENT` to watch
     it live; then a number and `ENT` to force it. `NEXT`/`PREV` step.
-  - *PROG*: `▲▼` step through rungs, `◄►` scroll. `BLNK` starts a new rung,
+  - *PROG*: `▲▼` step through rungs and `◄►` through a rung's elements. The
+    top line shows the rung as symbols (`|-] [-]/[-(D)-( )`) with the current
+    element blinking, the bottom line its ADDR, VALUE and LOC'N (its step in
+    the program), the fields printed under the real display. `BLNK` starts a new rung,
     `ED` re-keys the selected one, `DEL` then `ENT` deletes it, `FIND` jumps to
     an address. Inside a rung the keys give their symbols: contacts `-] [-` and
     `-]/[-`, `-(D)-` (DELAY word and VALUE in 0.1 s) and `-(C)-` (COUNT word and
@@ -44,6 +47,10 @@ The page shows:
     (sequencer) or `BLK` (OBEY BLOCK, or END OF BLOCK on an empty rung). `ENT`
     writes the rung, `DEL` undoes the last step.
   - With the programmer focused, the computer keyboard works too.
+- **demo programmes** to load from a picker above the program text: bedroom
+  lighting, a pelican crossing (SEQR), a star-delta starter, a duty/standby
+  pumping station and a bottle packing conveyor. Each one's first comment
+  lines say which inputs and outputs do what;
 - a live **ladder diagram** drawn like the GEM 80 programmer screen: live
   paths solid, dead paths dotted, with the time left above each DELAY, the
   count above each COUNT, and values above OUT and word elements;
