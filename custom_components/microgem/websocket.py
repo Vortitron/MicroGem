@@ -98,6 +98,12 @@ async def ws_wire(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
     if msg["index"] >= limit:
         connection.send_error(msg["id"], "invalid_index", "That terminal does not exist")
         return
+    own = er.async_get(hass).async_get(msg.get("entity_id") or "")
+    if own is not None and own.config_entry_id == entry.entry_id:
+        connection.send_error(
+            msg["id"], "own_entity", "That is one of this controller's own entities; wire terminals to other devices"
+        )
+        return
     wiring = {k: dict(v) for k, v in entry.runtime_data.wiring.points.items()}
     point = {k: msg[k] for k in ("entity_id", "attribute", "above") if msg.get(k) is not None}
     if point.get("entity_id"):

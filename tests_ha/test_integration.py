@@ -167,6 +167,12 @@ async def test_field_wiring(hass: HomeAssistant, hass_ws_client):
     await _settle(hass)
     assert hass.states.get("switch.bedroom_input_a0_4").state == "on"
 
+    # The controller's own entities are its internal I/O and cannot be wired.
+    await client.send_json({"id": 19, "type": "microgem/wire", "entry_id": entry.entry_id,
+                            "kind": "outputs", "index": 2, "entity_id": "switch.bedroom_input_a0_5"})
+    reply = await client.receive_json()
+    assert not reply["success"] and reply["error"]["code"] == "own_entity"
+
     # Unwire, and the wiring survives an expansion change.
     await client.send_json({"id": 20, "type": "microgem/wire", "entry_id": entry.entry_id,
                             "kind": "inputs", "index": 4})

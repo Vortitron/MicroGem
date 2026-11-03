@@ -44,6 +44,9 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .wire-ed h3 { margin: 0 0 4px; font-size: .95rem; }
 .wire-ed label { display: flex; flex-direction: column; gap: 3px; font-size: .78rem; color: var(--muted); font-weight: 600; flex: 1 1 160px; min-width: 0; }
 .wire-ed input { font: 13px var(--mono); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); width: 100%; }
+.wire-ed [hidden] { display: none !important; }
+.unit.wirable .wl { cursor: pointer; }
+.unit.wirable .wl:hover { fill: var(--accent); text-decoration: underline; }
 .wire-ed .fields { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .led { fill: #3a1414; transition: fill .04s; }
 .led.g { fill: #15301a; }
@@ -263,7 +266,7 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
   const W = 1024, H = 318;
   // Field wiring: cables leave the terminals, up from the inputs and down from
   // the relay outputs, labelled with the entity at the far end.
-  const label = (w, x, y, angle, end) => `<text class="wl"${end ? ' text-anchor="end"' : ""} transform="translate(${x} ${y}) rotate(${angle})">${esc(w.name)}${w.detail ? `<tspan> ${esc(w.detail)}</tspan>` : ""}<title>${esc(w.title)}</title></text>`;
+  const label = (w, x, y, angle, end, kind, g) => `<text class="wl" data-kind="${kind}" data-index="${g}"${end ? ' text-anchor="end"' : ""} transform="translate(${x} ${y}) rotate(${angle})">${esc(w.name)}${w.detail ? `<tspan> ${esc(w.detail)}</tspan>` : ""}<title>${esc(w.title)}</title></text>`;
   let cablesIn = "", cablesOut = "", top = 0, bottom = 0;
   const screw = (x, y, r = 11) => `<g><circle cx="${x}" cy="${y}" r="${r}" fill="url(#screwg)" stroke="#111" stroke-width="1.5"/>
     <path d="M${x - r * .55} ${y}h${r * 1.1}M${x} ${y - r * .55}v${r * 1.1}" stroke="#2a2a2a" stroke-width="2.4"/></g>`;
@@ -292,7 +295,7 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
       terms += `<rect class="term" data-kind="inputs" data-index="${g}" x="${ix + ist * i}" y="6" width="${ist}" height="110" rx="3"><title>Input terminal ${lab} (${w ? "wired to " + esc(w.title) : "click to wire it to an entity"})</title></rect>`;
       if (w) {
         top = 215;
-        cablesIn += `<path class="cable in" id="cable-in-${g}" d="M${cx} 34 C${cx - 7} 14 ${cx + 7} 4 ${cx} -14"/><rect class="sheath" x="${cx - 5}" y="-26" width="10" height="16" rx="2"/>${label(w, cx + 4, -32, -50)}`;
+        cablesIn += `<path class="cable in" id="cable-in-${g}" d="M${cx} 34 C${cx - 7} 14 ${cx + 7} 4 ${cx} -14"/><rect class="sheath" x="${cx - 5}" y="-26" width="10" height="16" rx="2"/>${label(w, cx + 4, -32, -50, false, "inputs", g)}`;
       }
       k++;
     } else inputs += `<text x="${cx}" y="104" class="tl">${lab}</text>`;
@@ -312,7 +315,7 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
       bottom = 200;
       const a = x + ost * .25, b = x + ost * .75, m = x + ost / 2;
       cablesOut += `<path class="cable out" id="cable-out-${g}" d="M${a} 236 V${H + 4} L${m - 3} ${H + 18} V${H + 30} M${b} 236 V${H + 4} L${m + 3} ${H + 18} V${H + 30}"/>
-        <rect class="sheath" x="${m - 7}" y="${H + 22}" width="14" height="18" rx="2"/>${label(w, m + 6, H + 50, -50, true)}`;
+        <rect class="sheath" x="${m - 7}" y="${H + 22}" width="14" height="18" rx="2"/>${label(w, m + 6, H + 50, -50, true, "outputs", g)}`;
     }
   }
 
@@ -1069,7 +1072,9 @@ class MicroGemPanel extends HTMLElement {
         ? `${addr} follows the entity: its contact is closed while the entity is on, open, home, playing and so on, or while a number is above the value you set.`
         : `The relay switches the entity on when ${addr} is on and off when it is off. Buttons, scenes and scripts are pressed or run each time the relay closes.`;
       const states = (host._hass && host._hass.states) || {};
-      const ids = Object.keys(states).filter((id) => kind === "inputs" || SWITCHABLE.has(id.split(".")[0])).sort();
+      // This controller's own switches and sensors are its internal I/O, not field devices.
+      const own = new Set(Object.values(ha.entities || {}));
+      const ids = Object.keys(states).filter((id) => !own.has(id) && (kind === "inputs" || SWITCHABLE.has(id.split(".")[0]))).sort();
       $("we-list").replaceChildren(...ids.map((id) => {
         const o = el("option");
         o.value = id;
@@ -1126,12 +1131,17 @@ class MicroGemPanel extends HTMLElement {
     function saveWire(point) {
       const { kind, index } = editing;
       if (point && !hassState(point.entity_id)) { wirePreview(); return; }
+      if (point && Object.values(ha.entities || {}).includes(point.entity_id)) {
+        $("we-now").textContent = "That is one of this controller's own switches or sensors. Wire terminals to other devices.";
+        $("we-now").classList.add("error");
+        return;
+      }
       transport.wire(kind, index, point)
         .then((w) => { ha.wiring = w; closeEditor(); built = false; schedule(); })
         .catch((err) => { $("we-now").textContent = "Not saved: " + (err.message || err.code || err); $("we-now").classList.add("error"); });
     }
     $("unit").addEventListener("click", (e) => {
-      const t = e.target.closest && e.target.closest(".term");
+      const t = e.target.closest && e.target.closest(".term, .wl");
       if (t) openEditor(t.dataset.kind, Number(t.dataset.index));
     });
     $("we-entity").addEventListener("input", () => fillAttributes($("we-attr").value));

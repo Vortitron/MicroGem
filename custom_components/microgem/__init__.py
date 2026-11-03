@@ -110,7 +110,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
     if saved.get("running") is False:
         service.halt()
 
-    wiring = Wiring(hass, service)
+    wiring = Wiring(hass, service, entry.entry_id)
     entry.runtime_data = MicroGemData(service, store, wiring)
 
     # Keep the program and the Run/Halt state across restarts.

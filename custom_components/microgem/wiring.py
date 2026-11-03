@@ -21,6 +21,7 @@ import voluptuous as vol
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, State, callback
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .core.service import ControllerService
@@ -89,8 +90,9 @@ def clean(wiring: dict | None, inputs: int, outputs: int) -> dict:
 class Wiring:
     """Keeps the controller's terminals and the wired entities in step."""
 
-    def __init__(self, hass: HomeAssistant, service: ControllerService) -> None:
+    def __init__(self, hass: HomeAssistant, service: ControllerService, entry_id: str = "") -> None:
         self.hass = hass
+        self.entry_id = entry_id
         self.service = service
         self.points: dict = {"inputs": {}, "outputs": {}}
         self._unsubs: list[Callable[[], None]] = []
@@ -101,6 +103,14 @@ class Wiring:
         self.stop()
         config = self.service.controller.config
         self.points = clean(wiring, config.total_inputs, config.total_outputs)
+        # The controller's own switches and sensors are its internal I/O, not field devices.
+        registry = er.async_get(self.hass)
+        for kind in self.points.values():
+            for index, point in list(kind.items()):
+                entity = registry.async_get(point["entity_id"])
+                if entity is not None and entity.config_entry_id == self.entry_id:
+                    _LOGGER.warning("Ignoring MicroGEM wiring to its own entity %s", point["entity_id"])
+                    del kind[index]
         by_entity: dict[str, list[tuple[int, dict]]] = {}
         for index, point in self.points["inputs"].items():
             by_entity.setdefault(point["entity_id"], []).append((int(index), point))

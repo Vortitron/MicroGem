@@ -155,7 +155,10 @@ relay output on the controller drawing in the panel and pick an entity:
   run, each time the relay closes. A newly wired entity is put in step with its
   relay at once; after that it changes only when the relay does.
 
-The cables and the entity names are drawn on the controller, and listed under
+The controller's own input switches and output sensors are its internal I/O,
+so they are left out of the list and cannot be wired to a terminal.
+
+The cables and the entity names are drawn on the controller (click a name to change it), and listed under
 **Field wiring** in the panel. The wiring is kept in the config entry's
 options and changes take effect at once.
 
