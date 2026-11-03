@@ -28,6 +28,23 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .hw { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 28px; align-items: start; }
 .unit svg { width: 100%; height: auto; display: block; filter: drop-shadow(0 10px 16px rgba(0,0,0,.35)); }
 .unit svg + svg { margin-top: 14px; }
+.unit svg { color: var(--text); overflow: visible; }
+.term { fill: transparent; }
+.unit.wirable .term { cursor: pointer; }
+.unit.wirable .term:hover, .term.sel { fill: rgba(255, 216, 58, .14); stroke: #ffd83a; stroke-width: 1.5; }
+.cable { fill: none; stroke-width: 4; stroke-linecap: round; }
+.cable.in { stroke: #8a5a2b; }
+.cable.out { stroke: #2f6db3; }
+.cable.on { stroke: #ff6a3d; filter: url(#glow); }
+.sheath { fill: #3b3b3b; }
+.wl { font: 600 15px system-ui, sans-serif; fill: currentColor; }
+.wl tspan { fill: var(--muted); font-weight: 400; }
+.toggle:disabled { cursor: not-allowed; opacity: .45; }
+.wire-ed { margin-top: 14px; background: var(--panel); border: 2px solid #ffd83a; border-radius: 8px; padding: 12px 14px; }
+.wire-ed h3 { margin: 0 0 4px; font-size: .95rem; }
+.wire-ed label { display: flex; flex-direction: column; gap: 3px; font-size: .78rem; color: var(--muted); font-weight: 600; flex: 1 1 160px; min-width: 0; }
+.wire-ed input { font: 13px var(--mono); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--text); width: 100%; }
+.wire-ed .fields { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .led { fill: #3a1414; transition: fill .04s; }
 .led.g { fill: #15301a; }
 .led.on { fill: #ff3b2f; filter: url(#glow); }
@@ -147,6 +164,18 @@ const MARKUP = `
   <div class="hw">
     <section aria-label="MicroGEM60 controller and expansion units">
       <div class="unit" id="unit"></div>
+      <div class="wire-ed" id="wire-ed" hidden>
+        <h3 id="we-title"></h3>
+        <p class="hint" id="we-hint"></p>
+        <div class="fields">
+          <label style="flex-basis:100%">Home Assistant entity<input id="we-entity" list="we-list" placeholder="Start typing a name or entity id" autocomplete="off" spellcheck="false"></label>
+          <label id="we-attr-box">Read<select id="we-attr"></select></label>
+          <label id="we-above-box">Contact closes above<input id="we-above" type="number" step="any" placeholder="leave empty for on/off"></label>
+        </div>
+        <datalist id="we-list"></datalist>
+        <p class="message" id="we-now"></p>
+        <div class="row"><button class="btn primary" id="we-save">Connect</button><button class="btn" id="we-remove">Disconnect</button><button class="btn" id="we-cancel">Cancel</button></div>
+      </div>
       <div class="sim">
         <div class="sim-head">
           <span>INPUT SIMULATOR · switches wired to the input terminals</span>
@@ -177,6 +206,7 @@ const MARKUP = `
   <section class="panel ha-links" id="ha-links" hidden>
     <h2>In Home Assistant</h2>
     <p class="hint">Every input is a switch and every output is a binary sensor, so automations can use them. Open one below, or see them all on the <a id="device-link" href="#">device page</a>.</p>
+    <p class="hint"><b>Field wiring:</b> click a terminal on the controller to wire it to a Home Assistant entity, with no automation. An input follows the entity (or one of its attributes); a relay output switches the entity on and off.</p>
     <div id="chips"></div>
   </section>
 
@@ -228,9 +258,13 @@ function inputLabels(n) {
 
 // unit 0 is the controller; 1 to 7 are expansion units on its expansion port.
 // inBase / outBase number the LEDs across all units.
-function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0) {
+function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs: {}, outputs: {} }) {
   const exp = unit > 0;
   const W = 1024, H = 318;
+  // Field wiring: cables leave the terminals, up from the inputs and down from
+  // the relay outputs, labelled with the entity at the far end.
+  const label = (w, x, y, angle, end) => `<text class="wl"${end ? ' text-anchor="end"' : ""} transform="translate(${x} ${y}) rotate(${angle})">${esc(w.name)}${w.detail ? `<tspan> ${esc(w.detail)}</tspan>` : ""}<title>${esc(w.title)}</title></text>`;
+  let cablesIn = "", cablesOut = "", top = 0, bottom = 0;
   const screw = (x, y, r = 11) => `<g><circle cx="${x}" cy="${y}" r="${r}" fill="url(#screwg)" stroke="#111" stroke-width="1.5"/>
     <path d="M${x - r * .55} ${y}h${r * 1.1}M${x} ${y - r * .55}v${r * 1.1}" stroke="#2a2a2a" stroke-width="2.4"/></g>`;
   const block = (x, y, w, h, n, sy) => {
@@ -244,6 +278,7 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0) {
 
   // Inputs: one terminal per label, label strip underneath.
   const labels = inputLabels(nIn);
+  let terms = "";
   const ix = 106, iw = 535, ist = iw / labels.length;
   let inputs = block(ix, 6, iw, 80, labels.length, 34);
   let k = 0;
@@ -251,8 +286,14 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0) {
     const cx = ix + ist * (i + .5);
     inputs += `<rect x="${ix + ist * i + 1}" y="89" width="${ist - 2}" height="27" fill="#222" stroke="#555" stroke-width=".6"/>`;
     if (/^\d+$/.test(lab)) {
+      const g = inBase + k, w = wires.inputs[g];
       inputs += `<text x="${cx}" y="101" class="tl">${lab}</text>
-        <circle class="led" id="in-${inBase + k}" cx="${cx}" cy="109.5" r="3"/>`;
+        <circle class="led" id="in-${g}" cx="${cx}" cy="109.5" r="3"/>`;
+      terms += `<rect class="term" data-kind="inputs" data-index="${g}" x="${ix + ist * i}" y="6" width="${ist}" height="110" rx="3"><title>Input terminal ${lab} (${w ? "wired to " + esc(w.title) : "click to wire it to an entity"})</title></rect>`;
+      if (w) {
+        top = 215;
+        cablesIn += `<path class="cable in" id="cable-in-${g}" d="M${cx} 34 V-14"/><rect class="sheath" x="${cx - 5}" y="-26" width="10" height="16" rx="2"/>${label(w, cx + 4, -32, -50)}`;
+      }
       k++;
     } else inputs += `<text x="${cx}" y="104" class="tl">${lab}</text>`;
   });
@@ -265,6 +306,14 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0) {
     outputs += `<rect x="${x + 1}" y="142" width="${ost - 2}" height="28" fill="#222" stroke="#555" stroke-width=".6"/>
       <text x="${x + ost / 2}" y="155" class="tl">${String(i).padStart(2, "0")}</text>
       <circle class="led" id="out-${outBase + i}" cx="${x + ost / 2}" cy="163" r="3.2"/>`;
+    const g = outBase + i, w = wires.outputs[g];
+    terms += `<rect class="term" data-kind="outputs" data-index="${g}" x="${x}" y="142" width="${ost}" height="130" rx="3"><title>Relay output ${String(i).padStart(2, "0")} (${w ? "wired to " + esc(w.title) : "click to wire it to an entity"})</title></rect>`;
+    if (w) {
+      bottom = 200;
+      const a = x + ost * .25, b = x + ost * .75, m = x + ost / 2;
+      cablesOut += `<path class="cable out" id="cable-out-${g}" d="M${a} 236 V${H + 4} L${m - 3} ${H + 18} V${H + 30} M${b} 236 V${H + 4} L${m + 3} ${H + 18} V${H + 30}"/>
+        <rect class="sheath" x="${m - 7}" y="${H + 22}" width="14" height="18" rx="2"/>${label(w, m + 6, H + 50, -50, true)}`;
+    }
   }
 
   const what = exp ? `MicroGEM expansion unit ${unit}` : "GEC MicroGEM60 controller";
@@ -283,7 +332,7 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0) {
   <rect x="306" y="186" width="68" height="34" fill="none" stroke="#666"/>
   <text x="340" y="200" class="lb" style="font-size:11px">W/DOG</text><text x="340" y="214" class="lb" style="font-size:11px">OUTPUT</text>
   ${block(306, 222, 68, 56, 2, 244)}`;
-  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${what} with ${nIn} inputs and ${nOut} relay outputs">
+  return `<svg viewBox="0 ${-top} ${W} ${H + top + bottom}" role="img" aria-label="${what} with ${nIn} inputs and ${nOut} relay outputs">
   <defs>
     <radialGradient id="screwg" cx=".35" cy=".35" r=".8"><stop offset="0" stop-color="#6a6a6a"/><stop offset="1" stop-color="#1e1e1e"/></radialGradient>
     <linearGradient id="cover" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity=".05"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>
@@ -320,6 +369,7 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0) {
   ${status}
   ${outputs}
   <text x="970" y="146" class="lb">RELAY</text><text x="970" y="160" class="lb">OUTPUTS</text>
+  ${cablesIn}${cablesOut}${terms}
 </svg>`;
 }
 
@@ -357,6 +407,12 @@ export function homeAssistantTransport(hass, entryId) {
         .callWS({ type: "microgem/command", entry_id: entryId, command: message })
         .then((reply) => { if (reply) deliver(reply); })
         .catch((err) => deliver({ type: "error", message: err.message || String(err) }));
+    },
+    /** Wire a terminal to an entity; point null removes the wire. Resolves to the new wiring. */
+    wire(kind, index, point) {
+      return hass
+        .callWS({ type: "microgem/wire", entry_id: entryId, kind, index, ...(point || {}) })
+        .then((reply) => reply.wiring);
     },
   };
 }
@@ -874,8 +930,13 @@ class MicroGemPanel extends HTMLElement {
     function build() {
       const { units, inputs: nIn, outputs: nOut } = io();
       let svgs = "";
-      for (let u = 0; u < units; u++) svgs += unitSvg(nIn, nOut, u, u * nIn, u * nOut);
+      const wires = { inputs: {}, outputs: {} };
+      for (const kind of ["inputs", "outputs"]) {
+        for (const [i, point] of Object.entries(wiring()[kind])) wires[kind][i] = describe(point);
+      }
+      for (let u = 0; u < units; u++) svgs += unitSvg(nIn, nOut, u, u * nIn, u * nOut, wires);
       $("unit").innerHTML = svgs;
+      $("unit").classList.toggle("wirable", canWire());
       const t = $("toggles");
       t.replaceChildren();
       for (let u = 0; u < units; u++) {
@@ -887,6 +948,7 @@ class MicroGemPanel extends HTMLElement {
           const b = el("button", "toggle");
           b.title = `Input terminal ${String(p).padStart(2, "0")}${u ? ` on expansion unit ${u}` : ""} (${ioAddress("A", i, nIn)})`;
           b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${String(p).padStart(2, "0")}</small>`;
+          if (wires.inputs[i]) { b.disabled = true; b.title += `: wired to ${wires.inputs[i].title}`; }
           b.addEventListener("click", () => { if (mode === "toggle") send({ type: "input", index: i, value: !state.inputs[i] }); });
           const press = (v) => (e) => { if (mode === "momentary") { e.preventDefault(); send({ type: "input", index: i, value: v }); } };
           b.addEventListener("pointerdown", press(true));
@@ -951,11 +1013,137 @@ class MicroGemPanel extends HTMLElement {
       row("Controller", [chip("run", "Run", "run"), chip("watchdog", "Watchdog", "run")]);
       row(`Inputs: switches${first("input_0")}`, state.inputs.map((_, i) => chip(`input_${i}`, ioAddress("A", i, nIn), "in")));
       row(`Outputs: binary sensors${first("output_0")}`, state.outputs.map((_, i) => chip(`output_${i}`, ioAddress("B", i, nOut), "out")));
+      const wired = [];
+      for (const [kind, table, per, arrow] of [["inputs", "A", nIn, "←"], ["outputs", "B", nOut, "→"]]) {
+        for (const [i, point] of Object.entries(wiring()[kind]).sort((a, b) => a[0] - b[0])) {
+          const c = el("button", "chip wire");
+          c.title = `Edit the wiring of ${ioAddress(table, Number(i), per)}`;
+          c.innerHTML = `${ioAddress(table, Number(i), per)} ${arrow} ${esc(describe(point).name)}`;
+          c.addEventListener("click", () => openEditor(kind, Number(i)));
+          wired.push(c);
+        }
+      }
+      row("Field wiring", wired);
       const link = $("device-link");
       link.href = ha.device_id ? `/config/devices/device/${ha.device_id}` : "/config/integrations/integration/microgem";
       link.onclick = (e) => { e.preventDefault(); navigate(link.getAttribute("href")); };
       $("ha-links").hidden = false;
     }
+
+    // ---- field wiring: terminals connected to Home Assistant entities ----
+    const OFF = new Set(["off", "closed", "not_home", "away", "idle", "standby", "paused", "locked", "false", "0", "none", "", "unavailable", "unknown"]);
+    const TRIGGERED = new Set(["button", "input_button", "scene", "script", "automation"]);
+    const SWITCHABLE = new Set(["switch", "light", "fan", "input_boolean", "siren", "cover", "valve", "climate", "humidifier", "media_player", "water_heater", "vacuum", "remote", ...TRIGGERED]);
+    const wiring = () => (ha && ha.wiring) || { inputs: {}, outputs: {} };
+    const canWire = () => !!(ha && transport.wire);
+    const hassState = (id) => host._hass && host._hass.states[id];
+    function describe(point) {
+      const st = hassState(point.entity_id);
+      const name = (st && st.attributes.friendly_name) || point.entity_id;
+      const short = name.length > 26 ? name.slice(0, 25) + "…" : name;
+      const detail = point.attribute ? `· ${point.attribute}${point.above != null ? " > " + point.above : ""}` : point.above != null ? `> ${point.above}` : "";
+      return { name: short, detail, title: `${name} (${point.entity_id})${detail ? " " + detail : ""}` };
+    }
+    function closes(st, point) {
+      if (!st) return false;
+      const attr = point.attribute;
+      if (attr && (st.state === "unavailable" || st.state === "unknown")) return false;
+      const v = attr ? st.attributes[attr] : st.state;
+      if (point.above != null) { const n = Number(v); return v !== null && v !== "" && !Number.isNaN(n) && n > point.above; }
+      if (typeof v === "boolean") return v;
+      if (typeof v === "number") return v !== 0;
+      return !OFF.has(String(v).trim().toLowerCase());
+    }
+
+    let editing = null; // { kind, index }
+    function openEditor(kind, index) {
+      if (!canWire()) return;
+      editing = { kind, index };
+      const { inputs: nIn, outputs: nOut } = io();
+      const per = kind === "inputs" ? nIn : nOut, unit = Math.floor(index / per);
+      const where = `${kind === "inputs" ? "input terminal" : "relay output"} ${String(index % per).padStart(2, "0")}${unit ? ` on expansion unit ${unit}` : ""}`;
+      const addr = ioAddress(kind === "inputs" ? "A" : "B", index, per);
+      const point = wiring()[kind][index];
+      $("we-title").textContent = `Wire ${where} (${addr})`;
+      $("we-hint").textContent = kind === "inputs"
+        ? `${addr} follows the entity: its contact is closed while the entity is on, open, home, playing and so on, or while a number is above the value you set.`
+        : `The relay switches the entity on when ${addr} is on and off when it is off. Buttons, scenes and scripts are pressed or run each time the relay closes.`;
+      const states = (host._hass && host._hass.states) || {};
+      const ids = Object.keys(states).filter((id) => kind === "inputs" || SWITCHABLE.has(id.split(".")[0])).sort();
+      $("we-list").replaceChildren(...ids.map((id) => {
+        const o = el("option");
+        o.value = id;
+        o.label = states[id].attributes.friendly_name || id;
+        return o;
+      }));
+      $("we-entity").value = point ? point.entity_id : "";
+      $("we-above").value = point && point.above != null ? point.above : "";
+      $("we-attr-box").hidden = $("we-above-box").hidden = kind !== "inputs";
+      $("we-remove").hidden = !point;
+      fillAttributes(point && point.attribute);
+      $("unit").querySelectorAll(".term").forEach((t) => t.classList.toggle("sel", t.dataset.kind === kind && Number(t.dataset.index) === index));
+      $("wire-ed").hidden = false;
+      $("wire-ed").scrollIntoView({ block: "nearest", behavior: "smooth" });
+      $("we-entity").focus();
+    }
+    function closeEditor() {
+      editing = null;
+      $("wire-ed").hidden = true;
+      $("unit").querySelectorAll(".term.sel").forEach((t) => t.classList.remove("sel"));
+    }
+    function fillAttributes(chosen) {
+      const st = hassState($("we-entity").value.trim());
+      const attrs = st ? Object.keys(st.attributes).filter((a) => a !== "friendly_name" && !/^(icon|entity_picture|supported_features|attribution)$/.test(a)) : [];
+      if (chosen && !attrs.includes(chosen)) attrs.unshift(chosen);
+      $("we-attr").replaceChildren(el("option", "", "State"), ...attrs.map((a) => { const o = el("option", "", a); o.value = a; return o; }));
+      $("we-attr").firstChild.value = "";
+      $("we-attr").value = chosen || "";
+      wirePreview();
+    }
+    function editedPoint() {
+      const entity_id = $("we-entity").value.trim();
+      if (!entity_id) return null;
+      const point = { entity_id };
+      if (editing.kind === "inputs") {
+        if ($("we-attr").value) point.attribute = $("we-attr").value;
+        if ($("we-above").value !== "") point.above = Number($("we-above").value);
+      }
+      return point;
+    }
+    function wirePreview() {
+      const now = $("we-now");
+      now.classList.remove("error");
+      const point = editing && editedPoint();
+      if (!point) { now.textContent = ""; return; }
+      const st = hassState(point.entity_id);
+      if (!st) { now.textContent = "No entity with that id."; now.classList.add("error"); return; }
+      const value = point.attribute ? st.attributes[point.attribute] : st.state;
+      const shown = typeof value === "object" ? JSON.stringify(value) : String(value);
+      now.textContent = editing.kind === "inputs"
+        ? `Now: ${shown.slice(0, 60)}, so the contact would be ${closes(st, point) ? "closed (on)" : "open (off)"}.`
+        : `Now: ${shown.slice(0, 60)}.${TRIGGERED.has(point.entity_id.split(".")[0]) ? " Pressed or run when the relay closes." : ""}`;
+    }
+    function saveWire(point) {
+      const { kind, index } = editing;
+      if (point && !hassState(point.entity_id)) { wirePreview(); return; }
+      transport.wire(kind, index, point)
+        .then((w) => { ha.wiring = w; closeEditor(); built = false; schedule(); })
+        .catch((err) => { $("we-now").textContent = "Not saved: " + (err.message || err.code || err); $("we-now").classList.add("error"); });
+    }
+    $("unit").addEventListener("click", (e) => {
+      const t = e.target.closest && e.target.closest(".term");
+      if (t) openEditor(t.dataset.kind, Number(t.dataset.index));
+    });
+    $("we-entity").addEventListener("input", () => fillAttributes($("we-attr").value));
+    $("we-attr").addEventListener("change", wirePreview);
+    $("we-above").addEventListener("input", wirePreview);
+    $("we-save").addEventListener("click", () => saveWire(editedPoint()));
+    $("we-remove").addEventListener("click", () => saveWire(null));
+    $("we-cancel").addEventListener("click", closeEditor);
+    $("wire-ed").addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeEditor();
+      if (e.key === "Enter" && e.target.tagName === "INPUT") saveWire(editedPoint());
+    });
 
     // ---- rendering ----
     function render() {
@@ -966,8 +1154,10 @@ class MicroGemPanel extends HTMLElement {
       const u = $("unit");
       state.inputs.forEach((v, i) => u.querySelector(`#in-${i}`)?.classList.toggle("on", v));
       state.outputs.forEach((v, i) => u.querySelector(`#out-${i}`)?.classList.toggle("on", v));
+      state.inputs.forEach((v, i) => u.querySelector(`#cable-in-${i}`)?.classList.toggle("on", v));
+      state.outputs.forEach((v, i) => u.querySelector(`#cable-out-${i}`)?.classList.toggle("on", v));
       u.querySelectorAll(".supply").forEach((n) => n.classList.add("on"));
-      $("chips").querySelectorAll(".chip").forEach((c) => {
+      $("chips").querySelectorAll(".chip[data-key]").forEach((c) => {
         const [kind, n] = c.dataset.key.split("_");
         const on = kind === "run" ? state.running : kind === "watchdog" ? state.watchdog : (kind === "input" ? state.inputs : state.outputs)[Number(n)];
         c.classList.toggle("on", !!on);

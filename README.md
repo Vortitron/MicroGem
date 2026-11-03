@@ -138,6 +138,27 @@ change this later under **Configure**), and you get:
   to all of these entities,
 - a `microgem.load_program` action.
 
+### Field wiring
+
+You can also wire terminals straight to Home Assistant entities, as you would
+cable a real controller, with no automations. Click an input terminal or a
+relay output on the controller drawing in the panel and pick an entity:
+
+- an **input** follows the entity's state: the contact is closed while it is
+  on, open, home, playing and so on, and open while it is off, closed, away,
+  unavailable and so on. You can read one of its attributes instead, and give a
+  threshold so the contact closes while a number is above it (a temperature,
+  say). A wired input's simulator switch is greyed out;
+- a **relay output** switches the entity on and off with the relay
+  (`homeassistant.turn_on` / `turn_off`, so lights, switches, fans, helpers,
+  covers and so on). Buttons are pressed, and scenes, scripts and automations
+  run, each time the relay closes. A newly wired entity is put in step with its
+  relay at once; after that it changes only when the relay does.
+
+The cables and the entity names are drawn on the controller, and listed under
+**Field wiring** in the panel. The wiring is kept in the config entry's
+options and changes take effect at once.
+
 The program and Run/Halt state survive restarts. The integration carries a copy
 of the engine in `custom_components/microgem/core`; after changing anything in
 `microgem/`, run `python scripts/sync_ha_core.py` (a test checks they match).

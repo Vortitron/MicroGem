@@ -47,7 +47,8 @@ class MicroGemOptionsFlow(OptionsFlow):
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
+            # Keep the field wiring, which the panel edits.
+            return self.async_create_entry(data={**self.config_entry.options, **user_input})
         schema = vol.Schema(
             {vol.Required(CONF_EXPANSIONS, default=expansions_of(self.config_entry)): EXPANSIONS}
         )

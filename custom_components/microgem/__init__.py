@@ -20,6 +20,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from . import websocket
+from .wiring import CONF_WIRING, Wiring
 from .const import (
     CONF_INPUTS,
     CONF_OUTPUTS,
@@ -51,6 +52,7 @@ LOAD_PROGRAM_SCHEMA = vol.Schema(
 class MicroGemData:
     service: ControllerService
     store: Store
+    wiring: Wiring
 
 
 type MicroGemConfigEntry = ConfigEntry[MicroGemData]
@@ -108,7 +110,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
     if saved.get("running") is False:
         service.halt()
 
-    entry.runtime_data = MicroGemData(service, store)
+    wiring = Wiring(hass, service)
+    entry.runtime_data = MicroGemData(service, store, wiring)
 
     # Keep the program and the Run/Halt state across restarts.
     last_saved = {"program": service.controller.program.source, "running": service.controller.running}
@@ -127,6 +130,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
     entry.async_on_unload(service.subscribe(persist))
     service.start()
     entry.async_on_unload(service.stop)
+    wiring.apply(entry.options.get(CONF_WIRING))
+    entry.async_on_unload(wiring.stop)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -147,8 +152,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
 
 
 async def _options_updated(hass: HomeAssistant, entry: MicroGemConfigEntry) -> None:
-    """Expansion units added or removed: rebuild the controller and its entities."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    """New wiring is applied in place; added or removed expansion units rebuild
+    the controller and its entities."""
+    data = entry.runtime_data
+    if expansions_of(entry) != data.service.controller.config.expansions:
+        await hass.config_entries.async_reload(entry.entry_id)
+    else:
+        data.wiring.apply(entry.options.get(CONF_WIRING))
 
 
 def remove_missing_io(hass: HomeAssistant, entry: ConfigEntry, config: ControllerConfig) -> None:
