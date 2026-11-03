@@ -1,4 +1,4 @@
-"""A virtual GEC MicroGEM / GEM 80 programmable controller."""
+"""A virtual MicroGEM / GEM 80 style programmable controller."""
 
 from .engine import MAX_EXPANSIONS, Controller, ControllerConfig
 from .program import ProgramError, parse_program
@@ -16,4 +16,4 @@ __all__ = [
     "parse_program",
 ]
 
-__version__ = "0.3.6"
+__version__ = "0.4.0"

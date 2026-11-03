@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b2b2b"/><stop offset="1" stop-color="#141414"/>
+    </linearGradient>
+    <linearGradient id="strip" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7a7a7a"/><stop offset="1" stop-color="#4c4c4c"/>
+    </linearGradient>
+  </defs>
+  <!-- yellow base, as on the real unit -->
+  <rect x="8" y="40" width="496" height="464" rx="56" fill="#e8b828"/>
+  <!-- black front -->
+  <rect x="8" y="8" width="496" height="456" rx="56" fill="url(#body)" stroke="#555" stroke-width="6"/>
+  <!-- input terminal strip -->
+  <rect x="56" y="52" width="400" height="84" rx="12" fill="url(#strip)"/>
+  <g fill="#262626" stroke="#8c8c8c" stroke-width="4">
+    <circle cx="106" cy="94" r="22"/><circle cx="181" cy="94" r="22"/><circle cx="256" cy="94" r="22"/>
+    <circle cx="331" cy="94" r="22"/><circle cx="406" cy="94" r="22"/>
+  </g>
+  <g stroke="#8c8c8c" stroke-width="5" stroke-linecap="round">
+    <path d="M94 94h24M169 94h24M244 94h24M319 94h24M394 94h24"/>
+  </g>
+  <!-- ladder rung: -] [-----( )- -->
+  <g fill="none" stroke="#f5c518" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M56 162v148M456 162v148"/>
+    <path d="M56 236h66M122 200v72M166 200v72M166 236h138"/>
+    <path d="M318 196q-24 40 0 80M362 196q24 40 0 80"/>
+    <path d="M376 236h80"/>
+  </g>
+  <!-- status LEDs -->
+  <circle cx="126" cy="392" r="26" fill="#ff3b30" stroke="#5a1410" stroke-width="6"/>
+  <circle cx="211" cy="392" r="26" fill="#ff3b30" stroke="#5a1410" stroke-width="6"/>
+  <circle cx="296" cy="392" r="26" fill="#3a1714" stroke="#2a0e0c" stroke-width="6"/>
+  <circle cx="381" cy="392" r="26" fill="#34c759" stroke="#0f3d1b" stroke-width="6"/>
+</svg>
