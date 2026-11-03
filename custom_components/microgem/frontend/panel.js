@@ -651,46 +651,127 @@ const SYMBOLS = new Set(["-] [-", "-]/[-", "-( )-", "-(S)-", "-(C)-", "-(D)-", "
 const TABLE_KEY = { I: "A", Q: "B", G: "G", W: "W", C: "C", D: "D", S: "S" };
 const LCD_W = 16;
 
-// A rung as the programmer steps through it: one element at a time, in the
-// order it is keyed in, each with its symbol, address and value. Line 1 of
-// the display shows the symbols, line 2 the ADDR / VALUE / LOC'N fields that
-// are printed under the real programmer's display.
-function rungSteps(r) {
-  const out = [];
+// A rung drawn as text, the way the GEM 80 manual (T391) and its programmers
+// draw ladder: each element's symbol on one line and its address on the line
+// below, branches joined with + and !, rails at both ends. The programmer's
+// 2 x 16 display is a window onto this that the arrow keys move around.
+// Live wires are dashes and dead ones dots, as on the GEM 80 monitor.
+const CELL = 8;
+
+function textRung(rung, flow) {
+  const cells = []; // the elements the cursor can sit on
+  const live = (id) => (flow ? (flow[String(id)] ?? 0) !== 0 : true);
+  const wire = (on) => (on ? "-" : ".");
   const opnd = (a) => (a && typeof a === "object" ? null : a);
-  const walk = (n) => {
-    if (!n) return;
+  const leaf = (n) => {
     switch (n.t) {
-      case "series": n.items.forEach(walk); break;
-      case "parallel":
-        n.items.forEach((item, i) => { if (i) out.push({ sym: "▼" }); walk(item); });
-        out.push({ sym: "JOIN" });
-        break;
-      case "contact": out.push({ sym: n.nc ? "]/[" : "] [", addr: n.addr, id: n.id }); break;
-      case "edge": out.push({ sym: n.rising ? "RISE" : "FALL", addr: n.addr, id: n.id }); break;
-      case "const": out.push({ sym: "---", id: n.id }); break;
-      case "cmp": out.push({ sym: n.op, addr: opnd(n.left), num: opnd(n.right), id: n.id }); break;
-      case "inv": out.push({ sym: "INV", id: n.id }); break;
+      case "contact": return { sym: n.nc ? "]/[" : "] [", addr: n.addr };
+      case "edge": return { sym: n.rising ? "]^[" : "]v[", addr: n.addr };
+      case "const": return { sym: "", addr: "" };
+      case "cmp": return { sym: `<${n.op}>`, addr: `${opnd(n.left) ?? ""} ${opnd(n.right) ?? ""}` };
+      case "inv": return { sym: "<INV>", addr: "" };
       case "logic": case "arith": {
         const a = opnd(n.arg);
-        const isAddr = a && /^[A-Z]/.test(a);
-        out.push({ sym: n.spec || n.op, addr: isAddr ? a : null, num: isAddr ? null : a, id: n.id });
-        if (a === null) { out.push({ sym: "▼" }); walk(n.arg); out.push({ sym: "JOIN" }); }
-        break;
+        return n.spec ? { sym: "SPEC.", addr: n.spec + (a !== null ? " " + a : "") } : { sym: `<${n.op}>`, addr: a ?? "" };
       }
-      case "delay": out.push({ sym: "(D)", addr: n.word, num: n.value, id: n.id }); break;
-      case "count":
-        out.push({ sym: "(C)", addr: n.word, num: n.value, id: n.id });
-        if (n.reset) { out.push({ sym: "RST" }); walk(n.reset); }
-        break;
+      case "delay": return { sym: "<DELAY>--VALUE", addr: `${n.word}`.padEnd(9) + n.value };
+      case "count": return { sym: "<COUNT>--VALUE", addr: `${n.word}`.padEnd(9) + n.value };
     }
+    return { sym: "?", addr: "" };
   };
-  walk(r.condition);
-  const o = r.output || {};
-  const OUT = { coil: "( )", out: "OUT", seqr: "(S)", block: "BLK", end: "EOB", set: "(L)", reset: "(U)" };
-  if (OUT[o.t]) out.push({ sym: OUT[o.t], addr: o.addr || null, out: true });
-  if (o.t === "seqr" && o.reset) { out.push({ sym: "RST" }); walk(o.reset); }
-  return out;
+  const branchOf = (n) => (n.t === "count" ? n.reset : (n.t === "logic" || n.t === "arith") && n.arg && typeof n.arg === "object" ? n.arg : null);
+  const width = (n) => Math.max(CELL, leaf(n).sym.length + 4);
+
+  function measure(n) {
+    if (!n) return { w: 0, h: 1 };
+    if (n.t === "series") return n.items.map(measure).reduce((a, b) => ({ w: a.w + b.w, h: Math.max(a.h, b.h) }), { w: 0, h: 1 });
+    if (n.t === "parallel") {
+      const ms = n.items.map(measure);
+      return { w: Math.max(...ms.map((m) => m.w)) + 2, h: ms.reduce((a, m) => a + m.h, 0) };
+    }
+    const b = branchOf(n);
+    if (b) { const m = measure(b); return { w: m.w + 2 + width(n), h: 1 + m.h }; }
+    return { w: width(n), h: 1 };
+  }
+
+  const m = measure(rung.condition);
+  const out = rung.output || {};
+  const OUT = { coil: "( )", out: "<OUT>", seqr: "<SEQR>", block: "<OBEY BLOCK>", end: "END OF BLOCK", set: "(L)", reset: "(U)" };
+  const osym = OUT[out.t] || "";
+  const ow = osym.length + 5;
+  const seqrReset = out.t === "seqr" && out.reset ? out.reset : null;
+  const rm = seqrReset ? measure(seqrReset) : { w: 0, h: 0 };
+  const W = Math.max(1 + m.w + ow, 1 + rm.w + ow + 2, 2 * CELL);
+  const rows = m.h + rm.h;
+  const lines = Array.from({ length: rows * 2 }, () => Array(W).fill(" "));
+  const put = (line, x, str) => { for (let k = 0; k < str.length; k++) if (x + k < W && lines[line]) lines[line][x + k] = str[k]; };
+  const vline = (x, fromRow, toRow) => { for (let l = fromRow * 2 + 1; l < toRow * 2; l++) put(l, x, "!"); put(toRow * 2, x, "+"); };
+
+  function draw(n, x, y, on, w) {
+    if (!n) { put(y * 2, x, wire(on).repeat(w)); return on; }
+    if (n.t === "series") {
+      const ms = n.items.map(measure);
+      const total = ms.reduce((a, b) => a + b.w, 0);
+      let cx = x;
+      n.items.forEach((item, k) => {
+        const iw = ms[k].w + (k === n.items.length - 1 ? w - total : 0);
+        on = draw(item, cx, y, on, iw);
+        cx += iw;
+      });
+      return on;
+    }
+    if (n.t === "parallel") {
+      // Branches hang from a + on the line above; right after the left rail
+      // they hang from the rail itself, as in the manual.
+      let row = y, any = false;
+      const left = x === 1 ? 0 : x, right = x + w - 1;
+      const starts = [];
+      n.items.forEach((item) => {
+        starts.push(row);
+        put(row * 2, x, wire(on));
+        any = draw(item, x + 1, row, on, w - 2) || any;
+        row += measure(item).h;
+      });
+      const last = starts.at(-1);
+      vline(left, y, last);
+      vline(right, y, last);
+      for (const r of starts) { put(r * 2, left, "+"); put(r * 2, right, "+"); }
+      return any;
+    }
+    const b = branchOf(n);
+    const L = leaf(n), o = live(n.id);
+    let ex = x;
+    if (b) {
+      // A second input from a lower branch, which starts at the left rail.
+      const bm = measure(b);
+      put(y * 2, x, wire(on).repeat(bm.w + 2));
+      draw(b, x, y + 1, true, bm.w + 1);
+      vline(x + bm.w + 1, y, y + 1);
+      // Lead the branch back to the left rail where the way is clear.
+      let lx = x - 1;
+      while (lx > 0 && lines[(y + 1) * 2][lx] === " ") put((y + 1) * 2, lx--, "-");
+      if (lx === 0) put((y + 1) * 2, 0, "+");
+      ex = x + bm.w + 2;
+    }
+    const ew = w - (ex - x);
+    put(y * 2, ex, wire(on).repeat(2) + L.sym + wire(o).repeat(Math.max(0, ew - 2 - L.sym.length)));
+    put(y * 2 + 1, ex + 2, String(L.addr).slice(0, ew - 2));
+    if (n.t !== "const") cells.push({ row: y, x: ex + 2, len: L.sym.length, addr: n.addr || n.word || null, node: n });
+    return n.t === "const" ? on : o;
+  }
+
+  // Left rail, then the condition, then wire across to the output and the right rail.
+  for (let l = 0; l < rows * 2; l++) put(l, 0, l === 0 ? "+" : "!");
+  const con = rung.condition ? draw(rung.condition, 1, 0, true, m.w) : true;
+  const ox = W - ow;
+  put(0, 1 + m.w, wire(con).repeat(Math.max(0, ox - 1 - m.w)));
+  if (seqrReset) { draw(seqrReset, 1, m.h, true, ox - 1); vline(ox, 0, m.h); put(m.h * 2, 0, "+"); }
+  put(0, ox, wire(con).repeat(2) + osym + wire(con).repeat(2) + "+");
+  put(1, ox + 2, (out.addr || "").slice(0, ow - 3));
+  for (let l = 1; l < rows * 2; l++) put(l, W - 1, "!");
+  if (osym) cells.push({ row: 0, x: ox + 2, len: osym.length, addr: out.addr || null, node: out });
+  cells.sort((a, b) => a.row - b.row || a.x - b.x);
+  return { lines: lines.map((l) => l.join("")), cells, width: W };
 }
 
 // What each element key asks for. DELAY and COUNT sit in the rung like
@@ -768,7 +849,7 @@ class MicroGemPanel extends HTMLElement {
 
     const P = {
       screen: "IDLE", ctrl: false, entry: null, addr: "G0", value: null,
-      draft: null, replace: false, pending: null, answers: [], confirmDel: false, flash: "", hscroll: null,
+      draft: null, replace: false, pending: null, answers: [], confirmDel: false, flash: "", cell: 0,
     };
 
     function el(tag, cls, text) {
@@ -960,36 +1041,53 @@ class MicroGemPanel extends HTMLElement {
     const fmtVal = (v) => (v === null || v === undefined ? "" : typeof v === "boolean" ? (v ? "ON" : "OFF") : (v < 0 ? "-" : "+") + String(Math.abs(v)).padStart(5, "0"));
     const loc = () => String(selected + 1).padStart(3, "0");
 
-    // LOC'N is the instruction's location in the program: the steps of all
-    // earlier rungs, plus this one's position in the rung.
-    function stepLines(rung, at, keying) {
-      const steps = rungSteps(rung);
-      if (!steps.length) return ["---", fields("", "", loc())];
-      const i = Math.max(0, Math.min(steps.length - 1, at));
-      // Line 1: the symbols joined by wire, scrolled so the current one shows; it blinks.
-      let strip = "", start = 0, end = 0;
-      steps.forEach((st, k) => {
-        if (k) strip += "-";
-        if (k === i) start = strip.length;
-        strip += st.sym;
-        if (k === i) end = strip.length;
-      });
-      strip = "|-" + strip; // the left rail
-      start += 2; end += 2;
-      const off = Math.max(0, Math.min(start, end - LCD_W));
-      let line1 = strip.slice(off, off + LCD_W);
-      if (!keying && Date.now() % 1000 >= 650) {
-        const a = start - off, b = Math.min(LCD_W, end - off);
-        line1 = line1.slice(0, a) + " ".repeat(Math.max(0, b - a)) + line1.slice(b);
+    // The display is a 2 x 16 window onto the rung drawn as text: the symbol
+    // line of the cursor's branch and the address line under it. The element
+    // under the cursor blinks.
+    function ladderLines(rung, keying) {
+      const t = textRung(rung, keying ? null : state.flow);
+      if (!t.cells.length) return [t.lines[0].slice(0, LCD_W), t.lines[1].slice(0, LCD_W)];
+      const c = keying ? t.cells.filter((x) => x.node.t !== "coil").at(-1) || t.cells.at(-1) : t.cells[Math.min(P.cell, t.cells.length - 1)];
+      const off = Math.max(0, Math.min(c.x <= 8 ? 0 : c.x - 4, t.width - LCD_W));
+      let l1 = t.lines[c.row * 2].slice(off, off + LCD_W);
+      const l2 = t.lines[c.row * 2 + 1].slice(off, off + LCD_W);
+      if (Date.now() % 1000 >= 650) {
+        const a = c.x - off, b = Math.min(LCD_W, a + c.len);
+        if (a >= 0) l1 = l1.slice(0, a) + " ".repeat(Math.max(0, b - a)) + l1.slice(b);
       }
-      // Line 2: ADDR, VALUE (the live value, or a DELAY/COUNT preset), LOC'N.
-      const st = steps[i];
-      const live = st.addr && state.live ? state.live[st.addr] : undefined;
-      const value = st.num !== undefined && st.num !== null ? "V" + st.num : fmtVal(live);
-      let before = 0;
-      if (!keying) for (let k = 0; k < selected; k++) before += rungSteps(state.ladder[k]).length;
-      const where = keying ? (P.replace ? "ED" : "NEW") : String((before + i + 1) % 1000).padStart(3, "0");
-      return [line1, fields(st.addr || "", value, where)];
+      return [l1, l2];
+    }
+
+    // Arrow keys move the cursor around the drawn rung: ◄► along a branch,
+    // ▲▼ to the branch above or below, and on to the next or previous rung.
+    function moveCursor(t) {
+      const rungs = state.ladder || [];
+      if (!rungs.length) return;
+      const cells = textRung(rungs[selected], null).cells;
+      const here = cells[Math.min(P.cell, cells.length - 1)] || { row: 0, x: 0 };
+      const rowCells = (r) => cells.map((c, k) => ({ ...c, k })).filter((c) => c.row === r);
+      if (t === "◄" || t === "►") {
+        const same = rowCells(here.row);
+        const at = same.findIndex((c) => c.k === P.cell);
+        const next = same[at + (t === "►" ? 1 : -1)];
+        if (next) P.cell = next.k;
+        return;
+      }
+      const rowsBelow = [...new Set(cells.map((c) => c.row))].sort((a, b) => a - b);
+      const ri = rowsBelow.indexOf(here.row);
+      const target = rowsBelow[ri + (t === "▼" ? 1 : -1)];
+      if (target === undefined) {
+        // Off the top or bottom of the rung: on to the previous or next one.
+        selected = (selected + (t === "▼" ? 1 : -1) + rungs.length) % rungs.length;
+        const nc = textRung(rungs[selected], null).cells;
+        P.cell = t === "▼" ? 0 : Math.max(0, nc.findIndex((c) => c.row === Math.max(...nc.map((x) => x.row))));
+        selectLine();
+        schedule();
+        return;
+      }
+      const cand = rowCells(target);
+      cand.sort((a, b) => Math.abs(a.x - here.x) - Math.abs(b.x - here.x));
+      P.cell = cand[0].k;
     }
 
     function lcdLines() {
@@ -1016,10 +1114,10 @@ class MicroGemPanel extends HTMLElement {
         // While keying in, show the rung so far as symbols, ending at the last element.
         const rung = draftRungs && draftRungs[0];
         if (!rung || !draftText(P.draft)) return ["KEY CONTACTS...", fields(P.replace ? "EDIT" : "NEW", "", loc())];
-        return stepLines(rung, Infinity, true);
+        return ladderLines(rung, true);
       }
       if (!rungs.length) return ["NO PROGRAM", "BLNK = NEW RUNG"];
-      return stepLines(rungs[selected], P.hscroll ?? 0, false);
+      return ladderLines(rungs[selected], false);
     }
 
     function renderLcd() {
@@ -1029,7 +1127,7 @@ class MicroGemPanel extends HTMLElement {
       root.querySelectorAll(".k").forEach((k) => k.classList.toggle("lit", k.dataset.key === "CTRL" && P.ctrl));
       $("prog-help").innerHTML =
         P.screen === "MON" ? "<b>Monitor:</b> ADDR, a table key (I = inputs, Q = outputs, G, W, C, D, S) then the word; ► types a dot for a bit. ENT to watch. Then type a number and ENT to force it. ▲▼ step through words."
-        : P.screen === "PROG" ? "<b>Program:</b> ▲▼ step through rungs, ◄► through the elements of a rung: the top line shows the rung's symbols with the current one blinking, the bottom line its ADDR, VALUE (V = a DELAY or COUNT preset) and LOC'N (its step in the program). BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, -(D)- delay and -(C)- count; ▼ opens a parallel branch and JOIN closes it; end with a coil -( )-, -(S)- sequencer or BLK (OBEY BLOCK, or END OF BLOCK on an empty rung). ENT writes the rung, DEL undoes the last step."
+        : P.screen === "PROG" ? "<b>Program:</b> The display is a window onto the ladder, drawn as in the GEM 80 manual: symbols on the top line, addresses underneath, live wires as dashes and dead ones as dots. ◄► move along a branch and ▲▼ between branches and on to the next rung; NEXT/PREV jump a rung. BLNK keys in a new rung, ED (CTRL+OD) re-keys this one, DEL deletes, FIND jumps to an address. In a rung the keys give their symbols: contacts, -(D)- delay and -(C)- count; ▼ opens a parallel branch and JOIN closes it; end with a coil -( )-, -(S)- sequencer or BLK (OBEY BLOCK, or END OF BLOCK on an empty rung). ENT writes the rung, DEL undoes the last step."
         : "<b>Select mode:</b> PROG to program, ADDR or Ø (MON) to monitor. The key switch sets RUN or HALT. With the programmer focused you can also use your keyboard.";
     }
     setInterval(() => { if (state) renderLcd(); }, 250);
@@ -1095,7 +1193,7 @@ class MicroGemPanel extends HTMLElement {
           if (P.screen !== "PROG") { P.screen = "MON"; P.entry = { kind: "addr", buf: "" }; }
           return;
         case "PROG":
-          P.screen = "PROG"; P.draft = null; P.hscroll = null; selectLine(); schedule();
+          P.screen = "PROG"; P.draft = null; P.cell = 0; selectLine(); schedule();
           return;
       }
       if (P.screen === "MON") {
@@ -1114,13 +1212,9 @@ class MicroGemPanel extends HTMLElement {
 
     function browseKey(t) {
       const n = (state.ladder || []).length;
-      if ((t === "▲" || t === "PREV") && n) { selected = (selected - 1 + n) % n; P.hscroll = null; selectLine(); schedule(); return; }
-      if ((t === "▼" || t === "NEXT") && n) { selected = (selected + 1) % n; P.hscroll = null; selectLine(); schedule(); return; }
-      if (t === "◄" || t === "►") {
-        const steps = n ? rungSteps(state.ladder[selected]).length : 0;
-        P.hscroll = Math.max(0, Math.min(steps - 1, (P.hscroll ?? 0) + (t === "►" ? 1 : -1)));
-        return;
-      }
+      if (t === "PREV" && n) { selected = (selected - 1 + n) % n; P.cell = 0; selectLine(); schedule(); return; }
+      if (t === "NEXT" && n) { selected = (selected + 1) % n; P.cell = 0; selectLine(); schedule(); return; }
+      if (["◄", "►", "▲", "▼"].includes(t)) return moveCursor(t);
       if (t === "BLNK") { P.draft = newDraft(); P.replace = false; return; }
       if (t === "ED" || t === "OD") { if (n) { P.draft = newDraft(); P.replace = true; } return; }
       if (t === "DEL") { if (n) P.confirmDel = true; return; }
@@ -1192,7 +1286,7 @@ class MicroGemPanel extends HTMLElement {
         for (let i = 1; i <= n; i++) {
           const j = (selected + i) % n;
           if (new RegExp("(^|[^A-Z0-9.])" + buf.replace(".", "\\.") + "(?![0-9.])").test(rungs[j].source.split(";")[0])) {
-            P.screen = "PROG"; selected = j; P.hscroll = null; selectLine(); schedule(); return;
+            P.screen = "PROG"; selected = j; P.cell = 0; selectLine(); schedule(); return;
           }
         }
         return flash("NOT FOUND");
@@ -1298,7 +1392,7 @@ class MicroGemPanel extends HTMLElement {
       const r = e.target.closest(".rung");
       if (!r || r.classList.contains("draft")) return;
       selected = Number(r.dataset.i);
-      P.screen = "PROG"; P.draft = null; P.entry = null; P.pending = null; P.confirmDel = false; P.hscroll = null;
+      P.screen = "PROG"; P.draft = null; P.entry = null; P.pending = null; P.confirmDel = false; P.cell = 0;
       selectLine();
       schedule();
     });

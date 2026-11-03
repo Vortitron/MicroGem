@@ -34,10 +34,12 @@ The page shows:
   - *MON* (`Ø`): `ADDR`, a table key (`I` = A inputs, `Q` = B outputs, `G`,
     `W`, `C`, `D`, `S`) and a word or bit (`►` types the dot), `ENT` to watch
     it live; then a number and `ENT` to force it. `NEXT`/`PREV` step.
-  - *PROG*: `▲▼` step through rungs and `◄►` through a rung's elements. The
-    top line shows the rung as symbols (`|-] [-]/[-(D)-( )`) with the current
-    element blinking, the bottom line its ADDR, VALUE and LOC'N (its step in
-    the program), the fields printed under the real display. `BLNK` starts a new rung,
+  - *PROG*: the display is a 2 × 16 window onto the ladder, drawn as in the
+    GEM 80 manual (T391): symbols on the top line (`+--] [-----]/[-----( )--+`),
+    addresses underneath, branches hanging from `+` and `!`, live wires as
+    dashes and dead ones as dots. The element under the cursor blinks. `◄►`
+    move along a branch, `▲▼` between branches and on to the next rung, and
+    `NEXT`/`PREV` jump a rung. `BLNK` starts a new rung,
     `ED` re-keys the selected one, `DEL` then `ENT` deletes it, `FIND` jumps to
     an address. Inside a rung the keys give their symbols: contacts `-] [-` and
     `-]/[-`, `-(D)-` (DELAY word and VALUE in 0.1 s) and `-(C)-` (COUNT word and
