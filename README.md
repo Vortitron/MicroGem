@@ -100,7 +100,7 @@ and `SET` / `RESET` outputs (the real one latches with a seal-in branch).
 ## Home Assistant
 
 `custom_components/microgem` is a custom integration. To install it with HACS,
-open HACS > three-dot menu > **Custom repositories**, add
+open HACS (the **Marketplace** from Home Assistant 2026.11) > three-dot menu > **Custom repositories**, add
 `https://github.com/Vortitron/MicroGem` as type **Integration**, download
 **Virtual MicroGEM** and restart Home Assistant. (Or copy
 `custom_components/microgem` into your `config/custom_components/`.) Then add **Virtual MicroGEM** under Settings > Devices &

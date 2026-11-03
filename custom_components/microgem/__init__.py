@@ -28,7 +28,7 @@ from .const import (
     SAVE_DELAY_S,
     STORAGE_VERSION,
 )
-from .core import ControllerConfig, ProgramError
+from .core import ControllerConfig, ProgramError, __version__
 from .core.service import EXAMPLE_PROGRAM, ControllerService
 
 _LOGGER = logging.getLogger(__name__)
@@ -93,11 +93,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
         inputs=int(entry.data.get(CONF_INPUTS, 12)),
         outputs=int(entry.data.get(CONF_OUTPUTS, 8)),
     )
+    replaced_saved = False
     try:
         service = ControllerService(config, saved.get("program", EXAMPLE_PROGRAM))
     except (ProgramError, ValueError) as exc:
+        # Programs saved by an older release may use notation this one no longer reads.
         _LOGGER.warning("Saved MicroGEM program could not be loaded (%s); using the example", exc)
         service = ControllerService(config, EXAMPLE_PROGRAM)
+        replaced_saved = True
     if saved.get("running") is False:
         service.halt()
 
@@ -113,6 +116,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
             last_saved.update(current)
             store.async_delay_save(lambda: dict(last_saved), SAVE_DELAY_S)
 
+    if replaced_saved:
+        # Save the example now so the warning is not repeated on every restart.
+        store.async_delay_save(lambda: dict(last_saved), SAVE_DELAY_S)
+
     entry.async_on_unload(service.subscribe(persist))
     service.start()
     entry.async_on_unload(service.stop)
@@ -125,7 +132,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
         webcomponent_name=PANEL_ELEMENT,
         sidebar_title=entry.title,
         sidebar_icon="mdi:chip",
-        module_url=f"{FRONTEND_URL}/panel.js?v={entry.entry_id[:6]}",
+        # The version busts the browser cache when an update ships a new panel.
+        module_url=f"{FRONTEND_URL}/panel.js?v={__version__}",
         config={"entry_id": entry.entry_id},
         require_admin=True,
     )

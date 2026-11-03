@@ -9,6 +9,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .const import DOMAIN
+from .core import __version__
 from .core.service import ControllerService
 
 
@@ -30,6 +31,7 @@ class MicroGemEntity(Entity):
             name=title,
             manufacturer="GEC (virtual)",
             model="MicroGEM",
+            sw_version=__version__,
         )
         self._last: Any = None
 
