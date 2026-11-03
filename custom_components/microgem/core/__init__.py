@@ -1,4 +1,4 @@
-"""A virtual GEC MicroGEM / GEM 80 programmable controller."""
+"""A virtual MicroGEM / GEM 80 style programmable controller."""
 
 from .engine import MAX_EXPANSIONS, Controller, ControllerConfig
 from .program import ProgramError, parse_program

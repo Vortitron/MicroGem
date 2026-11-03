@@ -1,8 +1,12 @@
-// <microgem-panel>: a GEC MicroGEM60 controller, its hand-held MicroGEM
+// <microgem-panel>: a MicroGEM60 controller, its hand-held MicroGEM
 // Programmer, a live ladder diagram, the program text and a data-table monitor.
 // The hardware is drawn from photos of a real MicroGEM60 and programmer.
 // Used by the standalone page (WebSocket transport) and by Home Assistant as a
 // custom panel (transport over Home Assistant's own connection).
+
+// The maker's badge on the drawing. The real units carried the GEC Industrial
+// Controls mark; this emulator is not theirs, so it shows a fictional maker.
+const MAKER = { mark: "HARECASTLE", line2: "INDUSTRIAL CONTROLS", place: "KIDSGROVE ENGLAND" };
 
 const STYLE = `
 :host {
@@ -179,7 +183,7 @@ const MARKUP = `
 <main>
   <header>
     <h1>Virtual MicroGEM</h1>
-    <p>A GEC MicroGEM60 controller running in software. Flip the inputs, watch the relay outputs and the ladder, and program it from the MicroGEM Programmer or the text editor. <span class="conn" id="conn">Connecting…</span></p>
+    <p>A MicroGEM60 controller running in software. Flip the inputs, watch the relay outputs and the ladder, and program it from the MicroGEM Programmer or the text editor. <span class="conn" id="conn">Connecting…</span></p>
   </header>
 
   <div class="hw">
@@ -342,7 +346,7 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
     }
   }
 
-  const what = exp ? `MicroGEM expansion unit ${unit}` : "GEC MicroGEM60 controller";
+  const what = exp ? `MicroGEM expansion unit ${unit}` : "MicroGEM60 controller";
   // The controller has the programmer socket and watchdog; an expansion unit
   // shows its number and the A and B words it occupies there instead.
   const socket = exp
@@ -377,10 +381,10 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
   ${inputs}
   <rect x="676" y="40" width="44" height="34" rx="2" fill="#090909" stroke="#333"/>
   <g transform="translate(748,14)">
-    <text x="24" y="21" style="font:900 26px Arial Black,Arial,sans-serif;fill:#eee">GEC</text>
-    <text x="96" y="10" style="font:700 11px Arial;fill:#eee">Industrial</text><text x="96" y="23" style="font:700 11px Arial;fill:#eee">Controls Ltd.</text>
-    <text x="96" y="34" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">KIDSGROVE</text><text x="96" y="43" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em">ENGLAND</text>
-    <text x="32" y="40" style="font:600 7.5px Arial;fill:#ddd">Made in U.K</text>
+    <text x="24" y="19" textLength="150" lengthAdjust="spacingAndGlyphs" style="font:900 20px Arial Black,Arial,sans-serif;fill:#eee">${MAKER.mark}</text>
+    <text x="24" y="32" textLength="150" lengthAdjust="spacing" style="font:700 9px Arial;fill:#eee">${MAKER.line2}</text>
+    <text x="24" y="44" style="font:600 7.5px Arial;fill:#ddd">Made in U.K</text>
+    <text x="174" y="44" style="font:600 7.5px Arial;fill:#ddd;letter-spacing:.06em;text-anchor:end">${MAKER.place}</text>
   </g>
   ${socket}
   <text x="372" y="138" style="font:900 21px Arial Black,Arial,sans-serif;fill:#f2f2f2;letter-spacing:.01em">${exp ? "MICROGEM" : "MICROGEM60"}</text>

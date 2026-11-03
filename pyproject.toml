@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "microgem"
 version = "0.4.0"
-description = "A virtual GEC MicroGEM / GEM 80 programmable controller with a web front panel"
+description = "A virtual MicroGEM / GEM 80 style programmable controller with a web front panel"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]

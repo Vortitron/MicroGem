@@ -11,7 +11,7 @@ GEM 80 style data tables and shows a front panel whose input and output lights
 change live. In Home Assistant the virtual controller's relays can switch real
 lights, and its inputs can be wired to real sensors.
 
-![The virtual MicroGEM60 controller and programmer in Home Assistant, with one input and one relay output wired to entities](https://raw.githubusercontent.com/Vortitron/MicroGem/main/docs/images/front-panel.png)
+![The virtual MicroGEM60 controller, input simulator and programmer, with three inputs on and their relay outputs lit](https://raw.githubusercontent.com/Vortitron/MicroGem/main/docs/images/front-panel.png)
 
 ## Install in Home Assistant
 
@@ -230,8 +230,9 @@ they match). [RELEASING.md](RELEASING.md) explains how to cut a release.
 This is an independent hobby project. It is not made, endorsed or supported by
 GEC, GEC Industrial Controls, Cegelec, Alstom, Converteam, GE or any of their
 successors. The names GEC, GEM 80 and MicroGEM are used only to say which
-hardware is being emulated. Do not use it to control anything where a fault
-could hurt someone.
+hardware is being emulated. The controller drawing carries the badge of a
+made-up maker, Harecastle Industrial Controls, not the GEC mark. Do not use it
+to control anything where a fault could hurt someone.
 
 ## Licence
 
