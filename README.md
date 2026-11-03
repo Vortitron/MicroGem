@@ -230,8 +230,9 @@ they match). [RELEASING.md](RELEASING.md) explains how to cut a release.
 This is an independent hobby project. It is not made, endorsed or supported by
 GEC, GEC Industrial Controls, Cegelec, Alstom, Converteam, GE or any of their
 successors. The names GEC, GEM 80 and MicroGEM are used only to say which
-hardware is being emulated. The controller drawing carries the badge of a
-made-up maker, CEG Industrial Controls, not the GEC mark. Do not use it
+hardware is being emulated. The controller drawing carries a made-up badge,
+CEG Industrial Controls, and Home Assistant lists the devices as made by the
+equally made-up Harecastle Controls; neither is the GEC mark. Do not use it
 to control anything where a fault could hurt someone.
 
 ## Licence
