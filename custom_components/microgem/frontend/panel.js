@@ -84,13 +84,16 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 
 /* ---------- MicroGEM Programmer ---------- */
 .progwrap { display: flex; flex-direction: column; align-items: center; }
-.cable { width: 6px; height: 26px; background: #111; border-radius: 3px; margin-left: 150px; }
+.lead { width: 6px; height: 26px; background: #111; border-radius: 3px; margin-left: 150px; }
 .prog { position: relative; width: 100%; max-width: 340px; padding: 18px 0 26px; outline: none; color: #f2f0ea;
   background: linear-gradient(170deg, #2a2a2a, #121212 60%, #0c0c0c);
-  clip-path: polygon(13% 0, 87% 0, 87% 40%, 100% 49%, 100% 100%, 0 100%, 0 49%, 13% 40%);
-  border-radius: 0 0 14px 14px; }
+  border-radius: 8px 8px 14px 14px; box-shadow: 0 10px 18px rgba(0,0,0,.35); }
+/* The case is the same width all the way down: the display end only looks
+   narrower in the photo because of the camera angle. The face folds where
+   the keypad starts, so it is drawn with a crease there. */
+.fold { height: 2px; margin: 22px 0 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.1) 6%, rgba(255,255,255,.1) 94%, transparent); box-shadow: 0 1px 0 #000; }
 .prog:focus-visible { filter: drop-shadow(0 0 4px var(--accent)); }
-.prog-head { position: relative; height: 54px; margin: 0 16%; }
+.prog-head { position: relative; height: 54px; margin: 0 9%; }
 .brand { position: absolute; right: 0; top: 4px; text-align: center; font: 900 .78rem/1 Arial, sans-serif; letter-spacing: .02em; }
 .brand small { display: block; font: 800 .55rem/1.1 Arial, sans-serif; letter-spacing: .03em; }
 .keyswitch { position: absolute; left: 0; top: -6px; width: 44px; height: 44px; border-radius: 6px; background: #1d1d1d; border: 2px solid #333;
@@ -100,11 +103,11 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .keyswitch.halt .barrel { transform: rotate(-60deg); }
 .keypos { position: absolute; left: 50px; top: 2px; font: 700 .52rem/1.5 Arial, sans-serif; color: #9a9a9a; letter-spacing: .06em; }
 .keypos b { color: #f2f0ea; }
-.lcdbox { margin: 6px 16% 0; }
+.lcdbox { margin: 6px 10% 0; }
 .lcd { background: linear-gradient(#c9cdbb, #b7bca6); border: 4px solid #3a3a3a; border-radius: 3px; padding: 6px 6px; box-shadow: inset 0 2px 6px rgba(0,0,0,.45); }
 .lcd div { font: 700 17px/1.25 "Courier New", var(--mono); color: #1c2117; white-space: pre; overflow: hidden; letter-spacing: .02em; text-align: center; }
 .lcd-labels { display: flex; justify-content: space-between; padding: 5px 8px 0; font: 800 .62rem/1 Arial, sans-serif; letter-spacing: .03em; }
-.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 10px; margin: 30px 8% 0; }
+.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px 10px; margin: 22px 8% 0; }
 .k { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; color: #f2f0ea; touch-action: manipulation; min-width: 0; }
 .k .leg { font: 800 .6rem/1 Arial, sans-serif; white-space: nowrap; letter-spacing: .01em; min-height: .6rem; }
 .k .leg i { font-style: normal; opacity: .95; }
@@ -208,7 +211,7 @@ const MARKUP = `
     </section>
 
     <section class="progwrap" aria-label="MicroGEM Programmer">
-      <div class="cable"></div>
+      <div class="lead"></div>
       <div class="prog" id="prog" tabindex="0">
         <div class="prog-head">
           <button class="keyswitch" id="keyswitch" title="Key switch: RUN / HALT"><span class="barrel"></span></button>
@@ -219,6 +222,7 @@ const MARKUP = `
           <div class="lcd"><div id="lcd1"></div><div id="lcd2"></div></div>
           <div class="lcd-labels"><span>ADDR</span><span>VALUE</span><span>LOC'N</span></div>
         </div>
+        <div class="fold"></div>
         <div class="keys" id="keys"></div>
       </div>
       <p class="prog-help" id="prog-help"></p>
