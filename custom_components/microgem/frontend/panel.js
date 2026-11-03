@@ -47,6 +47,21 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .wire-ed [hidden] { display: none !important; }
 .unit.wirable .wl { cursor: pointer; }
 .unit.wirable .wl:hover { fill: var(--accent); text-decoration: underline; }
+.we-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.we-filters button { font: 600 12px/1 system-ui, sans-serif; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text); cursor: pointer; }
+.we-filters button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.we-filters button small { font-weight: 400; opacity: .75; margin-left: 3px; }
+.we-results { margin-top: 8px; max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); }
+.we-results button { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1px 10px; width: 100%; text-align: left; padding: 6px 10px; border: 0; border-bottom: 1px solid var(--border); background: none; color: var(--text); cursor: pointer; font: inherit; }
+.we-results button:last-child { border-bottom: 0; }
+.we-results button:hover, .we-results button.hl { background: rgba(127, 127, 127, .12); }
+.we-results button.chosen { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.we-results b { font-weight: 600; font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.we-results code { grid-column: 1; font-size: .72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.we-results .st { grid-row: 1 / span 2; grid-column: 2; align-self: center; font: 12px var(--mono); color: var(--muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.we-results .none { padding: 10px; font-size: .85rem; color: var(--muted); }
+.wire-ed label.check { flex-direction: row; align-items: center; gap: 8px; flex-basis: 100%; color: var(--text); font-weight: 400; font-size: .85rem; }
+.wire-ed label.check input { width: auto; }
 .wire-ed .fields { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .led { fill: #3a1414; transition: fill .04s; }
 .led.g { fill: #15301a; }
@@ -171,11 +186,15 @@ const MARKUP = `
         <h3 id="we-title"></h3>
         <p class="hint" id="we-hint"></p>
         <div class="fields">
-          <label style="flex-basis:100%">Home Assistant entity<input id="we-entity" list="we-list" placeholder="Start typing a name or entity id" autocomplete="off" spellcheck="false"></label>
+          <label style="flex-basis:100%">Find an entity<input id="we-search" type="search" placeholder="Type part of a name or id, * for anything: kitchen*light" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <div class="we-filters" id="we-filters" role="tablist" aria-label="Kinds of entity"></div>
+        <div class="we-results" id="we-results" role="listbox" aria-label="Entities"></div>
+        <div class="fields">
           <label id="we-attr-box">Read<select id="we-attr"></select></label>
           <label id="we-above-box">Contact closes above<input id="we-above" type="number" step="any" placeholder="leave empty for on/off"></label>
+          <label class="check" id="we-invert-box"><input type="checkbox" id="we-invert"> Invert: the contact is closed while the entity is <i>off</i> (like a normally closed switch)</label>
         </div>
-        <datalist id="we-list"></datalist>
         <p class="message" id="we-now"></p>
         <div class="row"><button class="btn primary" id="we-save">Connect</button><button class="btn" id="we-remove">Disconnect</button><button class="btn" id="we-cancel">Cancel</button></div>
       </div>
@@ -1044,13 +1063,17 @@ class MicroGemPanel extends HTMLElement {
       const st = hassState(point.entity_id);
       const name = (st && st.attributes.friendly_name) || point.entity_id;
       const short = name.length > 28 ? name.slice(0, 12) + "…" + name.slice(-15) : name;
-      const detail = point.attribute ? `· ${point.attribute}${point.above != null ? " > " + point.above : ""}` : point.above != null ? `> ${point.above}` : "";
+      let detail = point.attribute ? `· ${point.attribute}${point.above != null ? " > " + point.above : ""}` : point.above != null ? `> ${point.above}` : "";
+      if (point.invert) detail = (detail ? detail + " " : "") + "· inverted";
       return { name: short, detail, title: `${name} (${point.entity_id})${detail ? " " + detail : ""}` };
     }
     function closes(st, point) {
-      if (!st) return false;
+      // A missing or unavailable entity always leaves the contact open, inverted or not.
+      if (!st || st.state === "unavailable" || st.state === "unknown") return false;
+      return contact(st, point) !== !!point.invert;
+    }
+    function contact(st, point) {
       const attr = point.attribute;
-      if (attr && (st.state === "unavailable" || st.state === "unknown")) return false;
       const v = attr ? st.attributes[attr] : st.state;
       if (point.above != null) { const n = Number(v); return v !== null && v !== "" && !Number.isNaN(n) && n > point.above; }
       if (typeof v === "boolean") return v;
@@ -1071,25 +1094,20 @@ class MicroGemPanel extends HTMLElement {
       $("we-hint").textContent = kind === "inputs"
         ? `${addr} follows the entity: its contact is closed while the entity is on, open, home, playing and so on, or while a number is above the value you set.`
         : `The relay switches the entity on when ${addr} is on and off when it is off. Buttons, scenes and scripts are pressed or run each time the relay closes.`;
-      const states = (host._hass && host._hass.states) || {};
-      // This controller's own switches and sensors are its internal I/O, not field devices.
-      const own = new Set(Object.values(ha.entities || {}));
-      const ids = Object.keys(states).filter((id) => !own.has(id) && (kind === "inputs" || SWITCHABLE.has(id.split(".")[0]))).sort();
-      $("we-list").replaceChildren(...ids.map((id) => {
-        const o = el("option");
-        o.value = id;
-        o.label = states[id].attributes.friendly_name || id;
-        return o;
-      }));
-      $("we-entity").value = point ? point.entity_id : "";
+      chosen = point ? point.entity_id : "";
+      $("we-search").value = "";
+      const domain = chosen.split(".")[0];
+      filter = (chosen && FILTERS.find((f) => f.key !== "all" && filterHas(f, domain) && allowed(kind, f))?.key) || "switch";
       $("we-above").value = point && point.above != null ? point.above : "";
-      $("we-attr-box").hidden = $("we-above-box").hidden = kind !== "inputs";
+      $("we-invert").checked = !!(point && point.invert);
+      $("we-attr-box").hidden = $("we-above-box").hidden = $("we-invert-box").hidden = kind !== "inputs";
       $("we-remove").hidden = !point;
       fillAttributes(point && point.attribute);
+      renderPicker(true);
       $("unit").querySelectorAll(".term").forEach((t) => t.classList.toggle("sel", t.dataset.kind === kind && Number(t.dataset.index) === index));
       $("wire-ed").hidden = false;
       $("wire-ed").scrollIntoView({ block: "nearest", behavior: "smooth" });
-      $("we-entity").focus();
+      $("we-search").focus();
     }
     function closeEditor() {
       editing = null;
@@ -1097,7 +1115,7 @@ class MicroGemPanel extends HTMLElement {
       $("unit").querySelectorAll(".term.sel").forEach((t) => t.classList.remove("sel"));
     }
     function fillAttributes(chosen) {
-      const st = hassState($("we-entity").value.trim());
+      const st = hassState(chosen);
       const attrs = st ? Object.keys(st.attributes).filter((a) => a !== "friendly_name" && !/^(icon|entity_picture|supported_features|attribution)$/.test(a)) : [];
       if (chosen && !attrs.includes(chosen)) attrs.unshift(chosen);
       $("we-attr").replaceChildren(el("option", "", "State"), ...attrs.map((a) => { const o = el("option", "", a); o.value = a; return o; }));
@@ -1106,12 +1124,13 @@ class MicroGemPanel extends HTMLElement {
       wirePreview();
     }
     function editedPoint() {
-      const entity_id = $("we-entity").value.trim();
+      const entity_id = chosen;
       if (!entity_id) return null;
       const point = { entity_id };
       if (editing.kind === "inputs") {
         if ($("we-attr").value) point.attribute = $("we-attr").value;
         if ($("we-above").value !== "") point.above = Number($("we-above").value);
+        if ($("we-invert").checked) point.invert = true;
       }
       return point;
     }
@@ -1119,15 +1138,96 @@ class MicroGemPanel extends HTMLElement {
       const now = $("we-now");
       now.classList.remove("error");
       const point = editing && editedPoint();
-      if (!point) { now.textContent = ""; return; }
+      if (!point) { now.textContent = "Pick an entity from the list."; return; }
       const st = hassState(point.entity_id);
-      if (!st) { now.textContent = "No entity with that id."; now.classList.add("error"); return; }
+      if (!st) { now.textContent = `${point.entity_id} is not in Home Assistant at the moment.`; now.classList.add("error"); return; }
       const value = point.attribute ? st.attributes[point.attribute] : st.state;
       const shown = typeof value === "object" ? JSON.stringify(value) : String(value);
       now.textContent = editing.kind === "inputs"
-        ? `Now: ${shown.slice(0, 60)}, so the contact would be ${closes(st, point) ? "closed (on)" : "open (off)"}.`
-        : `Now: ${shown.slice(0, 60)}.${TRIGGERED.has(point.entity_id.split(".")[0]) ? " Pressed or run when the relay closes." : ""}`;
+        ? `${describe(point).name} is ${shown.slice(0, 60)} now, so ${io_addr()} would be ${closes(st, point) ? "closed (on)" : "open (off)"}.`
+        : `${describe(point).name} is ${shown.slice(0, 60)} now.${TRIGGERED.has(point.entity_id.split(".")[0]) ? " Pressed or run when the relay closes." : ""}`;
     }
+    function io_addr() {
+      const { inputs: nIn, outputs: nOut } = io();
+      return editing.kind === "inputs" ? ioAddress("A", editing.index, nIn) : ioAddress("B", editing.index, nOut);
+    }
+
+    // The entity picker: kinds of entity as filter buttons, a live search, a list.
+    const FILTERS = [
+      { key: "switch", label: "Switches", domains: ["switch"] },
+      { key: "light", label: "Lights", domains: ["light"] },
+      { key: "binary_sensor", label: "Binary sensors", domains: ["binary_sensor"], inputsOnly: true },
+      { key: "sensor", label: "Sensors", domains: ["sensor"], inputsOnly: true },
+      { key: "helper", label: "Helpers", domains: ["input_boolean", "input_number", "input_select", "counter", "timer"] },
+      { key: "action", label: "Buttons, scenes, scripts", domains: ["button", "input_button", "scene", "script", "automation"] },
+      { key: "other", label: "Other" },
+      { key: "all", label: "All" },
+    ];
+    const NAMED = new Set(FILTERS.flatMap((f) => f.domains || []));
+    const filterHas = (f, domain) => f.key === "all" || (f.domains ? f.domains.includes(domain) : !NAMED.has(domain));
+    const allowed = (kind, f) => kind === "inputs" || !f.inputsOnly;
+    let chosen = "", filter = "switch", highlight = 0, shownIds = [];
+    function matcher(text) {
+      const terms = text.trim().toLowerCase().split(/\s+/).filter(Boolean).map((t) =>
+        t.includes("*") || t.includes("?")
+          ? new RegExp(t.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, "."))
+          : t);
+      return (hay) => terms.every((t) => (typeof t === "string" ? hay.includes(t) : t.test(hay)));
+    }
+    function candidates() {
+      const states = (host._hass && host._hass.states) || {};
+      // This controller's own switches and sensors are its internal I/O, not field devices.
+      const own = new Set(Object.values(ha.entities || {}));
+      return Object.keys(states).filter((id) => !own.has(id) && (editing.kind === "inputs" || SWITCHABLE.has(id.split(".")[0])));
+    }
+    function renderPicker(scrollToChosen) {
+      const states = (host._hass && host._hass.states) || {};
+      const match = matcher($("we-search").value);
+      const nameOf = (id) => (states[id] && states[id].attributes.friendly_name) || id;
+      const found = candidates().filter((id) => match(`${id} ${nameOf(id)}`.toLowerCase()));
+      const box = $("we-filters");
+      box.replaceChildren();
+      for (const f of FILTERS) {
+        if (!allowed(editing.kind, f)) continue;
+        const total = candidates().filter((id) => filterHas(f, id.split(".")[0])).length;
+        if (!total && f.key !== "all") continue;
+        const n = found.filter((id) => filterHas(f, id.split(".")[0])).length;
+        const b = el("button");
+        b.type = "button";
+        b.setAttribute("role", "tab");
+        b.className = f.key === filter ? "active" : "";
+        b.innerHTML = `${esc(f.label)}<small>${n}</small>`;
+        b.addEventListener("click", () => { filter = f.key; highlight = 0; renderPicker(); $("we-search").focus(); });
+        box.append(b);
+      }
+      const f = FILTERS.find((x) => x.key === filter);
+      shownIds = found.filter((id) => filterHas(f, id.split(".")[0]))
+        .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+      const list = $("we-results");
+      list.replaceChildren();
+      const LIMIT = 150;
+      shownIds.slice(0, LIMIT).forEach((id, i) => {
+        const st = states[id];
+        const r = el("button");
+        r.type = "button";
+        r.setAttribute("role", "option");
+        r.className = (id === chosen ? "chosen " : "") + (i === highlight ? "hl" : "");
+        r.innerHTML = `<b>${esc(nameOf(id))}</b><code>${esc(id)}</code><span class="st">${esc(st ? st.state : "")}</span>`;
+        r.addEventListener("click", () => choose(id));
+        list.append(r);
+      });
+      if (!shownIds.length) {
+        const elsewhere = found.length ? ` ${found.length} ${found.length === 1 ? "match is" : "matches are"} under the other buttons.` : "";
+        list.append(el("div", "none", `Nothing here matches.${elsewhere}`));
+      } else if (shownIds.length > LIMIT) list.append(el("div", "none", `…and ${shownIds.length - LIMIT} more. Keep typing to narrow it down.`));
+      if (scrollToChosen) list.querySelector(".chosen")?.scrollIntoView({ block: "nearest" });
+    }
+    function choose(id) {
+      chosen = id;
+      fillAttributes(editing.kind === "inputs" ? $("we-attr").value : "");
+      renderPicker();
+    }
+
     function saveWire(point) {
       const { kind, index } = editing;
       if (point && !hassState(point.entity_id)) { wirePreview(); return; }
@@ -1144,9 +1244,22 @@ class MicroGemPanel extends HTMLElement {
       const t = e.target.closest && e.target.closest(".term, .wl");
       if (t) openEditor(t.dataset.kind, Number(t.dataset.index));
     });
-    $("we-entity").addEventListener("input", () => fillAttributes($("we-attr").value));
+    $("we-search").addEventListener("input", () => { highlight = 0; renderPicker(); });
+    $("we-search").addEventListener("keydown", (e) => {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        highlight = Math.max(0, Math.min(Math.min(shownIds.length, 150) - 1, highlight + (e.key === "ArrowDown" ? 1 : -1)));
+        renderPicker();
+        $("we-results").querySelector(".hl")?.scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter" && shownIds[highlight] && shownIds[highlight] !== chosen) {
+        e.preventDefault();
+        e.stopPropagation();
+        choose(shownIds[highlight]);
+      }
+    });
     $("we-attr").addEventListener("change", wirePreview);
     $("we-above").addEventListener("input", wirePreview);
+    $("we-invert").addEventListener("change", wirePreview);
     $("we-save").addEventListener("click", () => saveWire(editedPoint()));
     $("we-remove").addEventListener("click", () => saveWire(null));
     $("we-cancel").addEventListener("click", closeEditor);

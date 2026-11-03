@@ -142,13 +142,18 @@ change this later under **Configure**), and you get:
 
 You can also wire terminals straight to Home Assistant entities, as you would
 cable a real controller, with no automations. Click an input terminal or a
-relay output on the controller drawing in the panel and pick an entity:
+relay output on the controller drawing in the panel and pick an entity. The
+picker searches names and ids as you type (`*` matches anything, so
+`kitchen*light` finds "Kitchen ceiling light"), and buttons narrow it to
+switches, lights, sensors, helpers and so on. It starts on switches.
 
 - an **input** follows the entity's state: the contact is closed while it is
   on, open, home, playing and so on, and open while it is off, closed, away,
   unavailable and so on. You can read one of its attributes instead, and give a
   threshold so the contact closes while a number is above it (a temperature,
-  say). A wired input's simulator switch is greyed out;
+  say). **Invert** makes it a normally closed contact, closed while the entity
+  is off. A missing or unavailable entity always leaves the contact open. A
+  wired input's simulator switch is greyed out;
 - a **relay output** switches the entity on and off with the relay
   (`homeassistant.turn_on` / `turn_off`, so lights, switches, fans, helpers,
   covers and so on). Buttons are pressed, and scenes, scripts and automations

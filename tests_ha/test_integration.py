@@ -167,6 +167,20 @@ async def test_field_wiring(hass: HomeAssistant, hass_ws_client):
     await _settle(hass)
     assert hass.states.get("switch.bedroom_input_a0_4").state == "on"
 
+    # Inverted: a normally closed contact, but open while the entity is unavailable.
+    await client.send_json({"id": 18, "type": "microgem/wire", "entry_id": entry.entry_id,
+                            "kind": "inputs", "index": 5, "entity_id": "binary_sensor.door", "invert": True})
+    assert (await client.receive_json())["success"]
+    await _settle(hass)
+    assert entry.options["wiring"]["inputs"]["5"]["invert"] is True
+    assert hass.states.get("switch.bedroom_input_a0_5").state == "on"  # door is off
+    hass.states.async_set("binary_sensor.door", "on")
+    await _settle(hass)
+    assert hass.states.get("switch.bedroom_input_a0_5").state == "off"
+    hass.states.async_set("binary_sensor.door", "unavailable")
+    await _settle(hass)
+    assert hass.states.get("switch.bedroom_input_a0_5").state == "off"
+
     # The controller's own entities are its internal I/O and cannot be wired.
     await client.send_json({"id": 19, "type": "microgem/wire", "entry_id": entry.entry_id,
                             "kind": "outputs", "index": 2, "entity_id": "switch.bedroom_input_a0_5"})

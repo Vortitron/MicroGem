@@ -6,7 +6,8 @@ and a relay output switches an entity on and off, so no automations are
 needed. The wiring lives in the config entry's options under ``wiring``:
 
     {"inputs": {"3": {"entity_id": "binary_sensor.hall_motion"},
-                "4": {"entity_id": "sensor.lounge", "attribute": "temperature", "above": 21}},
+                "4": {"entity_id": "sensor.lounge", "attribute": "temperature", "above": 21},
+                "5": {"entity_id": "binary_sensor.door", "invert": True}},
      "outputs": {"0": {"entity_id": "light.landing"}}}
 """
 
@@ -46,6 +47,7 @@ POINT_SCHEMA = vol.Schema(
         vol.Required("entity_id"): cv.entity_id,
         vol.Optional("attribute"): vol.Any(None, cv.string),
         vol.Optional("above"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("invert"): cv.boolean,
     }
 )
 
@@ -65,13 +67,13 @@ def closed(value: Any, above: float | None) -> bool:
 
 
 def input_value(state: State | None, point: dict) -> bool:
-    if state is None:
+    """The input contact for a wired entity. ``invert`` makes it normally
+    closed; a missing or unavailable entity always leaves it open."""
+    if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
         return False
     attribute = point.get("attribute")
     value = state.attributes.get(attribute) if attribute else state.state
-    if attribute and state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
-        return False
-    return closed(value, point.get("above"))
+    return closed(value, point.get("above")) != bool(point.get("invert"))
 
 
 def clean(wiring: dict | None, inputs: int, outputs: int) -> dict:

@@ -81,6 +81,7 @@ def entities(hass: HomeAssistant, entry_id: str) -> dict[str, Any]:
         vol.Optional("entity_id"): vol.Any(None, cv.entity_id),
         vol.Optional("attribute"): vol.Any(None, str),
         vol.Optional("above"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("invert"): bool,
     }
 )
 @websocket_api.require_admin
@@ -106,6 +107,8 @@ async def ws_wire(hass: HomeAssistant, connection: websocket_api.ActiveConnectio
         return
     wiring = {k: dict(v) for k, v in entry.runtime_data.wiring.points.items()}
     point = {k: msg[k] for k in ("entity_id", "attribute", "above") if msg.get(k) is not None}
+    if msg.get("invert") and msg["kind"] == "inputs":
+        point["invert"] = True
     if point.get("entity_id"):
         wiring[msg["kind"]][str(msg["index"])] = point
     else:
