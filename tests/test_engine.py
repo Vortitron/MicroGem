@@ -18,7 +18,9 @@ def test_parse_address():
     with pytest.raises(AddressError):
         parse_address("A0.16")
     with pytest.raises(AddressError):
-        parse_address("M0.0")  # there is no M table
+        parse_address("X0.0")  # there is no X table
+    with pytest.raises(AddressError):
+        Controller().load("M0.0 -> B0.0")  # the M table is the GEM 80's, not the MicroGEM's
 
 
 def test_series_parallel_and_normally_closed():
@@ -339,7 +341,7 @@ def test_expansion_units_use_one_word_each():
     plc.set_input(24 + 11, True)
     plc.scan(20)
     assert plc.outputs() == [False] * 23 + [True]
-    assert plc.snapshot()["io"] == {"units": 3, "inputs": 12, "outputs": 8}
+    assert plc.snapshot()["io"] == {"family": "microgem", "model": "microgem60", "units": 3, "inputs": 12, "outputs": 8}
     with pytest.raises(IndexError):
         plc.set_input(36, True)
 

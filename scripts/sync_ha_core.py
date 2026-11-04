@@ -11,7 +11,7 @@ import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-ENGINE_FILES = ["__init__.py", "tables.py", "program.py", "engine.py", "examples.py", "service.py"]
+ENGINE_FILES = ["__init__.py", "models.py", "functions.py", "tables.py", "program.py", "engine.py", "examples.py", "service.py"]
 COPIES = [(ROOT / "microgem" / name, ROOT / "custom_components/microgem/core" / name) for name in ENGINE_FILES]
 COPIES.append((ROOT / "microgem/web/panel.js", ROOT / "custom_components/microgem/frontend/panel.js"))
 

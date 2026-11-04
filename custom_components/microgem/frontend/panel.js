@@ -73,6 +73,12 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .led.on { fill: #ff3b2f; filter: url(#glow); }
 .led.g.on { fill: #4dff6a; }
 
+.g80-ctl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; font: 600 .8rem system-ui, sans-serif; color: var(--muted); }
+.g80-ctl[hidden] { display: none; }
+.g80-ctl .seg button { font-weight: 700; }
+.hw.g80 { grid-template-columns: minmax(0, 1fr); }
+.g80-only { display: none; }
+:host(.g80) .g80-only { display: block; }
 .sim { margin-top: 16px; background: #2b2926; border-radius: 8px; padding: 10px 12px 12px; color: #e8e1d2;
   box-shadow: inset 0 2px 0 rgba(255,255,255,.06), 0 3px 8px rgba(0,0,0,.25); }
 .sim-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 .72rem/1 Arial, sans-serif; letter-spacing: .12em; }
@@ -183,8 +189,8 @@ kbd { font: 700 .75rem var(--mono); border: 1px solid var(--border); border-radi
 const MARKUP = `
 <main>
   <header>
-    <h1>Virtual MicroGEM</h1>
-    <p>A MicroGEM60 controller running in software. Flip the inputs, watch the relay outputs and the ladder, and program it from the MicroGEM Programmer or the text editor. <span class="conn" id="conn">Connecting…</span></p>
+    <h1 id="title">Virtual MicroGEM</h1>
+    <p><span id="about">A MicroGEM60 controller running in software. Flip the inputs, watch the relay outputs and the ladder, and program it from the MicroGEM Programmer or the text editor.</span> <span class="conn" id="conn">Connecting…</span></p>
   </header>
 
   <div class="hw">
@@ -206,6 +212,10 @@ const MARKUP = `
         <p class="message" id="we-now"></p>
         <div class="row"><button class="btn primary" id="we-save">Connect</button><button class="btn" id="we-remove">Disconnect</button><button class="btn" id="we-cancel">Cancel</button></div>
       </div>
+      <div class="g80-ctl" id="g80-ctl" hidden>
+        <span class="seg" id="g80-mode"><button data-run="1">RUN</button><button data-run="0">HALT</button></span>
+        <span class="g80-info" id="g80-info"></span>
+      </div>
       <div class="sim">
         <div class="sim-head">
           <span>INPUT SIMULATOR · switches wired to the input terminals</span>
@@ -215,7 +225,7 @@ const MARKUP = `
       </div>
     </section>
 
-    <section class="progwrap" aria-label="MicroGEM Programmer">
+    <section class="progwrap" id="progwrap" aria-label="MicroGEM Programmer">
       <div class="lead"></div>
       <div class="prog" id="prog" tabindex="0">
         <div class="prog-head">
@@ -264,6 +274,8 @@ const MARKUP = `
         <p><b>Flags (read-only):</b> <code>E0.0</code> pulses every 0.1 s, <code>E0.1</code> every second, <code>E0.6</code> after a program load, <code>E0.7</code> when ADD or SUB was limited to ±32767. <code>E1</code> to <code>E6</code> hold the time and date, <code>E7</code> the last scan time in ms. Hex numbers: <code>@00FF</code>.</p>
         <p><b>Watchdog:</b> the W/DOG O.K. light and W/DOG OUTPUT close after three clean scans in Run and open in Halt. To trip it from the program, hold a non-zero code in <code>F1</code> for 100 ms (GEM80-400 manual T1614, 2.12), for example <code>A0.5 -&gt; BLOCK</code>, <code>AND 123 -&gt; OUT F1</code>, <code>END BLOCK</code>. The controller stops; switch it back to Run to clear the trip.</p>
         <p><b>Extensions</b> (not in a real GEM 80): <code>RISE A0.0</code>/<code>FALL A0.0</code> one-scan pulses, comparisons such as <code>G1 GE 5</code>, and <code>SET</code>/<code>RESET</code> outputs. On the real controller you latch with a seal-in branch.</p>
+        <p class="g80-only"><b>GEM 80 tables and I/O:</b> the compact controllers have tables A and B (32 words each, one pair of words per I/O slot: slot 1 is <code>A0</code>/<code>A1</code> or <code>B0</code>/<code>B1</code>, slot 2 is words 2 and 3, and so on), E (flags; the 130C adds the clock in <code>E1</code> to <code>E6</code>), F (diagnostics; <code>F1</code> trips the watchdog), G (workspace), R (retained), P (presets, read-only on the CE models with EPROM), J and K (serial) and M (maintainer). Sizes follow the T278 data sheet for the model chosen, and so does the program capacity.</p>
+        <p class="g80-only"><b>Special Functions:</b> <code>SPEC</code> and the number or name, then for the two-input T functions the lower branch in square brackets, then <code>VALUE</code>: <code>AND G10 SPEC SQRT VALUE 100 -&gt; OUT G11</code>, <code>AND G10 SPEC LIMIT VALUE G100 -&gt; OUT G11</code> (G101 low, G102 high, flags in G100), <code>AND G10 SPEC COMPARE [AND G11] VALUE G59 -&gt; OUT G58</code>, <code>AND G20 SPEC DIV [AND 16] VALUE R120 -&gt; OUT G30</code>. Emulated: S0 DBOUNCE, S1 BCDIN, S2 BCDOUT, S3 HISTATE, S4 SWAP, S11 LINCON, S12 SQRT, S20 LOCATE, S30 FGEN, S31 DEDBAND, S32 LIMIT, S37 ANALAG, T0 COMPARE, T10 MULT, T11 DIV, T20 MOVE, T30 STORE, each as its GEM 80 Software Data sheet describes, where the model has it.</p>
         <p>Elements and behaviour follow the GEM 80 Ladder Diagram Programming Manual (T391). The MicroGEM's own table letters (I and Q on the programmer) are not documented yet, so inputs and outputs use the GEM 80 A and B tables.</p>
       </details>
     </section>
@@ -404,6 +416,143 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
 </svg>`;
 }
 
+// ---------------------------------------------------------------------------
+// A GEM 80/100C or 130C compact controller: a 19 inch subrack with eight
+// Compact I/O module slots, the 9032-style power supply module and the
+// processor module, laid out like the GEM 80/131 backplane (T478 Figure 1.5:
+// slots 8 to 1 from the left, then the power supply, then the processor).
+// The modules carry the details T278 and T438 list: a lamp per channel, the
+// type number and plant connector on each I/O module; watchdog, battery and
+// serial port lamps and the programming socket on the processor; power and
+// output healthy lamps and the run/shutdown switch on the power supply.
+
+const G80_MODULE_COLOURS = { input: "#4c7a9e", output: "#a4473a", relay: "#c98a2b" };
+
+function gem80Svg(io, model, wires = { inputs: {}, outputs: {} }) {
+  const slots = io.slots || [];
+  const SW = 96, H = 470, top = 40, MH = 380;
+  const psuW = 128, cpuW = 150, gap = 6;
+  const W = 40 + slots.length * (SW + gap) + psuW + gap + cpuW + 40;
+  const screw = (x, y, r = 6) => `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#g80screw)" stroke="#111"/><path d="M${x - r * .6} ${y}h${r * 1.2}" stroke="#222" stroke-width="1.6"/>`;
+  const lamp = (cls, id, x, y, r = 4.2) => `<circle class="led${cls ? " " + cls : ""}"${id ? ` id="${id}"` : ""} cx="${x}" cy="${y}" r="${r}"/>`;
+  const txt = (x, y, s, cls = "g8") => `<text x="${x}" y="${y}" class="${cls}">${esc(s)}</text>`;
+  let body = "", terms = "";
+
+  // Subrack: front frame with mounting ears.
+  body += `<rect x="0" y="0" width="${W}" height="${H}" rx="6" fill="url(#g80frame)" stroke="#111" stroke-width="2"/>
+    <rect x="22" y="${top - 18}" width="${W - 44}" height="${MH + 36}" rx="3" fill="#141414" stroke="#2c2c2c"/>
+    ${screw(12, 30)}${screw(12, H - 30)}${screw(W - 12, 30)}${screw(W - 12, H - 30)}`;
+
+  // I/O slots, 8 to 1 from the left.
+  let x = 40;
+  for (let s = slots.length; s >= 1; s--) {
+    const slot = slots[s - 1];
+    const sx = x;
+    x += SW + gap;
+    if (!slot || !slot.module) {
+      body += `<rect x="${sx}" y="${top}" width="${SW}" height="${MH}" rx="3" fill="#232323" stroke="#333"/>
+        <rect x="${sx + 8}" y="${top + 10}" width="${SW - 16}" height="${MH - 20}" rx="2" fill="#1b1b1b"/>
+        ${screw(sx + SW / 2, top + 22, 4)}${screw(sx + SW / 2, top + MH - 22, 4)}
+        ${txt(sx + SW / 2, top + MH / 2, "BLANK", "g8 dim")}${txt(sx + SW / 2, top + MH + 30, `SLOT ${s}`, "g8 slot")}`;
+      continue;
+    }
+    const colour = slot.relay ? G80_MODULE_COLOURS.relay : G80_MODULE_COLOURS[slot.kind];
+    const isIn = slot.kind === "input";
+    const kind = isIn ? "inputs" : "outputs";
+    const tbl = isIn ? "A" : "B";
+    body += `<rect x="${sx}" y="${top}" width="${SW}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
+      <rect x="${sx + SW / 2 - 18}" y="${top + 4}" width="36" height="12" rx="3" fill="#0d0d0d"/>
+      <rect x="${sx + 6}" y="${top + 22}" width="${SW - 12}" height="30" rx="2" fill="${colour}"/>
+      ${txt(sx + SW / 2, top + 36, slot.module, "g8 type")}
+      ${txt(sx + SW / 2, top + 47, `${slot.channels} CH ${isIn ? "IN" : slot.relay ? "RELAY" : "OUT"}`, "g8 small")}`;
+    // Lamps: one column of up to 16 per data table word, numbered 0 to 15.
+    const words = Math.ceil(slot.channels / 16), perCol = Math.min(16, slot.channels);
+    const colX = words === 1 ? [sx + SW / 2 + 8] : [sx + SW / 2 - 12, sx + SW / 2 + 26];
+    const ly = top + 76, step = Math.min(15, 240 / perCol);
+    for (let w = 0; w < words; w++) {
+      body += txt(colX[w] - 6, ly - 10, `${tbl}${slot.words[w]}`, "g8 word");
+      for (let c = 0; c < perCol && w * 16 + c < slot.channels; c++) {
+        const ch = w * 16 + c, g = slot.first + ch, cy = ly + c * step;
+        const wired = wires[kind][g];
+        body += txt(colX[w] - 14, cy + 3.5, String(c), "g8 ch") + lamp("", `${isIn ? "in" : "out"}-${g}`, colX[w], cy, 3.6);
+        if (wired) body += `<path class="cable ${isIn ? "in" : "out"}" id="cable-${isIn ? "in" : "out"}-${g}" d="M${colX[w] + 6} ${cy} h${words === 1 ? 26 : 10}"/>`;
+        terms += `<rect class="term" data-kind="${kind}" data-index="${g}" x="${colX[w] - 20}" y="${cy - step / 2}" width="${words === 1 ? 60 : 34}" height="${step}" rx="2"><title>Slot ${s} (${slot.module}) channel ${ch}: ${tbl}${slot.words[w]}.${c} (${wired ? "wired to " + esc(wired.title) : "click to wire it to an entity"})</title></rect>`;
+      }
+    }
+    // Plant connector: screw terminals, or the 32-way D connector.
+    const py = top + MH - 54;
+    if (slot.channels === 32) {
+      body += `<rect x="${sx + 22}" y="${py}" width="${SW - 44}" height="40" rx="6" fill="#2a2a2a" stroke="#555"/>
+        <rect x="${sx + 30}" y="${py + 8}" width="${SW - 60}" height="24" rx="5" fill="#0e0e0e"/>`;
+    } else {
+      body += `<rect x="${sx + 10}" y="${py}" width="${SW - 20}" height="40" rx="2" fill="#3b3e3c" stroke="#222"/>`;
+      for (let k = 0; k < 5; k++) body += `<circle cx="${sx + 20 + k * ((SW - 40) / 4)}" cy="${py + 20}" r="5" fill="#1d1f1e" stroke="#555"/>`;
+    }
+    body += txt(sx + SW / 2, top + MH + 30, `SLOT ${s}`, "g8 slot");
+  }
+
+  // Power supply module.
+  const px = x;
+  x += psuW + gap;
+  body += `<rect x="${px}" y="${top}" width="${psuW}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
+    <rect x="${px + 10}" y="${top + 8}" width="${psuW - 20}" height="16" rx="8" fill="#0d0d0d"/>
+    ${txt(px + psuW / 2, top + 44, "POWER SUPPLY", "g8 head")}
+    ${txt(px + 30, top + 74, "INPUT", "g8 small")}${txt(px + 30, top + 84, "POWER", "g8 small")}${lamp("g supply", "", px + 30, top + 98, 5)}
+    ${txt(px + psuW - 34, top + 74, "OUTPUT", "g8 small")}${txt(px + psuW - 34, top + 84, "HEALTHY", "g8 small")}${lamp("g supply", "", px + psuW - 34, top + 98, 5)}
+    <rect x="${px + psuW / 2 - 16}" y="${top + 128}" width="32" height="64" rx="4" fill="#0e0e0e" stroke="#444"/>
+    <rect x="${px + psuW / 2 - 9}" y="${top + 134}" width="18" height="24" rx="3" fill="#cfcac0"/>
+    ${txt(px + psuW / 2, top + 122, "RUN", "g8 small")}${txt(px + psuW / 2, top + 206, "SHUTDOWN", "g8 small")}
+    ${txt(px + psuW / 2, top + 238, "A.C. 220V", "g8 small")}
+    <rect x="${px + 22}" y="${top + 248}" width="${psuW - 44}" height="34" rx="3" fill="#262626" stroke="#555"/>
+    ${[0, 1, 2].map((k) => `<rect x="${px + 34 + k * 22}" y="${top + 258}" width="8" height="14" fill="#9c958a"/>`).join("")}
+    ${txt(px + psuW / 2, top + 300, "D.C. 24V", "g8 small")}
+    <circle cx="${px + psuW / 2}" cy="${top + 322}" r="13" fill="#262626" stroke="#555"/>
+    ${txt(px + 36, top + 356, "FS1", "g8 small")}${txt(px + psuW - 36, top + 356, "FS2", "g8 small")}`;
+
+  // Processor module with the maker's badge, the model, and its lamps.
+  const cx = x;
+  const label = model ? model.label : "GEM 80";
+  body += `<rect x="${cx}" y="${top}" width="${cpuW}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
+    <rect x="${cx + 8}" y="${top + 8}" width="${cpuW - 16}" height="44" rx="2" fill="#e3c25a"/>
+    <text x="${cx + 14}" y="${top + 38}" style="font:900 21px Arial Black,Arial,sans-serif;fill:#151515">${MAKER.mark}</text>
+    <text x="${cx + 72}" y="${top + 23}" style="font:700 9px Arial;fill:#151515">${MAKER.line1}</text>
+    <text x="${cx + 72}" y="${top + 34}" style="font:700 9px Arial;fill:#151515">${MAKER.line2}</text>
+    <text x="${cx + 72}" y="${top + 45}" style="font:600 6px Arial;fill:#333;letter-spacing:.04em">${MAKER.place.join(" ")}</text>
+    ${txt(cx + cpuW / 2, top + 76, label, "g8 model")}
+    ${txt(cx + 42, top + 104, "W/DOG", "g8 small")}${txt(cx + 42, top + 114, "HEALTHY", "g8 small")}
+    ${lamp("g", "led-wdog", cx + 30, top + 128)}${lamp("g", "led-wdog2", cx + 54, top + 128)}
+    ${txt(cx + cpuW - 36, top + 104, "BATTERY", "g8 small")}${txt(cx + cpuW - 36, top + 114, "LOW", "g8 small")}
+    ${lamp("", "led-batt", cx + cpuW - 36, top + 128)}
+    ${txt(cx + cpuW / 2, top + 158, "SERIAL PORTS", "g8 small")}
+    ${txt(cx + 40, top + 174, "1 TX", "g8 small")}${lamp("", "led-p1tx", cx + 40, top + 186, 3.6)}
+    ${txt(cx + 70, top + 174, "1 RX", "g8 small")}${lamp("", "led-p1rx", cx + 70, top + 186, 3.6)}
+    ${txt(cx + 100, top + 174, "2 TX", "g8 small")}${lamp("", "led-p2tx", cx + 100, top + 186, 3.6)}
+    ${txt(cx + 130, top + 174, "2 RX", "g8 small")}${lamp("", "led-p2rx", cx + 130, top + 186, 3.6)}
+    <rect x="${cx + 24}" y="${top + 206}" width="${cpuW - 48}" height="40" rx="4" fill="#0b0b0b" stroke="#444"/>
+    ${Array.from({ length: 13 }, (_, i) => `<circle cx="${cx + 36 + i * 6.6}" cy="${top + 220}" r="1.6" fill="#8a857b"/><circle cx="${cx + 39 + i * 6.6}" cy="${top + 232}" r="1.6" fill="#8a857b"/>`).join("")}
+    ${txt(cx + cpuW / 2, top + 260, "PROGRAMMING", "g8 small")}
+    <rect x="${cx + 24}" y="${top + 278}" width="${cpuW - 48}" height="30" rx="4" fill="#0b0b0b" stroke="#444"/>
+    ${txt(cx + cpuW / 2, top + 322, "SERIAL LINK", "g8 small")}
+    ${txt(cx + cpuW / 2, top + 352, "PROCESSOR", "g8 head")}`;
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)} compact controller with ${io.inputs} inputs and ${io.outputs} outputs">
+  <defs>
+    <radialGradient id="g80screw" cx=".35" cy=".35" r=".8"><stop offset="0" stop-color="#9a9a9a"/><stop offset="1" stop-color="#3a3a3a"/></radialGradient>
+    <linearGradient id="g80frame" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5e6163"/><stop offset="1" stop-color="#3c3e40"/></linearGradient>
+    <linearGradient id="g80mod" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2b2b2b"/><stop offset=".5" stop-color="#363636"/><stop offset="1" stop-color="#262626"/></linearGradient>
+    <filter id="glow" x="-2" y="-2" width="5" height="5"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>
+      .g8{font:700 10px Arial,sans-serif;fill:#e8e4da;text-anchor:middle;letter-spacing:.03em}
+      .g8.small{font-size:8.5px}.g8.head{font-size:10.5px;letter-spacing:.08em}
+      .g8.type{font:900 15px Arial Black,Arial,sans-serif;fill:#fff}.g8.model{font:900 13px Arial Black,Arial,sans-serif}
+      .g8.word{font-size:9px;fill:#ffd36b}.g8.ch{font-size:8px;fill:#aaa;text-anchor:end}
+      .g8.slot{font-size:11px;fill:#d8d4ca}.g8.dim{fill:#666;letter-spacing:.2em}
+    </style>
+  </defs>
+  ${body}${terms}
+</svg>`;
+}
+
 export function websocketTransport(url) {
   let ws = null;
   return {
@@ -472,6 +621,11 @@ function size(n) {
     case "logic": case "arith": {
       if (n.arg && typeof n.arg === "object") { const b = size(n.arg); return { w: b.w + 1, h: 1 + b.h }; }
       return { w: n.spec ? 2 : 1, h: 1 };
+    }
+    case "spec": {
+      const base = n.value != null ? 2 : 1;
+      if (n.arg) { const b = size(n.arg); return { w: b.w + base, h: 1 + b.h }; }
+      return { w: base, h: 1 };
     }
     default: return { w: 1, h: 1 };
   }
@@ -554,6 +708,21 @@ function drawNode(n, x, y, pin, ctx) {
       const above = !branch && isAddr(n.arg) ? fmtNum(live[n.arg]) : undefined;
       if (n.spec) svg += box(`SPEC. ${n.spec}`, under, n.op, pout, 2, ex);
       else svg += box(n.op, under, above, pout, 1, ex);
+      return [svg, pout];
+    }
+    case "spec": {
+      // SPEC. with the mnemonic above and the number below, then its VALUE
+      // with the table address below, as T391 draws it; a T function's lower
+      // input joins in from its own branch.
+      const pout = out(pin);
+      const base = n.value != null ? 2 : 1;
+      const ex = x + (size(n).w - base) * CW;
+      let svg = n.arg ? wire(x, cy, ex, cy, pin) + lower(n.arg, ex, "JOIN") : "";
+      svg += box("SPEC.", n.num, n.name, pout, 1, ex);
+      if (n.value != null) {
+        const v = isAddr(n.value) && !ctx.draft ? fmtNum(live[n.value]) : undefined;
+        svg += box("VALUE", n.value, v, pout, 1, ex + CW);
+      }
       return [svg, pout];
     }
     case "delay": {
@@ -761,12 +930,15 @@ function textRung(rung, flow) {
         const a = opnd(n.arg);
         return n.spec ? { sym: "SPEC.", addr: n.spec + (a !== null ? " " + a : "") } : { sym: `<${n.op}>`, addr: a ?? "" };
       }
+      case "spec": return n.value != null
+        ? { sym: "SPEC.--VALUE", addr: `${n.num}`.padEnd(7) + n.value, name: n.name }
+        : { sym: "SPEC.", addr: n.num, name: n.name };
       case "delay": return { sym: "<DELAY>--VALUE", addr: `${n.word}`.padEnd(9) + n.value };
       case "count": return { sym: "<COUNT>--VALUE", addr: `${n.word}`.padEnd(9) + n.value };
     }
     return { sym: "?", addr: "" };
   };
-  const branchOf = (n) => (n.t === "count" ? n.reset : (n.t === "logic" || n.t === "arith") && n.arg && typeof n.arg === "object" ? n.arg : null);
+  const branchOf = (n) => (n.t === "count" ? n.reset : (n.t === "logic" || n.t === "arith" || n.t === "spec") && n.arg && typeof n.arg === "object" ? n.arg : null);
   const width = (n) => Math.max(CELL, leaf(n).sym.length + 4);
 
   function measure(n) {
@@ -953,12 +1125,68 @@ class MicroGemPanel extends HTMLElement {
 
     // I/O point i -> its address; unit n (0 = controller) uses word n of A and B.
     function ioAddress(table, i, perUnit) {
+      const pts = state && state.points && state.points[table === "A" ? "inputs" : "outputs"];
+      if (pts && pts[i]) return pts[i];
       const unit = Math.floor(i / perUnit), point = i % perUnit;
       return `${table}${unit * Math.ceil(perUnit / 16) + Math.floor(point / 16)}.${point % 16}`;
     }
     const io = () => state.io || { units: 1, inputs: state.inputs.length, outputs: state.outputs.length };
 
+    const isGem80 = () => io().family === "gem80";
+
+    function buildToggle(group, i, title, label) {
+      const wires = { inputs: {} };
+      for (const [k, point] of Object.entries(wiring().inputs)) wires.inputs[k] = describe(point);
+      const b = el("button", "toggle");
+      b.title = title;
+      b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${label}</small>`;
+      if (wires.inputs[i]) { b.disabled = true; b.title += `: wired to ${wires.inputs[i].title}`; }
+      b.addEventListener("click", () => { if (mode === "toggle") send({ type: "input", index: i, value: !state.inputs[i] }); });
+      const press = (v) => (e) => { if (mode === "momentary") { e.preventDefault(); send({ type: "input", index: i, value: v }); } };
+      b.addEventListener("pointerdown", press(true));
+      b.addEventListener("pointerup", press(false));
+      b.addEventListener("pointerleave", (e) => { if (mode === "momentary" && state.inputs[i]) press(false)(e); });
+      group.append(b);
+    }
+
+    function buildGem80() {
+      const info = io(), model = state.model;
+      const wires = { inputs: {}, outputs: {} };
+      for (const kind of ["inputs", "outputs"]) {
+        for (const [i, point] of Object.entries(wiring()[kind])) wires[kind][i] = describe(point);
+      }
+      $("unit").innerHTML = gem80Svg(info, model, wires);
+      $("unit").classList.toggle("wirable", canWire());
+      $("title").textContent = `Virtual ${model.label}`;
+      $("about").textContent = `A ${model.label} compact controller running in software: a 19 inch subrack with ${info.slots.filter((s) => s.module).length} Compact I/O modules. Flip the inputs, watch the module lamps and the ladder, and program it from the text editor.`;
+      host.classList.add("g80");
+      root.querySelector(".hw").classList.add("g80");
+      $("progwrap").style.display = "none";
+      $("g80-ctl").hidden = false;
+      const t = $("toggles");
+      t.replaceChildren();
+      for (const slot of info.slots) {
+        if (!slot.module || slot.kind !== "input") continue;
+        t.append(el("div", "group-label", `SLOT ${slot.slot} · ${slot.module} · ${slot.words.map((w) => "A" + w).join(" ")}`));
+        const group = el("div", "toggles");
+        group.style.setProperty("--n", Math.min(slot.channels, 16));
+        for (let c = 0; c < slot.channels; c++) {
+          const i = slot.first + c;
+          buildToggle(group, i, `Slot ${slot.slot} channel ${c} (${ioAddress("A", i)})`, String(c % 16));
+        }
+        t.append(group);
+      }
+      if (!g80Built) {
+        g80Built = true;
+        $("g80-mode").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => send({ type: b.dataset.run === "1" ? "run" : "halt" })));
+      }
+      built = true;
+      buildLinks();
+    }
+    let g80Built = false;
+
     function build() {
+      if (isGem80()) return buildGem80();
       const { units, inputs: nIn, outputs: nOut } = io();
       let svgs = "";
       const wires = { inputs: {}, outputs: {} };
@@ -1096,7 +1324,11 @@ class MicroGemPanel extends HTMLElement {
       editing = { kind, index };
       const { inputs: nIn, outputs: nOut } = io();
       const per = kind === "inputs" ? nIn : nOut, unit = Math.floor(index / per);
-      const where = `${kind === "inputs" ? "input terminal" : "relay output"} ${String(index % per).padStart(2, "0")}${unit ? ` on expansion unit ${unit}` : ""}`;
+      let where = `${kind === "inputs" ? "input terminal" : "relay output"} ${String(index % per).padStart(2, "0")}${unit ? ` on expansion unit ${unit}` : ""}`;
+      if (isGem80()) {
+        const slot = io().slots.find((sl) => sl.module && (sl.kind === "input") === (kind === "inputs") && index >= sl.first && index < sl.first + sl.channels);
+        if (slot) where = `slot ${slot.slot} (${slot.module}) channel ${index - slot.first}`;
+      }
       const addr = ioAddress(kind === "inputs" ? "A" : "B", index, per);
       const point = wiring()[kind][index];
       $("we-title").textContent = `Wire ${where} (${addr})`;
@@ -1295,6 +1527,12 @@ class MicroGemPanel extends HTMLElement {
         c.classList.toggle("on", !!on);
       });
       u.querySelector("#led-wdog")?.classList.toggle("on", !!state.watchdog);
+      u.querySelector("#led-wdog2")?.classList.toggle("on", !!state.watchdog);
+      if (isGem80()) {
+        $("g80-mode").querySelectorAll("button").forEach((b) => b.classList.toggle("active", (b.dataset.run === "1") === !!state.running));
+        const m = state.model;
+        $("g80-info").textContent = `${state.running ? "Running" : state.trip_code ? `Tripped by F1 = ${state.trip_code}` : "Halted"} · program ${state.instructions} of ${m.instructions} instructions · ${m.memory} ${m.eprom ? "EPROM" : "RAM"}`;
+      }
       $("toggles").querySelectorAll(".toggle").forEach((n, i) => n.classList.toggle("on", state.inputs[i]));
       $("keyswitch").classList.toggle("halt", !state.running);
       $("kp-run").innerHTML = state.running ? "<b>RUN</b>" : "RUN";

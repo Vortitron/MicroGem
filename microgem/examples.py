@@ -160,6 +160,54 @@ B0.2 DELAY G12 VALUE 20 -> G0.2
 B0.2 COUNT G13 VALUE 32767 -> G1.0
 """
 
+BOTTLING = """\
+; Bottle filling line, for a GEM 80/130C with the default modules.
+; Inputs  A0.0 start, A0.1 stop (normally closed), A0.2 bottle at the filler,
+;         A0.3 level probe (bottle full), A0.4 reset the count,
+;         A4.0 emergency stop healthy (normally closed)
+; Outputs B6.0 conveyor, B6.1 fill valve, B6.2 running lamp, B6.3 slow fill horn,
+;         B6.4 crate complete beacon; the 16 lamps on B2 show the crates in BCD
+; Special Functions: DBOUNCE on the bottle sensor, DIV into crates of 12 with
+; the odd bottles as the remainder, BCDOUT for the display, COMPARE for the beacon.
+
+; DBOUNCE data: the sensor must be steady for 3 scans, mode on
+AND 3 -> OUT G21
+AND -1 -> OUT G24
+
+; Run latch: start, held by its own contact, dropped by stop or the e-stop
+(A0.0 OR G0.0) AND A0.1 AND A4.0 -> G0.0
+G0.0 -> B6.2
+
+; Bottle sensor, debounced
+A0.2 SPEC DBOUNCE VALUE G20 -> G0.1
+
+; Fill while a bottle is in place and not yet full; the conveyor waits
+G0.0 AND G0.1 AND NOT A0.3 -> B6.1
+G0.0 AND NOT B6.1 -> B6.0
+
+; A fill taking more than 8 s sounds the horn
+B6.1 DELAY G10 VALUE 80 -> B6.3
+
+; Count full bottles; A0.4 resets the count
+G0.1 AND A0.3 COUNT G11 VALUE 9999 RESET A0.4 -> G0.2
+
+; Crates of 12: the quotient to G12, the bottles left over to G13
+AND G11 AND @7FFF SPEC DIV [AND 12] VALUE G13 -> OUT G12
+
+; Crates on the display lamps, in BCD
+AND G12 SPEC BCDOUT -> OUT B2
+
+; Beacon while a crate has just been completed: G13 = 0 and G12 > 0
+AND G13 SPEC COMPARE [AND 0] VALUE G14 -> OUT G15
+AND G12 SPEC COMPARE [AND 0] VALUE G16 -> OUT G17
+G14.15 AND G16.13 -> B6.4
+"""
+
+#: Demo programmes for the GEM 80 compact controllers (default modules).
+GEM80_EXAMPLES = [
+    Example("bottling", "Bottle filling line", "Fills, counts and crates bottles, with Special Functions.", BOTTLING),
+]
+
 EXAMPLES = [
     Example("bedroom", "Bedroom lighting", "Toggle, direct and timed lights (the default).", BEDROOM),
     Example("pelican", "Pelican crossing", "Traffic lights and a crossing, stepped by SEQR.", PELICAN),
@@ -167,3 +215,11 @@ EXAMPLES = [
     Example("pumps", "Pumping station", "Duty/standby pumps on level floats, with an alarm.", PUMPS),
     Example("packing", "Packing conveyor", "Counts six bottles into each case and pushes it out.", PACKING),
 ]
+
+
+def examples_for(family: str) -> list[Example]:
+    return GEM80_EXAMPLES if family == "gem80" else EXAMPLES
+
+
+def default_program(family: str) -> str:
+    return examples_for(family)[0].source

@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 
 from .engine import Controller, ControllerConfig
-from .examples import BEDROOM, EXAMPLES
+from .examples import BEDROOM, default_program, examples_for
 from .program import ProgramError, parse_program, rung_to_json
 from .tables import AddressError, parse_address, to_signed
 
@@ -23,9 +23,9 @@ Listener = Callable[[dict], None]
 
 
 class ControllerService:
-    def __init__(self, config: ControllerConfig | None = None, program: str = EXAMPLE_PROGRAM) -> None:
+    def __init__(self, config: ControllerConfig | None = None, program: str | None = None) -> None:
         self.controller = Controller(config)
-        self.controller.load(program)
+        self.controller.load(program if program is not None else default_program(self.controller.config.family))
         self.controller.run()
         self._listeners: list[Listener] = []
         self._task: asyncio.Task | None = None
@@ -126,7 +126,8 @@ class ControllerService:
             elif kind == "write":
                 self.write(str(message["address"]), int(message["value"]))
             elif kind == "examples":
-                return {"type": "examples", "examples": [vars(e) for e in EXAMPLES]}
+                family = self.controller.config.family
+                return {"type": "examples", "examples": [vars(e) for e in examples_for(family)]}
             elif kind == "load":
                 self.load(str(message["source"]))
                 return {"type": "loaded"}

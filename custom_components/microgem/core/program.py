@@ -32,6 +32,14 @@ Functions T10 and T11. ``DELAY w VALUE v`` and ``COUNT w VALUE v [RESET c]``
 work as in the manual: the word ``w`` holds the time left (0.1 s units) or the
 count (bits 0 to 14, with bit 15 the last input).
 
+Special Functions: ``SPEC n`` where ``n`` is the number (``S12``) or the
+mnemonic (``SQRT``), then for the two-input T functions the lower branch in
+square brackets, then ``VALUE v`` where the function needs one::
+
+    AND G10 SPEC SQRT VALUE 100 -> OUT G11
+    AND G10 SPEC COMPARE [AND G11] VALUE G59 -> OUT G58
+    AND 0 SPEC LOCATE VALUE G20 SPEC MOVE [AND 0 SPEC LOCATE VALUE G100] VALUE 20 -> OUT F250
+
 Output elements: a bit address is a COIL; ``OUT w`` writes the rung word;
 ``SEQR w [RESET c]``; ``BLOCK`` (OBEY BLOCK). ``END BLOCK`` (or ``BLOCK`` on
 its own) closes a block.
@@ -48,6 +56,7 @@ import itertools
 import re
 from dataclasses import dataclass, field
 
+from .models import SPECIAL_NAMES, SPECIAL_NUMBERS
 from .tables import Address, AddressError, clamp16, parse_address, to_signed
 
 COMPARISONS = {
@@ -74,6 +83,16 @@ ARITHMETIC = {
 
 # Special Function numbers of the arithmetic that is not a key of its own.
 SPECIAL = {"MULT": "T10", "DIV": "T11"}
+
+#: What follows SPEC: "none" (no VALUE), "ignored" (a VALUE does nothing),
+#: "location" (VALUE must be a table address, the start of the function's
+#: parameter list) or "either" (a number or a table address holding it).
+SPEC_VALUE = {
+    "S0": "location", "S1": "none", "S2": "none", "S3": "none", "S4": "ignored",
+    "S11": "location", "S12": "either", "S20": "location", "S30": "location",
+    "S31": "location", "S32": "location", "S37": "location",
+    "T0": "location", "T10": "none", "T11": "location", "T20": "either", "T30": "location",
+}
 
 VALUE_MAX = 32767
 RAIL = -1  # the left rail feeds 16 bits all set
@@ -172,6 +191,20 @@ class Count:
 
 
 @dataclass(frozen=True, eq=False)
+class Spec:
+    """A Special Function. T functions take a second (lower) branch input."""
+
+    number: str  # "S12", "T20"
+    value: Address | int | None = None
+    second: Branch | None = None
+    nid: int = field(default_factory=_nid)
+
+    @property
+    def name(self) -> str:
+        return SPECIAL_NAMES.get(self.number, self.number)
+
+
+@dataclass(frozen=True, eq=False)
 class Series:
     items: tuple
     nid: int = field(default_factory=_nid)
@@ -250,6 +283,8 @@ def walk(rung: Rung):
                 yield from visit(item)
         elif isinstance(node, (Logic, Arith)) and isinstance(node.operand, Branch):
             yield from visit(node.operand.node)
+        elif isinstance(node, Spec) and node.second is not None:
+            yield from visit(node.second.node)
         elif isinstance(node, Count):
             yield from visit(node.reset)
 
@@ -298,6 +333,10 @@ def node_to_json(node: object) -> dict:
     if isinstance(node, Count):
         return {"t": "count", "id": node.nid, "word": str(node.word), "value": str(node.value),
                 "reset": node_to_json(node.reset) if node.reset is not None else None}
+    if isinstance(node, Spec):
+        return {"t": "spec", "id": node.nid, "num": node.number, "name": node.name,
+                "value": None if node.value is None else str(node.value),
+                "arg": None if node.second is None else node_to_json(node.second.node)}
     if isinstance(node, Series):
         return {"t": "series", "id": node.nid, "items": [node_to_json(i) for i in node.items]}
     if isinstance(node, Parallel):
@@ -485,6 +524,9 @@ class _Parser:
                 self.take()
                 reset = self.item()
             return Count(word, value, reset)
+        if upper == "SPEC":
+            self.take()
+            return self.spec()
         if self._is_bit(token):
             self.take()
             return Contact(parse_address(token))
@@ -494,6 +536,36 @@ class _Parser:
         if op not in COMPARISONS:
             raise self.error(f"{token} is not an element; expected a contact, AND, ADD, DELAY, COUNT …")
         return Compare(op, left, self.number_or_word())
+
+    def spec(self) -> Spec:
+        token = self.take().upper()
+        number = SPECIAL_NUMBERS.get(token, token)
+        if number not in SPEC_VALUE:
+            if re.fullmatch(r"[ST]\d+", number):
+                raise self.error(f"Special Function {number} is not emulated")
+            raise self.error(f"{token} is not a Special Function; give its number (S12) or name (SQRT)")
+        name = SPECIAL_NAMES[number]
+        second = None
+        if number.startswith("T"):
+            if self.peek() != "[":
+                raise self.error(f"{name} ({number}) needs its lower input in square brackets")
+            second = self.operand()
+        elif self.peek() == "[":
+            raise self.error(f"{name} ({number}) has one input; only T functions take a second")
+        value = None
+        kind = SPEC_VALUE[number]
+        if self.upper() == "VALUE":
+            self.take()
+            if kind == "none":
+                raise self.error(f"{name} ({number}) takes no VALUE")
+            value = self.number_or_word()
+            if kind == "location" and not isinstance(value, Address):
+                raise self.error(f"the VALUE after {name} must be a table address, such as G100")
+            if kind == "ignored":
+                value = None
+        elif kind in ("location", "either"):
+            raise self.error(f"{name} ({number}) needs a VALUE after it")
+        return Spec(number, value, second)
 
     def value(self) -> Address | int:
         value = self.number_or_word()
@@ -570,6 +642,39 @@ def parse_program(source: str) -> Program:
     return program
 
 
+def instruction_count(program: Program) -> int:
+    """Roughly how many instructions the program takes in the controller.
+
+    From T278 Table 3: one per element, one more for the VALUE of a DELAY,
+    COUNT or Special Function, two for each branch opened and one for each
+    branch closed.
+    """
+
+    def size(node: object) -> int:
+        if node is None:
+            return 0
+        if isinstance(node, Series):
+            return sum(size(item) for item in node.items)
+        if isinstance(node, Parallel):
+            return sum(size(item) for item in node.items) + 3 * (len(node.items) - 1)
+        count = 1
+        if isinstance(node, (Delay, Count)) or (isinstance(node, Spec) and node.value is not None):
+            count += 1
+        if isinstance(node, Count):
+            count += size(node.reset) + (3 if node.reset is not None else 0)
+        operand = getattr(node, "operand", None) or getattr(node, "second", None)
+        if isinstance(operand, Branch):
+            count += size(operand.node) + 3
+        return count
+
+    total = 0
+    for rung in program.rungs:
+        total += size(rung.condition) + 1
+        if isinstance(rung.output, Seqr) and rung.output.reset is not None:
+            total += size(rung.output.reset) + 3
+    return total
+
+
 def _with_end(rung: Rung, end: int) -> Rung:
     return Rung(rung.condition, rung.output, rung.line, rung.source, rung.comment, end)
 
@@ -577,7 +682,7 @@ def _with_end(rung: Rung, end: int) -> Rung:
 __all__ = [
     "Arith", "Branch", "Coil", "Compare", "Constant", "Contact", "Count", "Delay", "Edge",
     "EndBlock", "Inv", "Latch", "Logic", "ObeyBlock", "Out", "Parallel", "Program",
-    "ProgramError", "Rung", "Seqr", "Series", "ARITHMETIC", "COMPARISONS", "LOGIC", "RAIL",
+    "ProgramError", "Rung", "Seqr", "Series", "Spec", "SPEC_VALUE", "instruction_count", "ARITHMETIC", "COMPARISONS", "LOGIC", "RAIL",
     "SPECIAL", "VALUE_MAX", "addresses", "clamp16", "parse_program", "rung_to_json",
     "to_signed", "walk",
 ]

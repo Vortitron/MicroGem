@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 (unreleased)
+
+The GEM 80 compact controllers join the MicroGEM60.
+
+- Controller models GEM 80/100C (2K, 6K, 12K), 100CE, 130C (6K, 12K) and
+  130CE, with data table sizes, program capacity and Special Functions from
+  the T278 data sheet. Tables a model lacks are refused; the P table is
+  read-only on the EPROM (CE) models.
+- Eight Compact I/O slots with 8, 16 and 32 channel input, output and relay
+  modules (T438), each slot on its own pair of A or B words.
+- The SPEC element and 17 Special Functions, each following its GEM 80
+  Software Data sheet: DBOUNCE, BCDIN, BCDOUT, HISTATE, SWAP, LINCON, SQRT,
+  LOCATE, FGEN, DEDBAND, LIMIT, ANALAG, COMPARE, MULT, DIV, MOVE and STORE.
+- The front panel draws a GEM 80 as its 19 inch subrack: I/O modules with a
+  lamp per channel, the power supply and the processor module.
+- `python -m microgem --model gem80-130c-12k --modules 8177,8178,8110,8130`
+  runs one standalone, with a bottle filling demo.
+
 ## 0.4.0
 
 First release for the HACS default list.

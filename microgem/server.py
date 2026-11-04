@@ -10,6 +10,7 @@ from pathlib import Path
 from aiohttp import WSMsgType, web
 
 from .engine import MAX_EXPANSIONS, ControllerConfig
+from .models import DEFAULT_MODEL, DEFAULT_MODULES, IO_MODULES, MODELS
 from .service import EXAMPLE_PROGRAM, ControllerService
 
 WEB_DIR = Path(__file__).parent / "web"
@@ -82,10 +83,23 @@ def main(argv: list[str] | None = None) -> None:
         "--expansions", type=int, default=0, choices=range(MAX_EXPANSIONS + 1),
         help="expansion units on the expansion port, each adding 12 inputs and 8 outputs",
     )
+    parser.add_argument(
+        "--model", default=DEFAULT_MODEL, choices=list(MODELS),
+        help="the controller: microgem60, or a GEM 80 compact controller such as gem80-130c-12k",
+    )
+    parser.add_argument(
+        "--modules", default=",".join(m or "-" for m in DEFAULT_MODULES),
+        help="GEM 80 only: Compact I/O module type numbers in slots 1 to 8, '-' for an empty slot "
+             f"({', '.join(f'{c} {m.title}' for c, m in IO_MODULES.items())})",
+    )
     args = parser.parse_args(argv)
 
-    source = args.program.read_text() if args.program else EXAMPLE_PROGRAM
-    config = ControllerConfig(inputs=args.inputs, outputs=args.outputs, expansions=args.expansions)
+    source = args.program.read_text() if args.program else None
+    modules = tuple(None if m in ("", "-") else m for m in args.modules.split(","))
+    config = ControllerConfig(
+        name=MODELS[args.model].label, inputs=args.inputs, outputs=args.outputs,
+        expansions=args.expansions, model=args.model, modules=modules,
+    )
     service = ControllerService(config, source)
-    print(f"Virtual MicroGEM on http://{args.host}:{args.port}")
+    print(f"Virtual {MODELS[args.model].label} on http://{args.host}:{args.port}")
     web.run_app(create_app(service), host=args.host, port=args.port, print=None)
