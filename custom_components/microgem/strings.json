@@ -2,14 +2,48 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add a virtual MicroGEM",
-        "description": "A MicroGEM60 controller with 12 inputs and 8 relay outputs. Each expansion unit adds 12 inputs and 8 outputs (up to 7, for 160 I/O in all). Inputs become switches, outputs become binary sensors, and it gets its own front panel in the sidebar.",
+        "title": "Add a virtual controller",
+        "description": "Pick the controller: a MicroGEM60, or a GEM 80 compact controller (100C, 100CE, 130C or 130CE) with its memory size. The I/O comes next. Inputs become switches, outputs become binary sensors, and the controller gets its own front panel in the sidebar.",
         "data": {
           "name": "Name",
+          "model": "Controller"
+        },
+        "data_description": {
+          "model": "The memory size sets how long a program can be and how big the data tables are. A 130C has more Special Functions than a 100C; an E model keeps its program and P table in EPROM."
+        }
+      },
+      "expansions": {
+        "title": "Expansion units",
+        "description": "A MicroGEM60 has 12 inputs and 8 relay outputs. Each expansion unit adds 12 inputs and 8 outputs (up to 7, for 160 I/O in all).",
+        "data": {
           "expansions": "Expansion units"
         },
         "data_description": {
           "expansions": "0 to 7. Expansion unit 1 uses A1 and B1, unit 2 uses A2 and B2, and so on. You can change this later."
+        }
+      },
+      "modules": {
+        "title": "I/O modules",
+        "description": "The {model} subrack has eight slots for Compact I/O modules. Each slot has two words of the A table (inputs) and of the B table (outputs): slot 1 has A0 and A1 or B0 and B1, slot 2 the next two, and so on. You can change the modules later.",
+        "data": {
+          "slot_1": "Slot 1",
+          "slot_2": "Slot 2",
+          "slot_3": "Slot 3",
+          "slot_4": "Slot 4",
+          "slot_5": "Slot 5",
+          "slot_6": "Slot 6",
+          "slot_7": "Slot 7",
+          "slot_8": "Slot 8"
+        },
+        "data_description": {
+          "slot_1": "Inputs on A0 and A1, outputs on B0 and B1.",
+          "slot_2": "Inputs on A2 and A3, outputs on B2 and B3.",
+          "slot_3": "Inputs on A4 and A5, outputs on B4 and B5.",
+          "slot_4": "Inputs on A6 and A7, outputs on B6 and B7.",
+          "slot_5": "Inputs on A8 and A9, outputs on B8 and B9.",
+          "slot_6": "Inputs on A10 and A11, outputs on B10 and B11.",
+          "slot_7": "Inputs on A12 and A13, outputs on B12 and B13.",
+          "slot_8": "Inputs on A14 and A15, outputs on B14 and B15."
         }
       }
     }
@@ -17,11 +51,11 @@
   "services": {
     "load_program": {
       "name": "Load program",
-      "description": "Replaces the ladder program on a virtual MicroGEM. The old program is kept if the new one has a mistake.",
+      "description": "Replaces the ladder program on a virtual MicroGEM or GEM 80. The old program is kept if the new one has a mistake.",
       "fields": {
         "config_entry_id": {
           "name": "Controller",
-          "description": "The virtual MicroGEM to program."
+          "description": "The virtual controller to program."
         },
         "program": {
           "name": "Program",
@@ -37,6 +71,31 @@
         "description": "Each expansion unit adds 12 inputs and 8 relay outputs on the next A and B words. Removing a unit removes its entities.",
         "data": {
           "expansions": "Expansion units"
+        }
+      },
+      "modules": {
+        "title": "Controller and I/O modules",
+        "description": "Change the memory size or the module in each slot. A terminal whose address changes gets a new entity, and loses its field wiring. If the program no longer fits, or uses a Special Function the controller lacks, the example program is loaded instead.",
+        "data": {
+          "model": "Controller",
+          "slot_1": "Slot 1",
+          "slot_2": "Slot 2",
+          "slot_3": "Slot 3",
+          "slot_4": "Slot 4",
+          "slot_5": "Slot 5",
+          "slot_6": "Slot 6",
+          "slot_7": "Slot 7",
+          "slot_8": "Slot 8"
+        },
+        "data_description": {
+          "slot_1": "Inputs on A0 and A1, outputs on B0 and B1.",
+          "slot_2": "Inputs on A2 and A3, outputs on B2 and B3.",
+          "slot_3": "Inputs on A4 and A5, outputs on B4 and B5.",
+          "slot_4": "Inputs on A6 and A7, outputs on B6 and B7.",
+          "slot_5": "Inputs on A8 and A9, outputs on B8 and B9.",
+          "slot_6": "Inputs on A10 and A11, outputs on B10 and B11.",
+          "slot_7": "Inputs on A12 and A13, outputs on B12 and B13.",
+          "slot_8": "Inputs on A14 and A15, outputs on B14 and B15."
         }
       }
     }

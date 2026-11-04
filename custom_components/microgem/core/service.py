@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable
 
 from .engine import Controller, ControllerConfig
-from .examples import BEDROOM, default_program, examples_for
+from .examples import BEDROOM, examples_for
 from .program import ProgramError, parse_program, rung_to_json
 from .tables import AddressError, parse_address, to_signed
 
@@ -25,11 +25,26 @@ Listener = Callable[[dict], None]
 class ControllerService:
     def __init__(self, config: ControllerConfig | None = None, program: str | None = None) -> None:
         self.controller = Controller(config)
-        self.controller.load(program if program is not None else default_program(self.controller.config.family))
+        if program is None:
+            self._load_example()
+        else:
+            self.controller.load(program)
         self.controller.run()
         self._listeners: list[Listener] = []
         self._task: asyncio.Task | None = None
         self._last_state: dict | None = None
+
+    def _load_example(self) -> None:
+        """Load the first example this controller can run (not every GEM 80 has
+        every Special Function, or room for every example)."""
+        examples = examples_for(self.controller.config.family)
+        for example in examples:
+            try:
+                self.controller.load(example.source)
+                return
+            except ProgramError:
+                if example is examples[-1]:
+                    raise
 
     # --- lifecycle --------------------------------------------------------------
 

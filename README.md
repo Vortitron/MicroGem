@@ -36,8 +36,20 @@ unzip it into `config/custom_components/microgem/` and restart Home Assistant.
 [![Open your Home Assistant instance and start setting up Virtual MicroGEM.](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=microgem)
 
 Add **Virtual MicroGEM** under Settings > Devices & services, choose a name and
-how many expansion units it has (0 to 7; you can change this later under
-**Configure**). You can add more than one controller. You get:
+the controller:
+
+- a **MicroGEM60**, then how many expansion units it has (0 to 7),
+- or a **GEM 80** compact controller (100C 2K, 6K or 12K, 100CE, 130C 6K or
+  12K, 130CE), then the Compact I/O module in each of its eight slots. Slot 1
+  has A0 and A1 (or B0 and B1), slot 2 the next pair, and so on, so the 16
+  channel input module that a new GEM 80 has in slot 1 is `A0.0` to `A0.15`.
+  A new GEM 80 runs a bottle filling line demo, or a car wash on the smaller
+  models that lack its Special Functions.
+
+You can change the I/O (and a GEM 80's memory size) later under **Configure**.
+A GEM 80's entities are named by address, so moving a module gives its
+terminals new entities, and field wiring stays with its terminal. You can add
+more than one controller. You get:
 
 - a switch for each input (`switch.<name>_input_a0_0` ...): automations can
   "press" the controller's inputs,

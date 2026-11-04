@@ -15,8 +15,10 @@ async def _setup(hass: HomeAssistant):
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     assert result["type"] is FlowResultType.FORM
     result = await hass.config_entries.flow.async_configure(
-        result["flow_id"], {"name": "Bedroom", "expansions": 0}
+        result["flow_id"], {"name": "Bedroom", "model": "microgem60"}
     )
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "expansions"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {"expansions": 0})
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     return result["result"]
@@ -198,6 +200,104 @@ async def test_field_wiring(hass: HomeAssistant, hass_ws_client):
     await hass.async_block_till_done()
     assert entry.options["wiring"]["outputs"]["1"]["entity_id"] == "light.lamp"
     assert entry.options["expansions"] == 1
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+DEFAULT_SLOTS = {"slot_1": "8177", "slot_2": "8178", "slot_3": "8110", "slot_4": "8130",
+                 "slot_5": "empty", "slot_6": "empty", "slot_7": "empty", "slot_8": "empty"}
+
+
+async def test_gem80_with_modules(hass: HomeAssistant, hass_ws_client, device_registry):
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "Line 3", "model": "gem80-130c-12k"}
+    )
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "modules"
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], DEFAULT_SLOTS)
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    entry = result["result"]
+    assert entry.data["modules"] == ["8177", "8178", "8110", "8130", None, None, None, None]
+    await hass.async_block_till_done()
+
+    # Slot 1: 16 inputs on A0; slot 2: 16 outputs on B2; slot 3: 8 inputs on
+    # A4; slot 4: 8 relays on B6.
+    assert hass.states.get("switch.line_3_input_a0_15").state == "off"
+    assert hass.states.get("switch.line_3_input_a1_0") is None
+    assert hass.states.get("switch.line_3_input_a4_7").state == "off"
+    assert hass.states.get("binary_sensor.line_3_output_b2_15").state == "off"
+    assert hass.states.get("binary_sensor.line_3_output_b6_7").state == "off"
+    device = device_registry.async_get_device_by_identifier((DOMAIN, entry.entry_id), entry.entry_id)
+    assert device.model == "GEM 80/130C 12K"
+
+    # A new GEM 80 runs the bottling line: start, then the conveyor runs.
+    for name in ("a0_1", "a4_0", "a0_0"):
+        await hass.services.async_call("switch", "turn_on", {"entity_id": f"switch.line_3_input_{name}"},
+                                       blocking=True)
+    await _settle(hass)
+    assert hass.states.get("binary_sensor.line_3_output_b6_0").state == "on"
+
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "microgem/subscribe", "entry_id": entry.entry_id})
+    assert (await client.receive_json())["success"]
+    assert (await client.receive_json())["event"]["type"] == "entities"
+    state = (await client.receive_json())["event"]
+    assert state["io"]["family"] == "gem80" and state["io"]["model"] == "gem80-130c-12k"
+    assert [s["module"] for s in state["io"]["slots"]][:4] == ["8177", "8178", "8110", "8130"]
+
+    # Wire the e-stop (input 16, A4.0) and the conveyor (output 16, B6.0).
+    async def record(call):
+        pass
+
+    hass.services.async_register("homeassistant", "turn_on", record)
+    hass.services.async_register("homeassistant", "turn_off", record)
+    hass.states.async_set("binary_sensor.estop", "on")
+    for n, (kind, index, entity_id) in enumerate([("inputs", 16, "binary_sensor.estop"),
+                                                  ("outputs", 16, "light.conveyor")]):
+        await client.send_json({"id": 10 + n, "type": "microgem/wire", "entry_id": entry.entry_id,
+                                "kind": kind, "index": index, "entity_id": entity_id})
+        while (msg := await client.receive_json())["id"] != 10 + n:
+            pass  # state updates from the subscription
+        assert msg["success"], msg
+    await hass.async_block_till_done()
+
+    # Move the 8 channel input module from slot 3 to slot 5: its inputs move
+    # from A4 to A8, so their entities go and new ones come; the wiring of
+    # A4.0 goes with its terminal. Then a 32 channel input module in slot 1
+    # renumbers the rest, but the output's wire stays on B6.0.
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] is FlowResultType.FORM and result["step_id"] == "modules"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"model": "gem80-130c-12k", **DEFAULT_SLOTS, "slot_3": "empty", "slot_5": "8110"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert entry.options["modules"] == ["8177", "8178", None, "8130", "8110", None, None, None]
+    assert hass.states.get("switch.line_3_input_a4_0") is None
+    assert hass.states.get("switch.line_3_input_a8_0").state == "off"
+    assert entry.options["wiring"]["inputs"] == {}
+    assert entry.options["wiring"]["outputs"]["16"]["entity_id"] == "light.conveyor"
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(
+        result["flow_id"], {"model": "gem80-130c-12k", **DEFAULT_SLOTS, "slot_2": "8164"}
+    )
+    await hass.async_block_till_done()
+    assert entry.options["wiring"]["outputs"] == {"32": {"entity_id": "light.conveyor"}}
+    assert hass.states.get("binary_sensor.line_3_output_b3_15").state == "off"
+    assert entry.runtime_data.wiring.points["outputs"]["32"]["entity_id"] == "light.conveyor"
+
+    # A smaller controller without DIV or COMPARE starts the car wash instead.
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"model": "gem80-100c-2k", **DEFAULT_SLOTS}
+    )
+    await hass.async_block_till_done()
+    assert entry.runtime_data.service.controller.program.source.startswith("; Car wash")
+    device = device_registry.async_get_device_by_identifier((DOMAIN, entry.entry_id), entry.entry_id)
+    assert device.model == "GEM 80/100C 2K"
+    assert hass.states.get("switch.line_3_input_a4_0").state == "off"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()

@@ -55,19 +55,32 @@ def ws_subscribe(hass: HomeAssistant, connection: websocket_api.ActiveConnection
     forward(service.state())
 
 
+def device_of(hass: HomeAssistant, entry_id: str) -> dr.DeviceEntry | None:
+    registry = dr.async_get(hass)
+    if hasattr(registry, "async_get_device_by_identifier"):  # Home Assistant 2026.11 and later
+        return registry.async_get_device_by_identifier((DOMAIN, entry_id), entry_id)
+    return registry.async_get_device(identifiers={(DOMAIN, entry_id)})
+
+
 def entities(hass: HomeAssistant, entry_id: str) -> dict[str, Any]:
     """The device and entity ids, so the panel can link to them.
 
     ``entities`` maps a key (``run``, ``input_3``, ``output_0``) to its entity id.
     """
-    device = dr.async_get(hass).async_get_device(identifiers={(DOMAIN, entry_id)})
-    found = {
-        entity.unique_id.removeprefix(f"{entry_id}_"): entity.entity_id
-        for entity in er.async_entries_for_config_entry(er.async_get(hass), entry_id)
-    }
     from . import get_loaded_entry
+    from .entity import io_key
 
+    device = device_of(hass, entry_id)
     entry = get_loaded_entry(hass, entry_id)
+    keys: dict[str, str] = {}
+    if entry is not None:
+        config = entry.runtime_data.service.controller.config
+        for kind, count in (("input", config.total_inputs), ("output", config.total_outputs)):
+            keys |= {io_key(config, kind, i): f"{kind}_{i}" for i in range(count)}
+    found = {}
+    for entity in er.async_entries_for_config_entry(er.async_get(hass), entry_id):
+        key = entity.unique_id.removeprefix(f"{entry_id}_")
+        found[keys.get(key, key)] = entity.entity_id
     wiring = entry.runtime_data.wiring.points if entry else {"inputs": {}, "outputs": {}}
     return {"device_id": device.id if device else None, "entities": found, "wiring": wiring}
 

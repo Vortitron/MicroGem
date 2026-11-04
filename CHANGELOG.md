@@ -17,6 +17,14 @@ The GEM 80 compact controllers join the MicroGEM60.
   lamp per channel, the power supply and the processor module.
 - `python -m microgem --model gem80-130c-12k --modules 8177,8178,8110,8130`
   runs one standalone, with a bottle filling demo.
+- Home Assistant: setup asks for the controller, then a MicroGEM60's
+  expansion units or a GEM 80's module in each slot; **Configure** changes
+  them (and a GEM 80's memory size) later. The device's model is the
+  controller's. GEM 80 entities are keyed by address, so they and their field
+  wiring stay with their terminals when modules move.
+- A car wash demo for the GEM 80s without DIV and COMPARE (100C 2K and 6K).
+  A saved program that no longer fits the controller is kept aside in the
+  store as `rejected_program` when the example replaces it.
 
 ## 0.4.0
 

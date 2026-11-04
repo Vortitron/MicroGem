@@ -9,7 +9,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import MicroGemConfigEntry
-from .entity import MicroGemEntity
+from .entity import MicroGemEntity, io_key
 
 
 async def async_setup_entry(
@@ -30,7 +30,7 @@ class InputSwitch(MicroGemEntity, SwitchEntity):
     _attr_icon = "mdi:electric-switch"
 
     def __init__(self, entry_id, title, service, index: int) -> None:
-        super().__init__(entry_id, title, service, f"input_{index}")
+        super().__init__(entry_id, title, service, io_key(service.controller.config, "input", index))
         self._index = index
         self._attr_name = f"Input {service.controller.config.input_address(index)}"
 

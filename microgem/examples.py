@@ -161,7 +161,7 @@ B0.2 COUNT G13 VALUE 32767 -> G1.0
 """
 
 BOTTLING = """\
-; Bottle filling line, for a GEM 80/130C with the default modules.
+; Bottle filling line, for a GEM 80/100C 12K, 100CE or 130C, with the default modules.
 ; Inputs  A0.0 start, A0.1 stop (normally closed), A0.2 bottle at the filler,
 ;         A0.3 level probe (bottle full), A0.4 reset the count,
 ;         A4.0 emergency stop healthy (normally closed)
@@ -203,9 +203,46 @@ AND G12 SPEC COMPARE [AND 0] VALUE G16 -> OUT G17
 G14.15 AND G16.13 -> B6.4
 """
 
+CAR_WASH = """\
+; Car wash, for any GEM 80 (only the basic Special Functions) with the default modules.
+; Inputs  A0.0 start (coin accepted), A0.1 car in position (photocell),
+;         A0.2 stop (normally closed), A4.0 emergency stop healthy (normally closed)
+; Outputs B6.0 water pump, B6.1 brushes, B6.2 dryer fan, B6.3 drive forward sign,
+;         B6.4 wash complete lamp; the 16 lamps on B2 show the washes in BCD
+; Special Functions: DBOUNCE on the photocell, BCDOUT for the display.
+
+; DBOUNCE data: the photocell must be steady for 3 scans, mode on
+AND 3 -> OUT G21
+AND -1 -> OUT G24
+A0.1 SPEC DBOUNCE VALUE G20 -> G1.0
+
+; Cycle latch: start with a car in place, held until the end of the cycle,
+; dropped by stop or the e-stop
+((A0.0 AND G1.0) OR G0.0) AND A0.2 AND A4.0 AND NOT G0.2 -> G0.0
+
+; 20 s of water and brushes, then 10 s of drying
+G0.0 DELAY G10 VALUE 200 -> G0.1
+G0.0 AND NOT G0.1 -> B6.0
+G0.0 AND NOT G0.1 -> B6.1
+G0.1 DELAY G11 VALUE 100 -> G0.2
+G0.1 AND NOT G0.2 -> B6.2
+
+; Count the washes, and light the wash complete lamp for 5 s
+G0.2 COUNT G12 VALUE 9999 -> G0.3
+G0.2 OR (B6.4 AND NOT G0.4) -> B6.4
+B6.4 DELAY G13 VALUE 50 -> G0.4
+
+; Drive forward until the car is in position
+NOT G0.0 AND NOT G1.0 -> B6.3
+
+; Washes on the display lamps, in BCD
+AND G12 SPEC BCDOUT -> OUT B2
+"""
+
 #: Demo programmes for the GEM 80 compact controllers (default modules).
 GEM80_EXAMPLES = [
     Example("bottling", "Bottle filling line", "Fills, counts and crates bottles, with Special Functions.", BOTTLING),
+    Example("car-wash", "Car wash", "A timed wash and dry cycle that any GEM 80 can run.", CAR_WASH),
 ]
 
 EXAMPLES = [

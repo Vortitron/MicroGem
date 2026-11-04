@@ -368,3 +368,44 @@ def test_bottling_demo_fills_counts_and_crates():
     assert word(plc, "G12") == 1 and word(plc, "G13") == 0
     assert plc.tables.get_word(parse_address("B2")) == 0x0001
     assert plc.output(out["B6.4"])
+
+
+def test_car_wash_demo_runs_on_the_smallest_gem80():
+    from microgem.examples import CAR_WASH
+    from microgem.models import DEFAULT_MODULES
+    from microgem.service import ControllerService
+
+    # The bottling line needs DIV and COMPARE, which a 100C 2K lacks, so a
+    # new one starts with the car wash instead.
+    service = ControllerService(ControllerConfig(model="gem80-100c-2k", modules=DEFAULT_MODULES))
+    plc = service.controller
+    assert plc.program.source == CAR_WASH
+    cfg = plc.config
+    inp = {str(cfg.input_address(i)): i for i in range(cfg.total_inputs)}
+    out = {str(cfg.output_address(i)): i for i in range(cfg.total_outputs)}
+
+    def on(addr):
+        return plc.output(out[addr])
+
+    def seconds(s):
+        for _ in range(int(s * 10)):
+            plc.scan(100)
+
+    plc.set_input(inp["A0.2"], True)  # stop healthy (normally closed)
+    plc.set_input(inp["A4.0"], True)  # e-stop healthy
+    seconds(0.5)
+    assert on("B6.3") and not on("B6.0")  # drive forward
+    plc.set_input(inp["A0.1"], True)
+    seconds(0.5)
+    assert not on("B6.3")
+    plc.set_input(inp["A0.0"], True)
+    seconds(0.2)
+    plc.set_input(inp["A0.0"], False)
+    assert on("B6.0") and on("B6.1") and not on("B6.2")
+    seconds(20)
+    assert on("B6.2") and not on("B6.0")
+    seconds(10.2)
+    assert not on("B6.2") and on("B6.4")
+    assert plc.tables.get_word(parse_address("B2")) == 0x0001
+    seconds(6)
+    assert not on("B6.4")
