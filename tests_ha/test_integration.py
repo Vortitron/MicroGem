@@ -76,7 +76,7 @@ async def test_inputs_drive_outputs_through_the_program(hass: HomeAssistant, has
     assert msg["event"]["device_id"]
     msg = await client.receive_json()
     assert msg["event"]["type"] == "state" and msg["event"]["running"] is False
-    assert msg["event"]["io"] == {"units": 1, "inputs": 12, "outputs": 8}
+    assert msg["event"]["io"] == {"family": "microgem", "model": "microgem60", "units": 1, "inputs": 12, "outputs": 8}
     assert msg["event"]["watchdog"] is False
     await client.send_json({"id": 2, "type": "microgem/command", "entry_id": entry.entry_id,
                             "command": {"type": "run"}})
