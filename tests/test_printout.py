@@ -94,3 +94,22 @@ def test_service_prints_and_imports():
     assert reply["type"] == "imported" and reply["kind"] == "printout"
     assert shape(reply["source"]) == shape(service.controller.program.source)
 
+
+
+def test_service_edits_presets_and_messages_and_prints_tables():
+    service = ControllerService(ControllerConfig(model="gem80-130c-12k", modules=("8163", "8164")),
+                                "; Head\n\nA0.0 -> B2.0\n")
+    assert service.command({"type": "preset", "address": "R100", "value": 25}) == {"type": "loaded"}
+    assert service.command({"type": "preset", "address": "R101", "value": -3}) == {"type": "loaded"}
+    assert service.command({"type": "message", "address": "P100", "text": "PUMP 1\\n"}) == {"type": "loaded"}
+    source = service.controller.program.source
+    assert "PRESET R100 = 25" in source and 'MESSAGE P100 = "PUMP 1\\n"' in source
+    state = service.state()
+    assert ["R100", 25] in state["presets"] and state["messages"] == {"P100": "PUMP 1\\n"}
+    assert not any(a.startswith("P10") for a, _ in state["presets"])  # message words are not listed
+    service.command({"type": "preset", "address": "R100", "value": None})
+    assert "R100" not in service.controller.program.source
+    assert service.command({"type": "preset", "address": "G5", "value": 1})["type"] == "error"
+    text = service.command({"type": "printout", "what": "tables", "address": "R96", "count": 8})["text"]
+    # Taking a preset away leaves the data where it was.
+    assert text.splitlines()[2].split() == ["R96", "0", "0", "0", "0", "25", "-3", "0", "0"]

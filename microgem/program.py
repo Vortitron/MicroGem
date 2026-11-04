@@ -653,6 +653,8 @@ def unescape(text: str, line: int = 0) -> str:
             i += 1
             continue
         nxt = text[i + 1:i + 2]
+        if nxt.isalpha():
+            nxt = nxt.lower()  # a programmer keyboard has capitals only
         if nxt in _ESCAPES:
             out.append(_ESCAPES[nxt])
             i += 2
@@ -746,6 +748,89 @@ def _directive(program: Program, text: str, line: int) -> bool:
         program.notes[address] = (name, parts[2].strip() if len(parts) > 2 else "")
         return True
     return False
+
+
+# --- editing presets in the program text -------------------------------------
+# A programmer changes one preset word at a time; these keep the program text
+# (which is what is saved) in step, changing the PRESET line that holds the
+# word, or adding one.
+
+def _preset_line(raw: str) -> tuple[Address, list[str]] | None:
+    text = _uncommented(raw).strip()
+    if text[:7].upper() != "PRESET ":
+        return None
+    target, eq, values = text[7:].partition("=")
+    try:
+        start = parse_address(target)
+    except AddressError:
+        return None
+    return (start, values.replace(",", " ").split()) if eq else None
+
+
+def _insert_directive(lines: list[str], line: str) -> list[str]:
+    """After the last PRESET, MESSAGE or NAME line, or before the first rung."""
+    last = None
+    for i, raw in enumerate(lines):
+        if _uncommented(raw).strip()[:7].upper() in ("PRESET ", "MESSAGE") or \
+                _uncommented(raw).strip()[:5].upper() == "NAME ":
+            last = i
+    if last is not None:
+        return lines[:last + 1] + [line] + lines[last + 1:]
+    first = next((i for i, raw in enumerate(lines) if _uncommented(raw).strip()), len(lines))
+    while first > 0 and lines[first - 1].strip().startswith(";"):
+        first -= 1  # keep the first rung's title with it
+    return lines[:first] + [line, ""] + lines[first:]
+
+
+def set_preset(source: str, address: Address, value: int | None) -> str:
+    """The program text with the preset for one word set (or, with None, removed)."""
+    if address.is_bit:
+        raise ProgramError("a preset is a whole word, such as R100")
+    lines = source.split("\n")
+    for i, raw in enumerate(lines):
+        found = _preset_line(raw)
+        if not found:
+            continue
+        start, values = found
+        k = address.word - start.word
+        if start.table != address.table or not 0 <= k < len(values):
+            continue
+        before, after = values[:k], values[k + 1:]
+        new = []
+        if before:
+            new.append(f"PRESET {start} = {' '.join(before)}")
+        if value is not None:
+            if before or after:
+                new = [f"PRESET {start} = {' '.join(before + [str(value)] + after)}"]
+            else:
+                new = [f"PRESET {address} = {value}"]
+        elif after:
+            new.append(f"PRESET {Address(address.table, address.word + 1)} = {' '.join(after)}")
+        return "\n".join(lines[:i] + new + lines[i + 1:])
+    if value is None:
+        return source
+    return "\n".join(_insert_directive(lines, f"PRESET {address} = {value}"))
+
+
+def set_message(source: str, address: Address, text: str | None) -> str:
+    """The program text with the MESSAGE starting at a word set (or removed)."""
+    if text is not None:
+        pack_message(unescape(text))  # check it
+        if '"' in text.replace('\\"', ""):
+            raise ProgramError('a " inside a MESSAGE is written \\"')
+    lines = source.split("\n")
+    line = None if text is None else f'MESSAGE {address} = "{text}"'
+    for i, raw in enumerate(lines):
+        words = _uncommented(raw).split("=", 1)[0].split()
+        if len(words) == 2 and words[0].upper() == "MESSAGE":
+            try:
+                if parse_address(words[1]) == address:
+                    return "\n".join(lines[:i] + ([line] if line else []) + lines[i + 1:])
+            except AddressError:
+                pass
+    if line is None:
+        return source
+    return "\n".join(_insert_directive(lines, line))
 
 
 def parse_program(source: str) -> Program:

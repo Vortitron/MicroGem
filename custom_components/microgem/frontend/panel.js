@@ -375,7 +375,9 @@ const MARKUP = `
         <p><b>Watchdog:</b> the W/DOG O.K. light and W/DOG OUTPUT close after three clean scans in Run and open in Halt. To trip it from the program, hold a non-zero code in <code>F1</code> for 100 ms (GEM80-400 manual T1614, 2.12), for example <code>A0.5 -&gt; BLOCK</code>, <code>AND 123 -&gt; OUT F1</code>, <code>END BLOCK</code>. The controller stops; switch it back to Run to clear the trip.</p>
         <p><b>Extensions</b> (not in a real GEM 80): <code>RISE A0.0</code>/<code>FALL A0.0</code> one-scan pulses, comparisons such as <code>G1 GE 5</code>, and <code>SET</code>/<code>RESET</code> outputs. On the real controller you latch with a seal-in branch.</p>
         <p class="g80-only"><b>GEM 80 tables and I/O:</b> the compact controllers have tables A and B (32 words each, one pair of words per I/O slot: slot 1 is <code>A0</code>/<code>A1</code> or <code>B0</code>/<code>B1</code>, slot 2 is words 2 and 3, and so on), E (flags; the 130C adds the clock in <code>E1</code> to <code>E6</code>), F (diagnostics; <code>F1</code> trips the watchdog), G (workspace), R (retained), P (presets, read-only on the CE models with EPROM), J and K (serial) and M (maintainer). Sizes follow the T278 data sheet for the model chosen, and so does the program capacity.</p>
-        <p class="g80-only"><b>Special Functions:</b> <code>SPEC</code> and the number or name, then for the two-input T functions the lower branch in square brackets, then <code>VALUE</code>: <code>AND G10 SPEC SQRT VALUE 100 -&gt; OUT G11</code>, <code>AND G10 SPEC LIMIT VALUE G100 -&gt; OUT G11</code> (G101 low, G102 high, flags in G100), <code>AND G10 SPEC COMPARE [AND G11] VALUE G59 -&gt; OUT G58</code>, <code>AND G20 SPEC DIV [AND 16] VALUE R120 -&gt; OUT G30</code>. Emulated: S0 DBOUNCE, S1 BCDIN, S2 BCDOUT, S3 HISTATE, S4 SWAP, S11 LINCON, S12 SQRT, S20 LOCATE, S30 FGEN, S31 DEDBAND, S32 LIMIT, S37 ANALAG, T0 COMPARE, T10 MULT, T11 DIV, T20 MOVE, T30 STORE, each as its GEM 80 Software Data sheet describes, where the model has it.</p>
+        <p class="g80-only"><b>Special Functions:</b> <code>SPEC</code> and the number or name, then for the two-input T functions the lower branch in square brackets, then <code>VALUE</code>: <code>AND G10 SPEC SQRT VALUE 100 -&gt; OUT G11</code>, <code>AND G10 SPEC LIMIT VALUE G100 -&gt; OUT G11</code> (G101 low, G102 high, flags in G100), <code>AND G10 SPEC COMPARE [AND G11] VALUE G59 -&gt; OUT G58</code>, <code>AND G20 SPEC DIV [AND 16] VALUE R120 -&gt; OUT G30</code>. Emulated: S0 DBOUNCE, S1 BCDIN, S2 BCDOUT, S3 HISTATE, S4 SWAP, S11 LINCON, S12 SQRT, S20 LOCATE, S22 WRITEXT, S23 WRINUM, S30 FGEN, S31 DEDBAND, S32 LIMIT, S33 RAMP, S34 PIDABS, S35 PIDINC, S36 INCOUT, S37 ANALAG, T0 COMPARE, T10 MULT, T11 DIV, T20 MOVE, T30 STORE, each as its GEM 80 Software Data sheet describes, where the model has it.</p>
+        <p><b>Names, presets and messages</b>, kept with the program: <code>NAME A0.0 START Start push button</code> (a mnemonic the rungs can use), <code>PRESET R100 = 0 400 32000 0</code> (written into R100 to R103 at a load, and again only where it changes; use a table kept across Run, P or R), <code>MESSAGE P100 = "PUMP 1 TRIPPED\\n"</code> (text for WRITEXT; <code>\\n</code> new line, <code>\\e</code> ETX).</p>
+        <p class="g80-only"><b>Analogue:</b> an 8108 puts one channel at a time on its A word: the value (±10 V is ±32752) in bits 4 to 15 and the channel in bits 0 to 3, a new channel every 70 ms. Mask with <code>@FFF0</code> and <code>15</code>, then MOVE the value to its own word, as the Room heating demo does.</p>
         <p>Elements and behaviour follow the GEM 80 Ladder Diagram Programming Manual (T391). The MicroGEM's own table letters (I and Q on the programmer) are not documented yet, so inputs and outputs use the GEM 80 A and B tables.</p>
       </details>
     </section>
@@ -543,7 +545,7 @@ function analogueModuleSvg(slot, sx, top, w, MH, wires, { screw, lamp, txt }) {
     ${txt(sx + w / 2, top + 36, slot.module, "g8 type")}
     ${txt(sx + w / 2, top + 47, "ANALOGUE INPUT 16 CH", "g8 small")}
     ${sw(sx + 20, top + 80, "INPUT", "10V", "5V", true)}
-    ${sw(sx + 64, top + 80, "WORD", "UPPER", "LOWER", false)}
+    ${sw(sx + 64, top + 80, "WORD", "UP", "LO", false)}
     ${sw(sx + 110, top + 80, "SCAN", "SELF", "FORCED", true)}
     <circle cx="${sx + w - 22}" cy="${top + 80}" r="10" fill="#0d0d0d" stroke="#555"/>
     <path d="M${sx + w - 22} ${top + 80}l7 -5" stroke="#cfcac0" stroke-width="2.4" stroke-linecap="round"/>
@@ -1291,7 +1293,7 @@ class Programmer8920 {
       const [name, sym] = k.split("\n");
       return `<button class="fk" data-k="${name}" title="${name}${pc ? ` (${pc})` : ""}">${name}${sym ? `<small>${sym}</small>` : ""}</button>`;
     }).join("");
-    const alpha = ALPHA.map((row, r) => `<div class="kr" style="padding-left:${r * 14}px">${[...row].map((c) => `<button data-k="${c}">${c}</button>`).join("")}${r === 2 ? `<button data-k="@">@</button><button data-k="[">[</button><button data-k="]">]</button><button data-k="?">?</button>` : ""}</div>`).join("");
+    const alpha = ALPHA.map((row, r) => `<div class="kr" style="padding-left:${r * 14}px">${[...row].map((c) => `<button data-k="${c}">${c}</button>`).join("")}${r === 2 ? `<button data-k="@">@</button><button data-k="[">[</button><button data-k="]">]</button><button data-k="?">?</button>` : r === 1 ? `<button data-k="&quot;">"</button><button data-k="\\">\\</button>` : ""}</div>`).join("");
     const pad = NUMPAD.map((row) => `<div class="kr">${[...row].map((c) => `<button data-k="${c}">${c}</button>`).join("")}</div>`).join("");
     return `
 <div class="p89" tabindex="0" aria-label="8920 Portable Programmer: click here, then type">
@@ -1383,7 +1385,7 @@ class Programmer8920 {
     if (["◄", "►", "▲", "▼"].includes(k) && !this.prompt) return this.move(k);
     if (this.prompt) return this.promptKey(k);
     this.message = "";
-    const handler = { control: this.controlKey, ladder: this.ladderKey, entry: this.entryKey, tables: this.tablesKey, help: this.helpKey }[this.mode];
+    const handler = { control: this.controlKey, ladder: this.ladderKey, entry: this.entryKey, tables: this.tablesKey, presets: this.presetsKey, help: this.helpKey }[this.mode];
     handler.call(this, k);
     this.draw();
   }
@@ -1397,6 +1399,8 @@ class Programmer8920 {
     } else if (this.mode === "tables") {
       if (k === "▲" || k === "◄") this.stepTables(-16);
       if (k === "▼" || k === "►") this.stepTables(16);
+    } else if (this.mode === "presets") {
+      this.presetPage = Math.max(0, (this.presetPage || 0) + (k === "▲" || k === "◄" ? -1 : 1));
     }
     this.draw();
   }
@@ -1421,6 +1425,8 @@ class Programmer8920 {
     const cmd = { H: "halt", R: "run", S: "single" }[k];
     if (k === "L") { this.mode = "ladder"; this.pan = 0; this.scroll = 0; }
     else if (k === "D") this.ask("FIRST LOCATION? ", (a) => this.openTables(a), "A TABLE AND WORD, E.G. G0");
+    else if (k === "P") { this.mode = "presets"; this.presetPage = 0; }
+    else if (k === "O") this.askPrint();
     else if (k === "?") this.help("control");
     else if (cmd || k === "T" || k === "N" || k === "C") {
       if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
@@ -1675,6 +1681,83 @@ class Programmer8920 {
     this.alarm("NOT AN OPTION");
   }
 
+  // --- preset data table ------------------------------------------------------
+  // The presets and messages kept with the program (PRESET and MESSAGE lines):
+  // written into the tables at a program load, and kept on cassette with it.
+
+  presetRows() {
+    const s = this.state || {}, rows = [];
+    const words = (s.presets || []).map(([a, v]) => `${a.padEnd(7)}=${String(v).padStart(7)}`);
+    for (const [a, t] of Object.entries(s.messages || {}).sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }))) {
+      rows.push(`${a.padEnd(7)}"${t.toUpperCase()}"`.slice(0, COLS - 2));
+    }
+    for (let i = 0; i < words.length; i += 3) rows.push(words.slice(i, i + 3).map((w) => w.padEnd(24)).join(""));
+    return rows;
+  }
+
+  presetLines() {
+    const s = this.state || {}, rows = this.presetRows();
+    const per = ROWS - 8, pages = Math.max(1, Math.ceil(rows.length / per));
+    this.presetPage = Math.min(this.presetPage || 0, pages - 1);
+    const n = (count, what) => `${count} ${what}${count === 1 ? "" : "S"}`;
+    const L = [`PRESET DATA TABLE - ${n((s.presets || []).length, "WORD")} AND ${n(Object.keys(s.messages || {}).length, "MESSAGE")} - PAGE ${this.presetPage + 1} OF ${pages}`, ""];
+    if (!rows.length) L.push("  NO PRESET DATA - W ENTERS A VALUE, OR \"TEXT\" FOR A MESSAGE");
+    for (const r of rows.slice(this.presetPage * per, (this.presetPage + 1) * per)) L.push(" " + r);
+    while (L.length < ROWS - 4) L.push("");
+    return this.foot(L, "COMMAND LEVEL - OPTIONS:  W, D, N, B, T, ?.");
+  }
+
+  presetsKey(k) {
+    if (k === "N" || k === "B") { this.presetPage = Math.max(0, (this.presetPage || 0) + (k === "N" ? 1 : -1)); return; }
+    if (k === "T") { this.mode = "control"; return; }
+    if (k === "?") return this.help("presets");
+    if (k !== "W" && k !== "D") return this.alarm("NOT AN OPTION");
+    if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
+    if (this.eprom()) return this.alarm("PRESET DATA IN EPROM - CANNOT ALTER ON LINE");
+    const word = /^[A-Z]\d+$/;
+    if (k === "D") {
+      return this.ask("DELETE PRESET AT? ", (a) => {
+        if (!word.test(a)) return this.alarm("A TABLE AND WORD, E.G. R100");
+        const isText = a in ((this.state && this.state.messages) || {});
+        this.pendingLoad = { message: `${isText ? "MESSAGE" : "PRESET"} AT ${a} DELETED` };
+        this.send(isText ? { type: "message", address: a, text: null } : { type: "preset", address: a, value: null });
+      }, "THE WORD, OR THE FIRST WORD OF A MESSAGE");
+    }
+    this.ask("PRESET LOCATION? ", (a) => {
+      if (!word.test(a)) return this.alarm("A TABLE AND WORD, E.G. R100");
+      this.ask(`PRESET ${a}  VALUE? `, (v) => {
+        if (v.startsWith('"')) {
+          const text = v.replace(/^"/, "").replace(/"$/, "");
+          this.pendingLoad = { message: `MESSAGE AT ${a} STORED` };
+          return this.send({ type: "message", address: a, text });
+        }
+        const value = /^@[0-9A-F]+$/.test(v) ? parseInt(v.slice(1), 16) : Number(v);
+        if (v === "" || Number.isNaN(value) || value < -32768 || value > 65535) return this.alarm("NOT A NUMBER");
+        this.pendingLoad = { message: `${a} PRESET TO ${value}` };
+        this.send({ type: "preset", address: a, value: value > 32767 ? value - 65536 : value });
+      }, 'A NUMBER (@ FOR HEX), OR "TEXT" FOR WRITEXT; \\N ENDS A LINE');
+      this.prompt.spaceEnds = false;
+    }, "A TABLE AND WORD THE PROGRAM KEEPS, E.G. R100 OR P100");
+  }
+
+  // --- print-out on the programmer's printer --------------------------------------
+
+  askPrint() {
+    this.ask("PRINT (P)ROGRAM OR (D)ATA TABLES? ", (w) => {
+      if (w === "P") { this.send({ type: "printout" }); return this.say("PROGRAM PRINTED - SEE THE PRINT-OUT UNDER THE PROGRAM TEXT"); }
+      if (w !== "D") return this.alarm("P OR D");
+      this.ask("FIRST LOCATION? ", (a) => {
+        if (!/^[A-Z]\d+$/.test(a)) return this.alarm("A TABLE AND WORD, E.G. G0");
+        this.ask("HOW MANY LOCATIONS? ", (n) => {
+          const count = Number(n || 64);
+          if (!Number.isInteger(count) || count < 1) return this.alarm("NOT A NUMBER");
+          this.send({ type: "printout", what: "tables", address: a, count });
+          this.say(`${a} ON PRINTED - SEE THE PRINT-OUT UNDER THE PROGRAM TEXT`);
+        }, "1 TO 2048, CR FOR 64");
+      }, "A TABLE AND WORD, E.G. G0");
+    }, "P: THE LADDER DIAGRAM, NAMES AND PRESETS   D: A RUN OF DATA TABLE WORDS");
+  }
+
   // --- help -----------------------------------------------------------------
 
   help(from) { this.helpFrom = from; this.mode = "help"; }
@@ -1731,13 +1814,16 @@ class Programmer8920 {
       L.push(center("PORTABLE GEM 80 PROGRAMMER - VERSION 4.5"), "", `  CONNECTED TO ${this.connected()}   ${m.memory} ${m.eprom ? "EPROM" : "RAM"}   PROGRAM ${s.instructions} OF ${m.instructions} INSTRUCTIONS`, "");
       L.push("  CONTROL MODE - OPTIONS:", "");
       L.push("     L   LADDER DIAGRAM - DISPLAY, MONITOR AND EDIT RUNGS");
-      L.push("     D   DATA TABLES - MONITOR AND WRITE, 32 LOCATIONS AT A TIME", "");
+      L.push("     D   DATA TABLES - MONITOR AND WRITE, 32 LOCATIONS AT A TIME");
+      L.push("     P   PRESET DATA TABLE - VALUES AND MESSAGES KEPT WITH THE PROGRAM");
+      L.push("     O   PRINT-OUT OF THE PROGRAM OR THE DATA TABLES", "");
       L.push("     H   HALT                R   RUN                 S   SINGLE CYCLE");
       L.push("     T   TEST INPUTS         N   NORMAL INPUTS       C   CLEAR STORE", "");
       L.push(`     KEY SWITCH AT ${this.monitorOnly ? "MONITOR ONLY: MONITORING ONLY" : "PROGRAM: ENTRY AND EDITING ALLOWED"}`);
-      return this.foot(L, "COMMAND LEVEL - OPTIONS:  L, D, H, R, S, T, N, C, ?.");
+      return this.foot(L, "COMMAND LEVEL - OPTIONS:  L, D, P, O, H, R, S, T, N, C, ?.");
     }
     if (this.mode === "tables") return this.tableLines();
+    if (this.mode === "presets") return this.presetLines();
     // ladder and entry
     const rungs = this.rungs();
     const r = rungs[this.cur];
@@ -1787,6 +1873,8 @@ class Programmer8920 {
         "CONTROL MODE", "",
         "L  LADDER DIAGRAM: SHOW THE PROGRAM A RUNG AT A TIME, MONITOR IT AND EDIT IT",
         "D  DATA TABLES: MONITOR 32 LOCATIONS, AND WRITE TO THEM",
+        "P  PRESET DATA TABLE: CONSTANTS AND MESSAGES LOADED WITH THE PROGRAM",
+        "O  PRINT-OUT: THE PROGRAM, OR A RUN OF DATA TABLE WORDS",
         "H  HALT    R  RUN    S  SINGLE CYCLE: OBEY THE PROGRAM ONCE, FROM HALT",
         "T  TEST INPUTS: THE A TABLE IS NO LONGER UPDATED FROM THE INPUTS, SO INPUTS",
         "   CAN BE FORCED WITH W; THE WATCHDOG STAYS OPEN.    N  NORMAL INPUTS",
@@ -1816,6 +1904,13 @@ class Programmer8920 {
         "COIL -( )-, OUT, SEQR OR BLOCK: THE OUTPUT, WHICH ENDS THE RUNG",
         "RUBOUT  TAKE BACK THE LAST ENTRY     ESC  FINISH (OR ABANDON A RUNG WITH NO OUTPUT)",
         `A RUNG HAS UP TO ${MAX_BRANCHES} PARALLEL BRANCHES OF UP TO ${MAX_SERIES} SERIES ELEMENTS.`,
+      ],
+      presets: [
+        "PRESET DATA TABLE", "",
+        "W  WRITE A PRESET: A LOCATION, THEN A NUMBER, OR \"TEXT\" FOR A WRITEXT MESSAGE",
+        "D  DELETE A PRESET OR A MESSAGE     N  NEXT PAGE     B  BACK     T  TERMINATE",
+        "PRESETS ARE WRITTEN INTO THE TABLES WHEN THE PROGRAM IS LOADED, AND AGAIN",
+        "ONLY WHERE THEY CHANGE. USE TABLES KEPT ACROSS RUN: P OR R ON A GEM 80.",
       ],
       tables: [
         "DATA TABLE MONITOR", "",
@@ -2897,7 +2992,7 @@ class MicroGemPanel extends HTMLElement {
         $("program").value = msg.source;
         programDirty = true;
         setMessage(`${msg.summary}. Check it, then Load program.`);
-      } else if (msg.type === "printout" && !printoutForPp) {
+      } else if (msg.type === "printout") {
         $("printout-text").textContent = msg.text;
         $("printout-box").hidden = false;
       } else if (msg.type === "loaded") {
@@ -2958,7 +3053,6 @@ class MicroGemPanel extends HTMLElement {
     $("vp-save").addEventListener("click", () => download(`${fileStem()}-printer.txt`, (paper || []).join("\n") + "\n"));
 
     // Files: open, drop, convert, save and print-out.
-    let printoutForPp = false;
     const fileStem = () => (state && state.model ? state.model.title : "microgem")
       .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
     const download = (name, text) => {
@@ -2981,7 +3075,7 @@ class MicroGemPanel extends HTMLElement {
     $("file-input").addEventListener("change", (e) => { readFile(e.target.files[0]); e.target.value = ""; });
     $("convert").addEventListener("click", () => importText($("program").value, (state && state.program) || ""));
     $("save-file").addEventListener("click", () => download(`${fileStem()}-program.txt`, $("program").value));
-    $("printout").addEventListener("click", () => { printoutForPp = false; send({ type: "printout" }); });
+    $("printout").addEventListener("click", () => send({ type: "printout" }));
     $("printout-close").addEventListener("click", () => { $("printout-box").hidden = true; });
     $("printout-save").addEventListener("click", () => download(`${fileStem()}-printout.txt`, $("printout-text").textContent));
     $("printout-print").addEventListener("click", () => {

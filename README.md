@@ -175,9 +175,51 @@ F10 give N/O, N/C, COIL, LINK, LF, JOIN, DELAY, COUNT, SPEC and VALUE.
   `ESC` shows it for `I` or `R`. A rung holds up to five parallel branches of
   up to nine series elements, as on the real programmer.
 - *Data tables*: 32 locations at a time, each as a number and as bits.
+- *Preset data table* (`P` in control mode): the presets and messages kept
+  with the program. `W` sets one (a number, or `"TEXT"` for a WRITEXT
+  message, `\N` for a new line) and `D` deletes one; the program text changes
+  to match and is loaded.
+- *Print-out* (`O`): the program, or a run of data table words, printed to
+  the print-out box under the program text.
 
 The programmer will not change the program of a CE model (it is in EPROM), and
 does nothing but monitor with the key at MONITOR ONLY.
+
+An **8108 analogue input module** (in slots 5 and 6 by default; it is two
+slots wide) reads 16 channels of ±10 V, multiplexed into one A word as its
+manual (T443) describes: bits 4 to 15 the value, bits 0 to 3 the channel, a
+new channel every 70 ms. Sliders set the voltages; in Home Assistant a channel
+can follow any numeric entity (click the channel and give the values at 0 V
+and 10 V). The **Room heating** demo reads it with LOCATE and MOVE exactly as
+the manual's example does, scales with LINCON, controls with PIDABS and
+switches a heater relay in proportion over a 10 s cycle.
+
+On a 130C or 130CE the **printer** on the printer port prints what the
+program sends with `WRITEXT` (S22) and `WRINUM` (S23): on fanfold paper in the
+panel, at 1200 bit/s from a 512 character buffer, with flags in `F50`
+(`F50.0` off line, `F50.1` filling, `F50.2` empty). Take it off line, tear off
+the paper or download it.
+
+### Your own programmes
+
+**Open file…** (or drop a file on the program box, or paste and **Convert
+pasted text**) brings in:
+
+- a ladder **print-out** saved as text, from a programmer or a PC package, in
+  the layout this emulator prints (`] [`, `]/[`, `( )`, `<AND>`, `SPEC.`,
+  `VALUE`, branches hanging from `+` and joined by `!`) or the 8920's
+  (verticals as `|` or `:`, slashed zeros): the rungs are read back from the
+  drawing;
+- a **CSV** of mnemonics (`A0.0,START,Start push button`) or data
+  (`G10,250`), as the PC packages export them, merged into the program as
+  `NAME` and `PRESET` lines;
+- program text.
+
+The result goes into the program box to check before **Load program**.
+**Save as file** keeps the program text (names, presets and messages
+included), and **Print-out** prints it with instruction numbers, blocks, a
+cross-reference of every address and the preset data. The original packages'
+own file formats are not published, so export a print-out or a CSV from them.
 
 ## Run it without Home Assistant
 
@@ -186,7 +228,7 @@ pip install -e .
 python -m microgem            # then open http://127.0.0.1:8080
 python -m microgem --program my_program.txt --port 8080
 python -m microgem --expansions 2   # add two expansion units
-python -m microgem --model gem80-130c-12k --modules 8177,8178,8110,8130   # a GEM 80
+python -m microgem --model gem80-130c-12k --modules 8177,8178,8110,8130,8108   # a GEM 80
 ```
 
 ## How it works
@@ -197,6 +239,9 @@ python -m microgem --model gem80-130c-12k --modules 8177,8178,8110,8130   # a GE
 | Program | `microgem/program.py` | Parses one-rung-per-line ladder text |
 | Controller | `microgem/engine.py` | Scan cycle, 16-bit rung words, DELAY, COUNT, SEQR, OBEY BLOCK, Halt/Run behaviour |
 | Service | `microgem/service.py` | Runs the scan every 20 ms and tells listeners about changes |
+| Special Functions | `microgem/functions.py` | Each SPEC, from its GEM 80 Software Data sheet |
+| Print-outs | `microgem/printout.py`, `microgem/importer.py` | Ladder print-outs both ways, CSV import |
+| Printer | `microgem/printer.py` | The 130C printer port and its buffer |
 | Web | `microgem/server.py`, `microgem/web/` | Standalone page over a WebSocket |
 
 The engine has no I/O of its own, so the same code will run inside Home
@@ -240,6 +285,21 @@ ADD or SUB that does not overflow). Read-only flags follow the GEM80-400 manual
 after a program change; `E1`-`E6` hold seconds, minutes, hours, day, month,
 year; `E7` the previous scan time in ms. Hex numbers are written `@00FF`.
 
+Names, presets and messages are kept with the program, as a programmer keeps
+them, and can stand anywhere in it:
+
+```
+NAME A0.0 START Start push button        ; a mnemonic the rungs can use, and a description
+PRESET R100 = 0 400 32000 0              ; R100 to R103, written at a program load
+MESSAGE P100 = "PUMP 1 TRIPPED\n"        ; text packed for WRITEXT (\n new line, \e ETX, \xHH)
+START AND NOT STOP -> MOTOR
+```
+
+Presets are written into the tables when the program is loaded, and again
+only where they change, so values the program or an operator has changed
+since are left alone. They must be in a table kept across Run (`P` or `R` on a
+GEM 80).
+
 Extensions that are not in a real GEM 80, kept for convenience and marked
 "ext" on the ladder: `RISE A0.0` / `FALL A0.0` one-scan pulses, word
 comparisons such as `G1 GE 5` (the real controller uses Special Functions),
@@ -254,6 +314,16 @@ and `SET` / `RESET` outputs (the real one latches with a seal-in branch).
   them all.
 - The default 12 inputs / 8 outputs match the MicroGEM60; `--inputs` /
   `--outputs` change them.
+- WRITEXT (S22) and WRINUM (S23): no data sheet for either has been found.
+  WRITEXT takes the message layout of PRITEXT (S38), which the WRITEXT example
+  in the Serial Links manual (T418) bears out, with PRITEXT's fault codes;
+  WRINUM printing the rung word as a number in a field `VALUE` characters wide
+  is our reading of its name. The printer buffer size, the baud rate and the
+  `F50` flags are our choice (the 131's port 3 flags are F50.0 and F50.1).
+- The 8108's forced-scan mode, its 5 V and 20 mA ranges and the scan number
+  switch are not emulated: it self-scans all 16 channels at ±10 V.
+- The 8920's preset data table and print-out keys (`P` and `O`): its data
+  sheet says it has both, but not which keys.
 - What most of the 8920's COMMAND LEVEL options do. Its data sheet lists them
   (`S, F, L, N, E, B, D, I, R, C, M, W, T?`) and says `I` inserts the
   displayed rung and `T` terminates, but no 8920 manual has turned up; the

@@ -13,8 +13,8 @@ from collections.abc import Callable
 from .engine import Controller, ControllerConfig
 from .examples import BEDROOM, examples_for
 from .importer import import_text
-from .printout import print_program
-from .program import ProgramError, parse_program, rung_to_json
+from .printout import print_program, print_tables
+from .program import ProgramError, parse_program, rung_to_json, set_message, set_preset
 from .tables import Address, AddressError, parse_address, to_signed
 
 SCAN_INTERVAL_MS = 20
@@ -151,7 +151,11 @@ class ControllerService:
         "printout"}`` returns the program drawn as a print-out, and ``{"type":
         "import", "text": "...", "current": "..."}`` turns a print-out, program
         text or a names/data CSV into program text for the editor (merging a CSV
-        into ``current``) without loading it. On a controller with a printer
+        into ``current``) without loading it; ``{"type": "printout", "what":
+        "tables", "address": "G0", "count": 64}`` prints data table words.
+        ``{"type": "preset", "address": "R100", "value": 5}`` and ``{"type":
+        "message", "address": "P100", "text": "..."}`` change one preset or
+        message in the program text and load it (``null`` removes it). On a controller with a printer
         port, ``{"type": "paper"}`` returns everything printed so far and
         ``{"type": "printer", "action": "tear_off" | "on_line" | "off_line"}``
         works the printer.
@@ -196,10 +200,26 @@ class ControllerService:
             elif kind == "examples":
                 family = self.controller.config.family
                 return {"type": "examples", "examples": [vars(e) for e in examples_for(family)]}
+            elif kind == "printout" and message.get("what") == "tables":
+                start = parse_address(str(message["address"]))
+                text = print_tables(self.controller.tables, start, int(message.get("count", 64)))
+                return {"type": "printout", "text": text}
             elif kind == "printout":
                 model = self.controller.config.controller_model.label
                 text = print_program(self.controller.program, str(message.get("title", "")), model)
                 return {"type": "printout", "text": text}
+            elif kind == "preset":
+                value = message.get("value")
+                address = parse_address(str(message["address"]))
+                self.load(set_preset(self.controller.program.source, address,
+                                     None if value is None else int(value)))
+                return {"type": "loaded"}
+            elif kind == "message":
+                text = message.get("text")
+                address = parse_address(str(message["address"]))
+                self.load(set_message(self.controller.program.source, address,
+                                      None if text is None else str(text)))
+                return {"type": "loaded"}
             elif kind == "import":
                 result = import_text(str(message["text"]), str(message.get("current", "")))
                 return {"type": "imported", **result}

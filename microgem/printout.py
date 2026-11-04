@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from .models import SPECIAL_NAMES
 from .program import (Program, addresses, instruction_ranges, pack_message, parse_program,
                       rung_to_json, unescape)
-from .tables import Address
+from .tables import Address, to_signed
 
 CELL = 8
 
@@ -233,6 +233,18 @@ def print_program(program: Program, title: str = "", model: str = "") -> str:
             out.append(f"PRESET {address} = {value}")
         out.append("")
     return "\n".join(out).rstrip() + "\n"
+
+
+def print_tables(tables, start: Address, count: int = 64) -> str:
+    """Data table words from ``start``, eight to a line, as signed numbers."""
+    tables.check(start)
+    size = tables.size(start.table)
+    last = min(size, start.word + max(1, min(count, 2048)))
+    out = [f"DATA TABLE {start.table}   LOCATIONS {start.word} TO {last - 1} OF {size}", ""]
+    for row in range(start.word, last, 8):
+        words = [to_signed(tables.get_word(Address(start.table, w))) for w in range(row, min(row + 8, last))]
+        out.append(f"{start.table}{row:<5}" + "".join(f"{v:>8}" for v in words))
+    return "\n".join(out) + "\n"
 
 
 def _addr_key(address):

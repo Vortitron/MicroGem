@@ -16,7 +16,7 @@ The GEM 80 compact controllers join the MicroGEM60.
 - The front panel draws a GEM 80 as its 19 inch subrack: I/O modules with a
   lamp per channel, the power supply and the processor module.
 - `python -m microgem --model gem80-130c-12k --modules 8177,8178,8110,8130`
-  runs one standalone, with a bottle filling demo.
+  runs one standalone, with bottle filling, car wash and room heating demos.
 - Home Assistant: setup asks for the controller, then a MicroGEM60's
   expansion units or a GEM 80's module in each slot; **Configure** changes
   them (and a GEM 80's memory size) later. The device's model is the
@@ -30,6 +30,21 @@ The GEM 80 compact controllers join the MicroGEM60.
   ONLY; CE models refuse program changes.
 - The engine has SINGLE CYCLE, TEST INPUTS (T478, 2.3.8) and CLEAR STORE, and
   reports which instructions each rung is stored as.
+- RAMP (S33), PIDABS (S34), PIDINC (S35) and INCOUT (S36), and the printer
+  functions WRITEXT (S22) and WRINUM (S23) with a virtual printer on fanfold
+  paper (130C and 130CE).
+- The 8108 Compact Analogue Input Module: 16 channels multiplexed into one A
+  word (T443), sliders on the panel, and in Home Assistant a channel can follow
+  any numeric entity. It is in the default modules (slots 5 and 6).
+- A Room heating demo: an analogue temperature and set point, PIDABS, a
+  time-proportioned heater and a time-stamped printed log.
+- `NAME`, `PRESET` and `MESSAGE` lines keep mnemonics, preset data and
+  printer text with the program; the ladder shows the mnemonics.
+- Bring old programmes in: open, drop or paste a ladder print-out (read back
+  from its drawing), a CSV of mnemonics or data, or program text. Save the
+  program as a file, and print it with instruction numbers, blocks, a
+  cross-reference and the preset data.
+- The 8920 has a preset data table (`P`) and print-outs (`O`).
 - A car wash demo for the GEM 80s without DIV and COMPARE (100C 2K and 6K).
   A saved program that no longer fits the controller is kept aside in the
   store as `rejected_program` when the example replaces it.

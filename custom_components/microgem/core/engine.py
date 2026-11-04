@@ -42,6 +42,8 @@ from .program import (
     Parallel,
     Program,
     ProgramError,
+    pack_message,
+    unescape,
     Seqr,
     Series,
     Spec,
@@ -632,6 +634,14 @@ class Controller:
         """The word each element passed on in the last scan, by element id."""
         return {str(nid): word for nid, word in self._flow.items()}
 
+    def _message_words(self) -> set[Address]:
+        """The preset words that MESSAGE lines fill."""
+        return {
+            Address(start.table, start.word + k)
+            for start, text in self.program.messages.items()
+            for k in range(len(pack_message(unescape(text))))
+        }
+
     def snapshot(self, tables: str = "BEGHLRW") -> dict:
         return {
             "name": self.config.name,
@@ -653,6 +663,10 @@ class Controller:
             "live": self.live(),
             "flow": self.flow(),
             "names": {str(a): list(n) for a, n in self.program.notes.items()},
+            "presets": [[str(a), v] for a, v in sorted(
+                self.program.presets.items(), key=lambda kv: (kv[0].table, kv[0].word))
+                if a not in self._message_words()],
+            "messages": {str(a): t for a, t in self.program.messages.items()},
             "skipped": sorted(self._skipped),
             "printer": self.printer.snapshot() if self.printer is not None else None,
             "analogue": [round(v, 3) for v in self.analogue],
