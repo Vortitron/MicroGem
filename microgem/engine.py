@@ -48,7 +48,7 @@ from .program import (
     walk,
     rung_to_json,
 )
-from .tables import Address, DataTables, clamp16, to_signed
+from .tables import Address, AddressError, DataTables, clamp16, to_signed
 
 INPUT_TABLE = "A"
 OUTPUT_TABLE = "B"
@@ -245,6 +245,18 @@ class Controller:
                     raise ProgramError(
                         f"the {model.label} has no {node.name} ({node.number}) Special Function", rung.line
                     )
+        for address in program.presets:
+            try:
+                self.tables.check(address)
+            except AddressError as exc:
+                raise ProgramError(f"PRESET {address}: {exc}") from None
+            if address.table == FLAG_TABLE:
+                raise ProgramError(f"PRESET {address}: the E tables are set by the controller")
+        for address in program.notes:
+            try:
+                self.tables.check(address)
+            except AddressError as exc:
+                raise ProgramError(f"NAME {address}: {exc}") from None
         used = instruction_count(program)
         if used > model.instructions:
             raise ProgramError(
@@ -252,6 +264,12 @@ class Controller:
             )
         self.instructions = used
         self._recompiled = True
+        # Presets go in where they are new or changed, so values changed since
+        # (by the program or a programmer) survive an edit of the rungs.
+        before = self.program.presets
+        for address, value in program.presets.items():
+            if before.get(address) != value:
+                self.tables.set_word(address, value)
         self.program = program
         self._reset_state()
 
@@ -563,6 +581,7 @@ class Controller:
             "tables": {letter: self.tables.table(letter)[:8] for letter in tables if self.tables.has(letter)},
             "live": self.live(),
             "flow": self.flow(),
+            "names": {str(a): list(n) for a, n in self.program.notes.items()},
             "skipped": sorted(self._skipped),
         }
 

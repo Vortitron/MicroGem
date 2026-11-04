@@ -28,6 +28,10 @@ SPECIAL_NAMES = {
     "S30": "FGEN",
     "S31": "DEDBAND",
     "S32": "LIMIT",
+    "S33": "RAMP",
+    "S34": "PIDABS",
+    "S35": "PIDINC",
+    "S36": "INCOUT",
     "S37": "ANALAG",
     "T0": "COMPARE",
     "T10": "MULT",
@@ -39,9 +43,10 @@ SPECIAL_NUMBERS = {name: number for number, name in SPECIAL_NAMES.items()}
 
 _BASIC = ("S0", "S1", "S2", "S3", "S4")
 _100C_12K = _BASIC + ("S20", "S32", "T0", "T10", "T11", "T20", "T30")
-_130C = _BASIC + ("S11", "S12", "S20", "S30", "S31", "S32", "S37", "T0", "T10", "T11", "T20", "T30")
-# Not yet emulated, though the 130C has them: S22 WRITEXT and S23 WRINUM (printer
-# port), S33 RAMP (130C 12K and 130CE only), S34 PIDABS, S35 PIDINC, S36 INCOUT.
+_130C = _BASIC + ("S11", "S12", "S20", "S30", "S31", "S32", "S34", "S35", "S36", "S37",
+                  "T0", "T10", "T11", "T20", "T30")
+_130C_12K = _130C + ("S33",)  # RAMP: 130C 12K and 130CE only
+# Not yet emulated, though the 130C has them: S22 WRITEXT and S23 WRINUM (printer port).
 
 MICROGEM_LETTERS = "ABCDEFGHIJKLNOPRSUW"
 
@@ -107,9 +112,9 @@ MODELS: dict[str, ControllerModel] = {
                _100C_12K, eprom=True),
         _gem80("gem80-130c-6k", "GEM 80/130C", "6K", 1404, 33 + 417, 7, 48 + 13, 200, 64, 100, _130C),
         _gem80("gem80-130c-12k", "GEM 80/130C", "12K", 3000, 72 + 1568, 7, 89 + 111, 800, 160, 400,
-               _130C),
+               _130C_12K),
         _gem80("gem80-130ce-12k", "GEM 80/130CE", "12K", 2998, 72 + 1568, 7, 89 + 111, 800, 160, 400,
-               _130C, eprom=True),
+               _130C_12K, eprom=True),
     )
 }
 

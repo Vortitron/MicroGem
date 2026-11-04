@@ -450,3 +450,124 @@ def test_programmer_commands_single_cycle_test_inputs_and_clear_store():
     service.command({"type": "clear"})
     assert plc.program.rungs == [] and plc.instructions == 0 and word(plc, "G5") == 0
     assert plc.input(1)  # the inputs are still as wired
+
+
+def _zm(tables, start, values):
+    for i, v in enumerate(values):
+        tables.set_word(parse_address(f"W{start + i}"), v)
+
+
+def test_ramp_follows_the_worked_example():
+    from microgem.functions import Context, ramp
+    from microgem.tables import DataTables
+
+    t = DataTables({"W": 200}, "W")
+    ctx = Context(t, "E")
+    zm = parse_address("W100")
+    # The data sheet's example: 0 to 32000 in 30 s, back in 10 s, 20 ms scans.
+    _zm(t, 100, [0, 1067, 3200, 64, 2, 32000, -32000, -1, -1, 0, 0, 0])
+    q = [ramp(ctx, 32000, 0, zm) for _ in range(1700)]
+    assert q[0] < 5 and all(b >= a for a, b in zip(q, q[1:]))  # rounded start, never back
+    assert 14000 < q[750] < 18000  # about half way after 15 s
+    assert q[-1] == 32000
+    down = [ramp(ctx, 0, 0, zm) for _ in range(700)]
+    assert 15000 < down[250] < 18000 and down[-1] == 0  # three times faster
+    # Hold: the ramp rounds off and stays.
+    up = [ramp(ctx, 32000, 0, zm) for _ in range(200)]
+    t.set_word(parse_address("W108"), 0)
+    held = [ramp(ctx, 32000, 0, zm) for _ in range(100)]
+    assert held[-1] == held[-2] >= up[-1]
+    # Suicide: straight to zero.
+    t.set_word(parse_address("W107"), 0)
+    assert ramp(ctx, 32000, 0, zm) == 0
+    # A bad rate is a fault.
+    t.set_word(parse_address("W101"), 20000)
+    assert ramp(ctx, 32000, 0, zm) == 0 and word_of(t, "W100") == 5
+
+
+def word_of(tables, addr):
+    from microgem.tables import to_signed
+    return to_signed(tables.get_word(parse_address(addr)))
+
+
+def test_pidabs_pidinc_and_incout():
+    from microgem.functions import Context, incout, pidabs, pidinc
+    from microgem.tables import DataTables
+
+    t = DataTables({"W": 200}, "W")
+    ctx = Context(t, "E")
+    zm = parse_address("W100")
+    # P = 1.00, I = 0.1 a scan, no D; limits +/-1000, rate limits wide open.
+    _zm(t, 100, [0, 100, 10, 0, 1000, -1000, 32767, 32767, -1, 0])
+    assert pidabs(ctx, 100, 0, zm) == 110  # P step 100, plus I 10
+    assert pidabs(ctx, 100, 0, zm) == 120  # then the integral keeps adding
+    for _ in range(200):
+        q = pidabs(ctx, 100, 0, zm)
+    assert q == 1000 and word_of(t, "W100") == -28672  # at the positive limit
+    t.set_word(parse_address("W109"), -1)  # hold
+    assert pidabs(ctx, -500, 0, zm) == 1000
+    t.set_word(parse_address("W109"), 0)
+    t.set_word(parse_address("W106"), 50)  # L1: at most 50 a scan away from zero
+    t.set_word(parse_address("W107"), 50)  # L2: and towards it
+    t.set_word(parse_address("W108"), 0)  # suicide: to zero at the L2 rate
+    assert pidabs(ctx, 0, 0, zm) == 950
+    t.set_word(parse_address("W104"), -1)
+    assert pidabs(ctx, 0, 0, zm) == 0 and word_of(t, "W100") == 5
+
+    # PIDINC gives the change, not the level: a step gives one pulse of P.
+    _zm(t, 120, [0, 100, 0, 0, -32767, 32767, 0, 0, -1])
+    z2 = parse_address("W120")
+    assert [pidinc(ctx, x, 0, z2) for x in (0, 100, 100)] == [0, 100, 0]
+
+    # INCOUT passes it on within its window, owing what it holds back.
+    _zm(t, 140, [0, 10, 40, 0, -1])
+    z3 = parse_address("W140")
+    assert [incout(ctx, x, 0, z3) for x in (100, 0, 0, 5, 3, 0)] == [40, 40, 20, 0, 0, 0]
+    assert word_of(t, "W140") == 8192  # in the dead zone, 8 owed
+    assert incout(ctx, 4, 0, z3) == 12
+
+
+def test_presets_and_mnemonics_in_the_program():
+    from microgem.models import DEFAULT_MODULES
+
+    plc = Controller(ControllerConfig(model="gem80-130c-12k", modules=DEFAULT_MODULES))
+    source = """\
+NAME A0.0 START Start push button
+NAME A0.1 STOP Stop push button (normally closed)
+NAME B6.0 MOTOR
+PRESET P1 = 20
+PRESET R10 = 5, -6 @00FF
+
+; Start and stop
+(START OR MOTOR) AND STOP -> MOTOR
+"""
+    plc.load(source)
+    plc.run()
+    assert plc.program.rungs[0].comment == "Start and stop"
+    assert word(plc, "P1") == 20 and [word(plc, f"R{w}") for w in (10, 11, 12)] == [5, -6, 255]
+    assert plc.snapshot()["names"]["A0.0"] == ["START", "Start push button"]
+    out = {str(plc.config.output_address(i)): i for i in range(plc.config.total_outputs)}
+    inp = {str(plc.config.input_address(i)): i for i in range(plc.config.total_inputs)}
+    plc.set_input(inp["A0.1"], True)
+    plc.set_input(inp["A0.0"], True)
+    plc.scan(20)
+    plc.set_input(inp["A0.0"], False)
+    plc.scan(20)
+    assert plc.output(out["B6.0"])
+
+    # Editing the rungs leaves data alone unless its preset changes.
+    plc.write(parse_address("R10"), 99)
+    plc.load(source + "STOP -> G0.0\n")
+    assert word(plc, "R10") == 99
+    plc.load(source.replace("R10 = 5", "R10 = 7"))
+    assert word(plc, "R10") == 7
+
+    for bad, message in [("NAME A0.0 AND", "cannot be a mnemonic"), ("NAME A0.0 G12", "looks like an address"),
+                         ("PRESET P1 20", "needs '='"), ("PRESET E1 = 3", "set by the controller"),
+                         ("PRESET C0 = 1", "no C table")]:
+        try:
+            plc.load(bad)
+        except Exception as exc:  # noqa: BLE001
+            assert message in str(exc), (bad, exc)
+        else:
+            raise AssertionError(bad)

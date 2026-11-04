@@ -212,6 +212,11 @@ textarea { width: 100%; min-height: 320px; resize: vertical; font: 13px/1.5 var(
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .message { font-size: .85rem; color: var(--muted); }
 .demo-row { margin: 0 0 8px; }
+.files { margin-top: 6px; }
+.files .btn { padding: 5px 10px; font-size: .85rem; }
+textarea.drop { outline: 2px dashed var(--accent); }
+.printout { margin-top: 10px; border: 1px solid var(--border); border-radius: 6px; padding: 0 10px 10px; background: var(--bg); }
+.printout pre { margin: 8px 0 0; max-height: 420px; overflow: auto; font: 12px/1.35 var(--mono); white-space: pre; }
 select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); max-width: 100%; }
 .message.error { color: var(--error); }
 table { width: 100%; border-collapse: collapse; font: 12px/1.4 var(--mono); }
@@ -316,6 +321,18 @@ const MARKUP = `
       <div class="row demo-row"><select id="demo" aria-label="Demo programme"><option>Demo programmes…</option></select><button class="btn" id="demo-load" disabled>Load demo</button><span class="message" id="demo-about"></span></div>
       <textarea id="program" spellcheck="false" aria-label="Ladder program"></textarea>
       <div class="row"><button class="btn primary" id="load">Load program</button><span class="message" id="message"></span></div>
+      <div class="row files">
+        <button class="btn" id="open-file" title="Program text, a ladder print-out, or a CSV of names or data">Open file…</button>
+        <button class="btn" id="convert" title="Turn a print-out or CSV pasted into the box into program text">Convert pasted text</button>
+        <button class="btn" id="save-file">Save as file</button>
+        <button class="btn" id="printout">Print-out</button>
+        <input type="file" id="file-input" accept=".txt,.lst,.prn,.csv,.tsv,.lad,.gem,text/plain,text/csv" hidden>
+      </div>
+      <p class="hint">Bring in an old programme: open or drop a ladder print-out (as text, from a programmer or a PC package), program text, or a CSV of mnemonics (<code>A0.0,START,Start button</code>) or data (<code>G10,250</code>). It is converted into the box for you to check, then Load program.</p>
+      <div class="printout" id="printout-box" hidden>
+        <div class="row"><b>Print-out</b><button class="btn" id="printout-save">Download</button><button class="btn" id="printout-print">Print</button><button class="btn" id="printout-close">Close</button></div>
+        <pre id="printout-text"></pre>
+      </div>
       <details>
         <summary>Language reference</summary>
         <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A (terminals 00–11 are <code>A0.0</code>–<code>A0.11</code>), relay outputs are B (<code>B0.0</code>–<code>B0.7</code>). Expansion unit 1 uses <code>A1</code> and <code>B1</code>, unit 2 <code>A2</code> and <code>B2</code>, and so on. Workspace is G H L N O S U, retained workspace is R W.</p>
@@ -687,6 +704,9 @@ function wire(x1, y1, x2, y2, on) {
   return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="w${on ? " on" : ""}"/>`;
 }
 
+// The mnemonic a NAME line gives an address, if any.
+const mnem = (ctx, addr) => (ctx.names && ctx.names[addr] ? ctx.names[addr][0] : undefined);
+
 const fmtNum = (v) => (v === undefined || v === null ? "" : typeof v === "boolean" ? (v ? "1" : "0") : String(v));
 
 // Draw node n with its left edge at x and top at y.
@@ -727,7 +747,7 @@ function drawNode(n, x, y, pin, ctx) {
         `<line x1="${mx - 9}" y1="${cy - 13}" x2="${mx - 9}" y2="${cy + 13}" class="plate${pin ? " on" : ""}"/>` +
         `<line x1="${mx + 9}" y1="${cy - 13}" x2="${mx + 9}" y2="${cy + 13}" class="plate${pout ? " on" : ""}"/>` +
         (n.nc ? `<line x1="${mx - 12}" y1="${cy + 12}" x2="${mx + 12}" y2="${cy - 12}" class="plate${pout ? " on" : ""}"/>` : ""),
-        pout, n.addr);
+        pout, n.addr, mnem(ctx, n.addr));
     }
     case "edge": {
       const pout = out(false);
@@ -856,7 +876,8 @@ function drawOutput(o, x, y, pin, ctx, rungX) {
       `<circle cx="${mx}" cy="${cy}" r="9" class="coilfill${on ? " on" : ""}"/>` +
       wire(mx + 14, cy, x + AW, cy, pin) +
       `<text x="${mx}" y="${cy + 27}" class="lab">${esc(addr)}</text>` +
-      (note ? `<text x="${mx}" y="${cy - 19}" class="sub">${note}</text>` : "");
+      (note ? `<text x="${mx}" y="${cy - 19}" class="sub">${note}</text>`
+        : mnem(ctx, addr) ? `<text x="${mx}" y="${cy - 19}" class="sub">${esc(mnem(ctx, addr))}</text>` : "");
   };
   const word = (title, addr, hex) => {
     const v = live[addr];
@@ -2244,7 +2265,7 @@ class MicroGemPanel extends HTMLElement {
     function renderLadder() {
       const rungs = state.ladder || [];
       const box = $("ladder");
-      const ctx = { live: state.live || {}, flow: state.flow || {}, draft: false };
+      const ctx = { live: state.live || {}, flow: state.flow || {}, names: state.names || {}, draft: false };
       const all = draftRungs ? rungs.concat(draftRungs.map((r) => ({ ...r, draft: true }))) : rungs;
       if (!all.length) { box.innerHTML = `<div class="ladder-empty">No program loaded.</div>`; return; }
       const condWidth = Math.max(...all.map((r) => size(r.condition).w));
@@ -2681,6 +2702,13 @@ class MicroGemPanel extends HTMLElement {
         draftRungs = msg.rungs;
         if (!P.draft.acts.length && draftRungs[0]) draftRungs[0].output = null;
         schedule();
+      } else if (msg.type === "imported") {
+        $("program").value = msg.source;
+        programDirty = true;
+        setMessage(`${msg.summary}. Check it, then Load program.`);
+      } else if (msg.type === "printout" && !printoutForPp) {
+        $("printout-text").textContent = msg.text;
+        $("printout-box").hidden = false;
       } else if (msg.type === "loaded") {
         programDirty = false;
         setMessage("Program loaded.");
@@ -2706,6 +2734,54 @@ class MicroGemPanel extends HTMLElement {
       selected = 0;
     });
     $("load").addEventListener("click", () => send({ type: "load", source: $("program").value }));
+
+    // Files: open, drop, convert, save and print-out.
+    let printoutForPp = false;
+    const fileStem = () => (state && state.model ? state.model.title : "microgem")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const download = (name, text) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      a.download = name;
+      root.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    };
+    // A CSV of names or data merges into the programme: the one in the box
+    // when a file is opened, the loaded one when the box itself is converted.
+    const importText = (text, current = $("program").value) => send({ type: "import", text, current });
+    const readFile = (file) => {
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) return setMessage("That file is over 2 MB, too big for a programme.", true);
+      file.text().then(importText, () => setMessage("Could not read that file.", true));
+    };
+    $("open-file").addEventListener("click", () => $("file-input").click());
+    $("file-input").addEventListener("change", (e) => { readFile(e.target.files[0]); e.target.value = ""; });
+    $("convert").addEventListener("click", () => importText($("program").value, (state && state.program) || ""));
+    $("save-file").addEventListener("click", () => download(`${fileStem()}-program.txt`, $("program").value));
+    $("printout").addEventListener("click", () => { printoutForPp = false; send({ type: "printout" }); });
+    $("printout-close").addEventListener("click", () => { $("printout-box").hidden = true; });
+    $("printout-save").addEventListener("click", () => download(`${fileStem()}-printout.txt`, $("printout-text").textContent));
+    $("printout-print").addEventListener("click", () => {
+      const w = window.open("", "_blank");
+      if (!w) return setMessage("The browser blocked the print window; use Download instead.", true);
+      const pre = w.document.createElement("pre");
+      pre.style.font = "10pt/1.3 monospace";
+      pre.textContent = $("printout-text").textContent;
+      w.document.title = "Ladder print-out";
+      w.document.body.appendChild(pre);
+      w.print();
+    });
+    const ta = $("program");
+    ta.addEventListener("dragover", (e) => { e.preventDefault(); ta.classList.add("drop"); });
+    ta.addEventListener("dragleave", () => ta.classList.remove("drop"));
+    ta.addEventListener("drop", (e) => {
+      ta.classList.remove("drop");
+      const file = e.dataTransfer && e.dataTransfer.files[0];
+      if (!file) return;
+      e.preventDefault();
+      readFile(file);
+    });
     $("program").addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); $("load").click(); }
     });

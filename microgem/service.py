@@ -12,6 +12,8 @@ from collections.abc import Callable
 
 from .engine import Controller, ControllerConfig
 from .examples import BEDROOM, examples_for
+from .importer import import_text
+from .printout import print_program
 from .program import ProgramError, parse_program, rung_to_json
 from .tables import Address, AddressError, parse_address, to_signed
 
@@ -135,7 +137,11 @@ class ControllerService:
         programmes, to pick from). A programmer also sends ``{"type": "single"}``
         (SINGLE CYCLE), ``{"type": "test_inputs", "value": true}`` (TEST or
         NORMAL INPUTS), ``{"type": "clear"}`` (CLEAR STORE) and ``{"type":
-        "read", "address": "G0", "count": 32}`` for a run of words.
+        "read", "address": "G0", "count": 32}`` for a run of words. ``{"type":
+        "printout"}`` returns the program drawn as a print-out, and ``{"type":
+        "import", "text": "...", "current": "..."}`` turns a print-out, program
+        text or a names/data CSV into program text for the editor (merging a CSV
+        into ``current``) without loading it.
         """
         kind = message.get("type")
         try:
@@ -175,6 +181,13 @@ class ControllerService:
             elif kind == "examples":
                 family = self.controller.config.family
                 return {"type": "examples", "examples": [vars(e) for e in examples_for(family)]}
+            elif kind == "printout":
+                model = self.controller.config.controller_model.label
+                text = print_program(self.controller.program, str(message.get("title", "")), model)
+                return {"type": "printout", "text": text}
+            elif kind == "import":
+                result = import_text(str(message["text"]), str(message.get("current", "")))
+                return {"type": "imported", **result}
             elif kind == "load":
                 self.load(str(message["source"]))
                 return {"type": "loaded"}

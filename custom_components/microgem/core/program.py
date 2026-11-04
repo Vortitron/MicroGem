@@ -44,6 +44,18 @@ Output elements: a bit address is a COIL; ``OUT w`` writes the rung word;
 ``SEQR w [RESET c]``; ``BLOCK`` (OBEY BLOCK). ``END BLOCK`` (or ``BLOCK`` on
 its own) closes a block.
 
+Preset data and names, which a programmer keeps with the program::
+
+    PRESET P1 = 20                          P1 (the repetition interval) is 20
+    PRESET W100 = 0 1067 3200 64 2          W100 to W104, one after another
+    NAME A0.0 START Start push button       a mnemonic (up to 7 characters) and
+                                            a description for an address
+
+A mnemonic can stand for its address in the rungs (``START AND NOT STOP ->
+MOTOR``); the ladder shows both. Presets are written into the tables when the
+program is loaded, and again only where they change, so data the program or
+an operator has changed since is left alone.
+
 Not in the GEM 80, kept as marked extensions for convenience: ``RISE``/``FALL``
 contacts (one-scan pulses), word comparisons such as ``G1 GE 5`` (the real
 controller uses Special Functions), and ``SET``/``RESET`` latching outputs (the
@@ -90,7 +102,8 @@ SPECIAL = {"MULT": "T10", "DIV": "T11"}
 SPEC_VALUE = {
     "S0": "location", "S1": "none", "S2": "none", "S3": "none", "S4": "ignored",
     "S11": "location", "S12": "either", "S20": "location", "S30": "location",
-    "S31": "location", "S32": "location", "S37": "location",
+    "S31": "location", "S32": "location", "S33": "location", "S34": "location",
+    "S35": "location", "S36": "location", "S37": "location",
     "T0": "location", "T10": "none", "T11": "location", "T20": "either", "T30": "location",
 }
 
@@ -266,6 +279,9 @@ class Rung:
 class Program:
     rungs: list[Rung] = field(default_factory=list)
     source: str = ""
+    presets: dict[Address, int] = field(default_factory=dict)  # word -> value
+    names: dict[str, Address] = field(default_factory=dict)  # MNEMONIC -> address
+    notes: dict[Address, tuple[str, str]] = field(default_factory=dict)  # address -> (mnemonic, description)
 
     def edge_addresses(self) -> set[Address]:
         return {n.address for rung in self.rungs for n in walk(rung) if isinstance(n, Edge)}
@@ -601,11 +617,85 @@ class _Parser:
         return Coil(address)
 
 
+_NAME_RE = re.compile(r"[A-Z][A-Z0-9_]{0,11}")
+#: Words that cannot be mnemonics, as they mean something in a rung.
+RESERVED = {
+    "AND", "OR", "XOR", "NOT", "INV", "TRUE", "FALSE", "RISE", "FALL", "DELAY", "COUNT", "VALUE",
+    "RESET", "SET", "SPEC", "OUT", "SEQR", "BLOCK", "END", "OBEY", "ADD", "SUB", "MULT", "DIV",
+    "PRESET", "NAME", *COMPARISONS, *SPECIAL_NUMBERS,
+}
+
+
+def _number(token: str, line: int) -> int:
+    try:
+        value = int(token[1:], 16) if token.startswith("@") else int(token)
+    except ValueError:
+        raise ProgramError(f"{token!r} is not a number", line) from None
+    if not -32768 <= value <= 0xFFFF:
+        raise ProgramError(f"{token} does not fit in a 16-bit word", line)
+    return to_signed(value)
+
+
+def _directive(program: Program, text: str, line: int) -> bool:
+    """PRESET and NAME lines; True if the line was one."""
+    word, _, rest = text.partition(" ")
+    word = word.upper()
+    if word == "PRESET":
+        target, eq, values = rest.partition("=")
+        if not eq:
+            raise ProgramError("PRESET needs '=': PRESET P1 = 20", line)
+        try:
+            start = parse_address(target)
+        except AddressError as exc:
+            raise ProgramError(str(exc), line) from None
+        if start.is_bit:
+            raise ProgramError("PRESET takes a word address, such as P1", line)
+        numbers = values.replace(",", " ").split()
+        if not numbers:
+            raise ProgramError("PRESET needs at least one value", line)
+        for k, token in enumerate(numbers):
+            program.presets[Address(start.table, start.word + k)] = _number(token, line)
+        return True
+    if word == "NAME":
+        parts = rest.split(None, 2)
+        if len(parts) < 2:
+            raise ProgramError("NAME needs an address and a mnemonic: NAME A0.0 START Start button", line)
+        try:
+            address = parse_address(parts[0])
+        except AddressError as exc:
+            raise ProgramError(str(exc), line) from None
+        name = parts[1].upper()
+        if not _NAME_RE.fullmatch(name) or name in RESERVED:
+            raise ProgramError(f"{parts[1]!r} cannot be a mnemonic (letters and digits, "
+                               "starting with a letter, and not a word the rungs use)", line)
+        try:
+            parse_address(name)
+        except AddressError:
+            pass
+        else:
+            raise ProgramError(f"{name} looks like an address, so it cannot be a mnemonic", line)
+        if name in program.names and program.names[name] != address:
+            raise ProgramError(f"{name} already names {program.names[name]}", line)
+        program.names[name] = address
+        program.notes[address] = (name, parts[2].strip() if len(parts) > 2 else "")
+        return True
+    return False
+
+
 def parse_program(source: str) -> Program:
     program = Program(source=source)
     comments: list[str] = []
     open_blocks: list[int] = []
-    for number, raw in enumerate(source.splitlines(), start=1):
+    lines = source.splitlines()
+    # Names first, so a rung may use a mnemonic defined further down.
+    directives = set()
+    for number, raw in enumerate(lines, start=1):
+        text = raw.partition(";")[0].strip()
+        if text[:5].upper() in ("PRESE", "NAME ") and _directive(program, text, number):
+            directives.add(number)
+    for number, raw in enumerate(lines, start=1):
+        if number in directives:
+            continue
         text, _, note = raw.partition(";")
         text = text.strip()
         if not text:
@@ -622,6 +712,8 @@ def parse_program(source: str) -> Program:
             program.rungs.append(Rung(None, EndBlock(), number, raw.strip(), title))
             continue
         tokens = _TOKEN_RE.findall(text)
+        if program.names:
+            tokens = [str(program.names.get(t.upper(), t)) for t in tokens]
         if "->" not in tokens:
             raise ProgramError("a rung needs '->' before its output element", number)
         parser = _Parser(tokens, number)
