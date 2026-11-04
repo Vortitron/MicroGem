@@ -7,7 +7,7 @@ the T278 data sheet wherever those give one.
 import pytest
 
 from microgem import Controller, ControllerConfig, ProgramError
-from microgem.models import MODELS, get_model
+from microgem.models import MODELS, analogue_word, get_model
 from microgem.tables import Address, AddressError, parse_address, to_signed
 
 
@@ -571,3 +571,111 @@ PRESET R10 = 5, -6 @00FF
             assert message in str(exc), (bad, exc)
         else:
             raise AssertionError(bad)
+
+
+def test_writext_and_wrinum_print_through_the_buffer():
+    source = """\
+MESSAGE P100 = "CRATE \\e"
+MESSAGE P110 = " DONE\\n"
+A0.0 -> BLOCK
+AND 1 SPEC WRITEXT VALUE P100 -> OUT G90
+AND G12 SPEC WRINUM VALUE 4 -> OUT G91
+AND 1 SPEC WRITEXT VALUE P110 -> OUT G92
+END BLOCK
+AND 1 SPEC WRITEXT VALUE G500 -> OUT G93
+"""
+    plc = gem80(source.replace("G500", "G799"))
+    assert plc.program.messages and word(plc, "P100") == 7 | (ord("C") << 8)
+    put(plc, "G12", 42)
+    put(plc, "G799", 10)  # a 10-character message at the very end of G
+    inp = {str(plc.config.input_address(i)): i for i in range(plc.config.total_inputs)}
+    plc.set_input(inp["A0.0"], True)
+    plc.scan(20)
+    plc.set_input(inp["A0.0"], False)
+    assert [word(plc, g) for g in ("G90", "G91", "G92")] == [0, 0, 0]
+    assert word(plc, "G93") == 9  # G799 + its message runs off the end of G
+    for _ in range(20):
+        plc.scan(20)
+    paper = plc.printer.snapshot()
+    assert paper["lines"] == ["CRATE   42 DONE"] and paper["buffered"] == 0
+    assert plc.tables.get_bit(parse_address("F50.2"))  # empty
+
+    # A message every scan fills the buffer: fault 129 and the filling flag.
+    plc.set_input(inp["A0.0"], True)
+    for _ in range(40):
+        plc.scan(20)
+    assert word(plc, "G90") == 129 and plc.tables.get_bit(parse_address("F50.1"))
+
+    # Off line, nothing more prints; the 100C has no printer port at all.
+    plc.printer.on_line = False
+    printed = plc.printer.printed
+    plc.scan(1000)
+    assert plc.printer.printed == printed and plc.tables.get_bit(parse_address("F50.0"))
+    with pytest.raises(ProgramError, match="not emulated|does not have|has no"):
+        gem80("AND 1 SPEC WRITEXT VALUE G10 -> OUT G9", model="gem80-100c-12k")
+
+
+def test_8108_words_follow_its_manual():
+    from microgem.models import analogue_word
+
+    # T443 Figure 11, examples 1, 2, 4 and 5 (example 3 is -16 on channel 0).
+    assert analogue_word(512 / 32768 * 10.235, 5) == 0x0205
+    assert analogue_word(16384 / 32768 * 10.235, 15) == 0x400F
+    assert analogue_word(10.235, 0) == 0x7FF0
+    assert analogue_word(-20, 0) == 0x8010
+    assert to_signed(analogue_word(-16 / 32768 * 10.235, 0)) == -16
+
+
+def test_8108_multiplexes_its_channels_into_one_word():
+    modules = ("8177", "8178", "8110", "8130", "8108")
+    with pytest.raises(ValueError, match="slot 6 must be empty"):
+        ControllerConfig(model="gem80-130c-12k", modules=modules + ("8110",))
+    with pytest.raises(ValueError, match="does not fit"):
+        ControllerConfig(model="gem80-130c-12k", modules=(None,) * 7 + ("8108",))
+    plc = gem80("""\
+; T443 8.3: channel to G20, value to G21, then G100 + channel
+AND A8 AND 15 -> OUT G20
+AND A8 AND @FFF0 -> OUT G21
+AND 0 SPEC LOCATE VALUE G21 SPEC MOVE [AND G20 SPEC LOCATE VALUE G100] VALUE 1 -> OUT G22
+""", modules=modules)
+    assert plc.config.total_analogue == 16 and plc.config.multiplexers == ((5, parse_address("A8")),)
+    slots = plc.config.io()["slots"]
+    assert slots[4]["kind"] == "analogue" and slots[4]["words"] == [8] and slots[5]["covered_by"] == 5
+    for ch in range(16):
+        plc.set_analogue(ch, ch / 2)
+    seen = set()
+    for _ in range(16 * 4 + 4):  # 20 ms scans: a new channel every 70 ms
+        plc.scan(20)
+        seen.add(word(plc, "G20"))
+    assert seen == set(range(16))
+    for ch in range(16):
+        assert word(plc, f"G{100 + ch}") == analogue_word(ch / 2, 0)
+    assert plc.snapshot()["analogue"][3] == 1.5
+    with pytest.raises(IndexError):
+        plc.set_analogue(16, 1.0)
+
+
+def test_heating_demo_controls_and_logs():
+    from microgem.examples import HEATING
+    from microgem.models import DEFAULT_MODULES
+
+    plc = gem80(HEATING, modules=DEFAULT_MODULES)
+    heater = [i for i in range(plc.config.total_outputs) if str(plc.config.output_address(i)) == "B6.0"][0]
+    temp = 18.0
+    plc.set_analogue(0, temp / 4)
+    plc.set_analogue(1, (21 - 5) / 2.5)  # set point 21 C
+    for _ in range(50):
+        plc.scan(20)
+    assert (word(plc, "G120"), word(plc, "G121")) == (180, 210)
+    plc.set_input(0, True)  # heating on
+    for _ in range(30000):  # ten minutes of a slow room
+        plc.scan(20)
+        temp += (0.0006 if plc.output(heater) else 0) - (temp - 10) * 0.00002
+        plc.set_analogue(0, temp / 4)
+    assert 20 < temp < 22.5
+    plc.set_input(0, False)
+    for _ in range(100):
+        plc.scan(20)
+    lines = plc.printer.snapshot()["lines"]
+    assert lines[0].endswith("HEATING ON, SET POINT 21.0 C") and "HEATING OFF, ROOM" in lines[-1]
+    assert lines[0][2] == ":" and not plc.output(heater)

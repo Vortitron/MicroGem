@@ -48,6 +48,7 @@ Preset data and names, which a programmer keeps with the program::
 
     PRESET P1 = 20                          P1 (the repetition interval) is 20
     PRESET W100 = 0 1067 3200 64 2          W100 to W104, one after another
+    MESSAGE G100 = "FILL FAULT\\n"           text for WRITEXT (S22), packed as it needs
     NAME A0.0 START Start push button       a mnemonic (up to 7 characters) and
                                             a description for an address
 
@@ -101,7 +102,8 @@ SPECIAL = {"MULT": "T10", "DIV": "T11"}
 #: parameter list) or "either" (a number or a table address holding it).
 SPEC_VALUE = {
     "S0": "location", "S1": "none", "S2": "none", "S3": "none", "S4": "ignored",
-    "S11": "location", "S12": "either", "S20": "location", "S30": "location",
+    "S11": "location", "S12": "either", "S20": "location", "S22": "location",
+    "S23": "either", "S30": "location",
     "S31": "location", "S32": "location", "S33": "location", "S34": "location",
     "S35": "location", "S36": "location", "S37": "location",
     "T0": "location", "T10": "none", "T11": "location", "T20": "either", "T30": "location",
@@ -282,6 +284,7 @@ class Program:
     presets: dict[Address, int] = field(default_factory=dict)  # word -> value
     names: dict[str, Address] = field(default_factory=dict)  # MNEMONIC -> address
     notes: dict[Address, tuple[str, str]] = field(default_factory=dict)  # address -> (mnemonic, description)
+    messages: dict[Address, str] = field(default_factory=dict)  # start -> MESSAGE text as written
 
     def edge_addresses(self) -> set[Address]:
         return {n.address for rung in self.rungs for n in walk(rung) if isinstance(n, Edge)}
@@ -622,7 +625,7 @@ _NAME_RE = re.compile(r"[A-Z][A-Z0-9_]{0,11}")
 RESERVED = {
     "AND", "OR", "XOR", "NOT", "INV", "TRUE", "FALSE", "RISE", "FALL", "DELAY", "COUNT", "VALUE",
     "RESET", "SET", "SPEC", "OUT", "SEQR", "BLOCK", "END", "OBEY", "ADD", "SUB", "MULT", "DIV",
-    "PRESET", "NAME", *COMPARISONS, *SPECIAL_NUMBERS,
+    "PRESET", "NAME", "MESSAGE", *COMPARISONS, *SPECIAL_NUMBERS,
 }
 
 
@@ -636,8 +639,56 @@ def _number(token: str, line: int) -> int:
     return to_signed(value)
 
 
+_ESCAPES = {"n": "\r\n", "r": "\r", "l": "\n", "f": "\f", "e": "\x03", "\\": "\\", '"': '"'}
+
+
+def unescape(text: str, line: int = 0) -> str:
+    """Message text with its escapes: \\n a new line (CR LF), \\r CR, \\l LF,
+    \\f form feed, \\e ETX (send the part line now), \\xHH any code."""
+    out, i = [], 0
+    while i < len(text):
+        ch = text[i]
+        if ch != "\\":
+            out.append(ch)
+            i += 1
+            continue
+        nxt = text[i + 1:i + 2]
+        if nxt in _ESCAPES:
+            out.append(_ESCAPES[nxt])
+            i += 2
+        elif nxt == "x" and re.fullmatch(r"[0-9A-Fa-f]{2}", text[i + 2:i + 4]):
+            out.append(chr(int(text[i + 2:i + 4], 16)))
+            i += 4
+        else:
+            raise ProgramError(f"unknown escape \\{nxt} in a MESSAGE", line)
+    return "".join(out)
+
+
+def pack_message(text: str, line: int = 0) -> list[int]:
+    """Words for WRITEXT: the length in bits 0-7 of the first word and the
+    first character in bits 8-15, then two characters a word, low byte first."""
+    codes = [ord(c) for c in text]
+    if len(codes) > 255:
+        raise ProgramError("a MESSAGE holds at most 255 characters", line)
+    if any(c > 0x7F for c in codes):
+        raise ProgramError("a MESSAGE takes 7-bit ASCII characters only", line)
+    data = [len(codes)] + codes + ([0] if len(codes) % 2 == 0 else [])
+    return [to_signed(data[k] | (data[k + 1] << 8)) for k in range(0, len(data), 2)]
+
+
+def _uncommented(raw: str) -> str:
+    """A line without its comment, leaving a ; inside quotes alone."""
+    quoted = False
+    for i, ch in enumerate(raw):
+        if ch == '"' and (i == 0 or raw[i - 1] != "\\"):
+            quoted = not quoted
+        elif ch == ";" and not quoted:
+            return raw[:i]
+    return raw
+
+
 def _directive(program: Program, text: str, line: int) -> bool:
-    """PRESET and NAME lines; True if the line was one."""
+    """PRESET, MESSAGE and NAME lines; True if the line was one."""
     word, _, rest = text.partition(" ")
     word = word.upper()
     if word == "PRESET":
@@ -655,6 +706,21 @@ def _directive(program: Program, text: str, line: int) -> bool:
             raise ProgramError("PRESET needs at least one value", line)
         for k, token in enumerate(numbers):
             program.presets[Address(start.table, start.word + k)] = _number(token, line)
+        return True
+    if word == "MESSAGE":
+        target, eq, text = rest.partition("=")
+        text = text.strip()
+        if not eq or len(text) < 2 or text[0] != '"' or text[-1] != '"':
+            raise ProgramError('MESSAGE needs an address and quoted text: MESSAGE G100 = "FILL FAULT\\n"', line)
+        try:
+            start = parse_address(target)
+        except AddressError as exc:
+            raise ProgramError(str(exc), line) from None
+        if start.is_bit:
+            raise ProgramError("MESSAGE takes a word address, such as G100", line)
+        for k, value in enumerate(pack_message(unescape(text[1:-1], line), line)):
+            program.presets[Address(start.table, start.word + k)] = value
+        program.messages[start] = text[1:-1]
         return True
     if word == "NAME":
         parts = rest.split(None, 2)
@@ -690,8 +756,8 @@ def parse_program(source: str) -> Program:
     # Names first, so a rung may use a mnemonic defined further down.
     directives = set()
     for number, raw in enumerate(lines, start=1):
-        text = raw.partition(";")[0].strip()
-        if text[:5].upper() in ("PRESE", "NAME ") and _directive(program, text, number):
+        text = _uncommented(raw).strip()
+        if text[:5].upper() in ("PRESE", "NAME ", "MESSA") and _directive(program, text, number):
             directives.add(number)
     for number, raw in enumerate(lines, start=1):
         if number in directives:

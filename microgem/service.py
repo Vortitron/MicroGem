@@ -98,6 +98,10 @@ class ControllerService:
         self.controller.set_input(index, value)
         self._notify_if_changed()
 
+    def set_analogue(self, index: int, volts: float) -> None:
+        self.controller.set_analogue(index, volts)
+        self._notify_if_changed()
+
     def run(self) -> None:
         self.controller.run()
         self._notify_if_changed(force=True)
@@ -127,10 +131,16 @@ class ControllerService:
         self.controller.load(source)
         self._notify_if_changed(force=True)
 
+    def _printer(self):
+        if self.controller.printer is None:
+            raise ValueError(f"the {self.controller.config.controller_model.label} has no printer port")
+        return self.controller.printer
+
     def command(self, message: dict) -> dict | None:
         """Apply one command from a front end and return a reply, if any.
 
-        Commands: ``{"type": "input", "index": 0, "value": true}``, ``{"type": "run"}``,
+        Commands: ``{"type": "input", "index": 0, "value": true}``, ``{"type":
+        "analogue", "index": 0, "value": 4.5}`` (volts), ``{"type": "run"}``,
         ``{"type": "halt"}``, ``{"type": "read", "address": "G12"}``,
         ``{"type": "preview", "source": "..."}`` (parse without loading), ``{"type": "write", "address": "G12", "value": 5}`` and
         ``{"type": "load", "source": "..."}`` and ``{"type": "examples"}`` (the demo
@@ -141,12 +151,17 @@ class ControllerService:
         "printout"}`` returns the program drawn as a print-out, and ``{"type":
         "import", "text": "...", "current": "..."}`` turns a print-out, program
         text or a names/data CSV into program text for the editor (merging a CSV
-        into ``current``) without loading it.
+        into ``current``) without loading it. On a controller with a printer
+        port, ``{"type": "paper"}`` returns everything printed so far and
+        ``{"type": "printer", "action": "tear_off" | "on_line" | "off_line"}``
+        works the printer.
         """
         kind = message.get("type")
         try:
             if kind == "input":
                 self.set_input(int(message["index"]), bool(message["value"]))
+            elif kind == "analogue":
+                self.set_analogue(int(message["index"]), float(message["value"]))
             elif kind == "run":
                 self.run()
             elif kind == "halt":
@@ -188,6 +203,20 @@ class ControllerService:
             elif kind == "import":
                 result = import_text(str(message["text"]), str(message.get("current", "")))
                 return {"type": "imported", **result}
+            elif kind == "paper":
+                printer = self._printer()
+                return {"type": "paper", **printer.snapshot(recent=None)}
+            elif kind == "printer":
+                printer = self._printer()
+                action = message.get("action")
+                if action == "tear_off":
+                    printer.tear_off()
+                elif action in ("on_line", "off_line"):
+                    printer.on_line = action == "on_line"
+                else:
+                    raise ValueError(f"unknown printer action {action!r}")
+                self._notify_if_changed(force=True)
+                return {"type": "paper", **printer.snapshot(recent=None)}
             elif kind == "load":
                 self.load(str(message["source"]))
                 return {"type": "loaded"}

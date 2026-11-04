@@ -21,7 +21,8 @@ import re
 from dataclasses import dataclass, field
 
 from .models import SPECIAL_NAMES
-from .program import Program, addresses, instruction_ranges, parse_program, rung_to_json
+from .program import (Program, addresses, instruction_ranges, pack_message, parse_program,
+                      rung_to_json, unescape)
 from .tables import Address
 
 CELL = 8
@@ -77,7 +78,8 @@ def draw_rung(rung: dict) -> list[str]:
     """The rung as lines of text (the same drawing as the 8920 screen)."""
 
     def width(n):
-        return max(CELL, len(_leaf(n)[0]) + 4)
+        sym, addr = _leaf(n)
+        return max(CELL, len(sym) + 4, len(addr) + 4)
 
     def measure(n):
         if not n:
@@ -217,9 +219,17 @@ def print_program(program: Program, title: str = "", model: str = "") -> str:
             rungs = ", ".join(str(n) for n in sorted(used[address]))
             out.append(f"  {str(address):<8}{name:<8} RUNGS {rungs}")
         out.append("")
-    if program.presets:
+    covered = {
+        Address(start.table, start.word + k)
+        for start, text in program.messages.items()
+        for k in range(len(pack_message(unescape(text))))
+    }
+    presets = {a: v for a, v in program.presets.items() if a not in covered}
+    if presets or program.messages:
         out.append("PRESET DATA")
-        for address, value in sorted(program.presets.items(), key=lambda kv: _addr_key(kv[0])):
+        for address, text in sorted(program.messages.items(), key=lambda kv: _addr_key(kv[0])):
+            out.append(f'MESSAGE {address} = "{text}"')
+        for address, value in sorted(presets.items(), key=lambda kv: _addr_key(kv[0])):
             out.append(f"PRESET {address} = {value}")
         out.append("")
     return "\n".join(out).rstrip() + "\n"
@@ -549,7 +559,7 @@ class _Rung:
 
 def read_printout(text: str) -> str:
     """Program text from a ladder print-out (see the module notes). Comment
-    lines (starting ;) and NAME and PRESET lines are kept; headings and other
+    lines (starting ;) and NAME, PRESET and MESSAGE lines are kept; headings and other
     text between rungs are left out. Raises PrintoutError for a rung it
     cannot follow, naming the line it starts on."""
     lines = text.splitlines()
@@ -572,7 +582,7 @@ def read_printout(text: str) -> str:
             continue
         if stripped.startswith(";"):
             out.append(stripped)
-        elif re.match(r"(?i)(PRESET\s+[A-Z]\d|NAME\s+[A-Z]\d)", stripped):
+        elif re.match(r"(?i)(PRESET\s+[A-Z]\d|NAME\s+[A-Z]\d|MESSAGE\s+[A-Z]\d)", stripped):
             out.append(stripped)
         elif not stripped and out and out[-1] != "":
             out.append("")

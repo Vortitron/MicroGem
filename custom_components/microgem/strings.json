@@ -24,7 +24,7 @@
       },
       "modules": {
         "title": "I/O modules",
-        "description": "The {model} subrack has eight slots for Compact I/O modules. Each slot has two words of the A table (inputs) and of the B table (outputs): slot 1 has A0 and A1 or B0 and B1, slot 2 the next two, and so on. You can change the modules later.",
+        "description": "The {model} subrack has eight slots for Compact I/O modules. Each slot has two words of the A table (inputs) and of the B table (outputs): slot 1 has A0 and A1 or B0 and B1, slot 2 the next two, and so on. You can change the modules later. An 8108 analogue input module is two slots wide and reads 16 analogue channels through the first word of its slot.",
         "data": {
           "slot_1": "Slot 1",
           "slot_2": "Slot 2",
@@ -46,6 +46,9 @@
           "slot_8": "Inputs on A14 and A15, outputs on B14 and B15."
         }
       }
+    },
+    "error": {
+      "module_layout": "An 8108 analogue module is two slots wide: leave the slot above it (slot n + 1) empty, and do not put one in slot 8."
     }
   },
   "services": {
@@ -75,7 +78,7 @@
       },
       "modules": {
         "title": "Controller and I/O modules",
-        "description": "Change the memory size or the module in each slot. A terminal whose address changes gets a new entity, and loses its field wiring. If the program no longer fits, or uses a Special Function the controller lacks, the example program is loaded instead.",
+        "description": "Change the memory size or the module in each slot. A terminal whose address changes gets a new entity, and loses its field wiring. If the program no longer fits, or uses a Special Function the controller lacks, the example program is loaded instead. An 8108 analogue input module is two slots wide and reads 16 analogue channels through the first word of its slot.",
         "data": {
           "model": "Controller",
           "slot_1": "Slot 1",
@@ -98,6 +101,9 @@
           "slot_8": "Inputs on A14 and A15, outputs on B14 and B15."
         }
       }
+    },
+    "error": {
+      "module_layout": "An 8108 analogue module is two slots wide: leave the slot above it (slot n + 1) empty, and do not put one in slot 8."
     }
   }
 }

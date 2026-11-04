@@ -8,7 +8,11 @@ needed. The wiring lives in the config entry's options under ``wiring``:
     {"inputs": {"3": {"entity_id": "binary_sensor.hall_motion"},
                 "4": {"entity_id": "sensor.lounge", "attribute": "temperature", "above": 21},
                 "5": {"entity_id": "binary_sensor.door", "invert": True}},
-     "outputs": {"0": {"entity_id": "light.landing"}}}
+     "outputs": {"0": {"entity_id": "light.landing"}},
+     "analogue": {"0": {"entity_id": "sensor.lounge_temperature", "low": 0, "high": 40}}}
+
+An analogue channel (on a GEM 80's 8108 module) follows a number: ``low``
+reads 0 V and ``high`` 10 V, in a straight line, within the module's ±10 V.
 """
 
 from __future__ import annotations
@@ -52,6 +56,33 @@ POINT_SCHEMA = vol.Schema(
 )
 
 
+ANALOGUE_SCHEMA = vol.Schema(
+    {
+        vol.Required("entity_id"): cv.entity_id,
+        vol.Optional("attribute"): vol.Any(None, cv.string),
+        vol.Optional("low", default=0.0): vol.Coerce(float),
+        vol.Optional("high", default=100.0): vol.Coerce(float),
+    }
+)
+FULL_SCALE_V = 10.235
+
+
+def volts(state: State | None, point: dict) -> float:
+    """The channel voltage for a wired entity; 0 V when it has no number."""
+    if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
+        return 0.0
+    attribute = point.get("attribute")
+    value = state.attributes.get(attribute) if attribute else state.state
+    low, high = point.get("low", 0.0), point.get("high", 100.0)
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if high == low:
+        return 0.0
+    return max(-FULL_SCALE_V, min(FULL_SCALE_V, (number - low) / (high - low) * 10))
+
+
 def closed(value: Any, above: float | None) -> bool:
     """Whether a state or attribute value closes the input contact."""
     if above is not None:
@@ -76,14 +107,15 @@ def input_value(state: State | None, point: dict) -> bool:
     return closed(value, point.get("above")) != bool(point.get("invert"))
 
 
-def clean(wiring: dict | None, inputs: int, outputs: int) -> dict:
+def clean(wiring: dict | None, inputs: int, outputs: int, analogue: int = 0) -> dict:
     """Valid points only, and only for terminals the controller has."""
-    result: dict[str, dict[str, dict]] = {"inputs": {}, "outputs": {}}
-    for kind, limit in (("inputs", inputs), ("outputs", outputs)):
+    result: dict[str, dict[str, dict]] = {"inputs": {}, "outputs": {}, "analogue": {}}
+    for kind, limit in (("inputs", inputs), ("outputs", outputs), ("analogue", analogue)):
+        schema = ANALOGUE_SCHEMA if kind == "analogue" else POINT_SCHEMA
         for index, point in ((wiring or {}).get(kind) or {}).items():
             try:
                 if 0 <= int(index) < limit:
-                    result[kind][str(int(index))] = POINT_SCHEMA(point)
+                    result[kind][str(int(index))] = schema(point)
             except (vol.Invalid, ValueError, TypeError):
                 _LOGGER.warning("Ignoring bad MicroGEM wiring for %s %s: %s", kind, index, point)
     return result
@@ -96,7 +128,7 @@ class Wiring:
         self.hass = hass
         self.entry_id = entry_id
         self.service = service
-        self.points: dict = {"inputs": {}, "outputs": {}}
+        self.points: dict = {"inputs": {}, "outputs": {}, "analogue": {}}
         self._unsubs: list[Callable[[], None]] = []
         self._outputs: list[bool] = list(service.controller.outputs())
 
@@ -104,7 +136,7 @@ class Wiring:
     def apply(self, wiring: dict | None) -> None:
         self.stop()
         config = self.service.controller.config
-        self.points = clean(wiring, config.total_inputs, config.total_outputs)
+        self.points = clean(wiring, config.total_inputs, config.total_outputs, config.total_analogue)
         # The controller's own switches and sensors are its internal I/O, not field devices.
         registry = er.async_get(self.hass)
         for kind in self.points.values():
@@ -113,21 +145,28 @@ class Wiring:
                 if entity is not None and entity.config_entry_id == self.entry_id:
                     _LOGGER.warning("Ignoring MicroGEM wiring to its own entity %s", point["entity_id"])
                     del kind[index]
-        by_entity: dict[str, list[tuple[int, dict]]] = {}
-        for index, point in self.points["inputs"].items():
-            by_entity.setdefault(point["entity_id"], []).append((int(index), point))
-            self.service.set_input(int(index), input_value(self.hass.states.get(point["entity_id"]), point))
+        by_entity: dict[str, list[tuple[str, int, dict]]] = {}
+        for kind in ("inputs", "analogue"):
+            for index, point in self.points[kind].items():
+                by_entity.setdefault(point["entity_id"], []).append((kind, int(index), point))
+                self._feed(kind, int(index), point, self.hass.states.get(point["entity_id"]))
 
         @callback
         def changed(event: Event[EventStateChangedData]) -> None:
-            for index, point in by_entity.get(event.data["entity_id"], []):
-                self.service.set_input(index, input_value(event.data["new_state"], point))
+            for kind, index, point in by_entity.get(event.data["entity_id"], []):
+                self._feed(kind, index, point, event.data["new_state"])
 
         if by_entity:
             self._unsubs.append(async_track_state_change_event(self.hass, list(by_entity), changed))
         self._outputs = list(self.service.controller.outputs())
         if self.points["outputs"]:
             self._unsubs.append(self.service.subscribe(self._outputs_changed))
+
+    def _feed(self, kind: str, index: int, point: dict, state: State | None) -> None:
+        if kind == "analogue":
+            self.service.set_analogue(index, volts(state, point))
+        else:
+            self.service.set_input(index, input_value(state, point))
 
     @callback
     def _outputs_changed(self, state: dict) -> None:

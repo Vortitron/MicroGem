@@ -24,7 +24,8 @@ from homeassistant.helpers.selector import (
 from .const import CONF_EXPANSIONS, CONF_INPUTS, CONF_MODEL, CONF_MODULES, CONF_OUTPUTS, DOMAIN
 from .core import MAX_EXPANSIONS, ControllerConfig
 from .wiring import CONF_WIRING
-from .core.models import DEFAULT_GEM80, DEFAULT_MODEL, DEFAULT_MODULES, IO_MODULES, MODELS, SLOTS
+from .core.models import (ANALOGUE_CHANNELS, DEFAULT_GEM80, DEFAULT_MODEL, DEFAULT_MODULES, IO_MODULES, MODELS,
+                          SLOTS)
 
 EXPANSIONS = vol.All(vol.Coerce(int), vol.Range(min=0, max=MAX_EXPANSIONS))
 EMPTY = "empty"
@@ -82,6 +83,16 @@ def follow_wiring(wiring: Mapping | None, old: ControllerConfig, new: Controller
             moved_to = index_of.get(getattr(old, address)(int(index)))
             if moved_to is not None:
                 result[kind][str(moved_to)] = point
+    # An analogue channel stays with its module's slot and channel number.
+    result["analogue"] = {}
+    old_slots = [slot for slot, _word in old.multiplexers]
+    new_slots = [slot for slot, _word in new.multiplexers]
+    for index, point in ((wiring or {}).get("analogue") or {}).items():
+        if not str(index).isdigit() or int(index) >= old.total_analogue:
+            continue
+        module, channel = divmod(int(index), ANALOGUE_CHANNELS)
+        if old_slots[module] in new_slots:
+            result["analogue"][str(new_slots.index(old_slots[module]) * ANALOGUE_CHANNELS + channel)] = point
     return result
 
 
@@ -111,6 +122,16 @@ def _slots_schema(modules: tuple[str | None, ...]) -> dict:
         vol.Required(_slot(n), default=modules[n - 1] or EMPTY): _MODULE_SELECT
         for n in range(1, SLOTS + 1)
     }
+
+
+def _layout_error(model: str, modules: list[str | None]) -> str | None:
+    """An error key if the modules do not fit (a double-width 8108 needs the
+    slot above it empty)."""
+    try:
+        ControllerConfig(model=model, modules=tuple(modules))
+    except ValueError:
+        return "module_layout"
+    return None
 
 
 def _modules_from(user_input: dict[str, Any]) -> list[str | None]:
@@ -150,13 +171,20 @@ class MicroGemConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(step_id="expansions", data_schema=schema)
 
     async def async_step_modules(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        modules = DEFAULT_MODULES
         if user_input is not None:
-            data = {**self._data, CONF_MODULES: _modules_from(dict(user_input))}
-            return self.async_create_entry(title=data[CONF_NAME], data=data)
+            modules = tuple(_modules_from(dict(user_input)))
+            error = _layout_error(self._data.get(CONF_MODEL, DEFAULT_GEM80), list(modules))
+            if error is None:
+                data = {**self._data, CONF_MODULES: list(modules)}
+                return self.async_create_entry(title=data[CONF_NAME], data=data)
+            errors["base"] = error
         return self.async_show_form(
             step_id="modules",
-            data_schema=vol.Schema(_slots_schema(DEFAULT_MODULES)),
+            data_schema=vol.Schema(_slots_schema(modules)),
             description_placeholders={"model": MODELS[self._data.get(CONF_MODEL, DEFAULT_GEM80)].label},
+            errors=errors,
         )
 
     @staticmethod
@@ -172,10 +200,17 @@ class MicroGemOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         entry = self.config_entry
         gem80 = MODELS[model_of(entry)].family == "gem80"
+        errors: dict[str, str] = {}
+        modules = modules_of(entry)
         if user_input is not None:
             settings = dict(user_input)
             if gem80:
                 settings[CONF_MODULES] = _modules_from(settings)
+                modules = tuple(settings[CONF_MODULES])
+                error = _layout_error(settings.get(CONF_MODEL, model_of(entry)), settings[CONF_MODULES])
+                if error:
+                    errors["base"] = error
+        if user_input is not None and not errors:
             options = {**entry.options, **settings}
             # Keep the field wiring, which the panel edits, on the same terminals.
             if CONF_WIRING in options:
@@ -184,8 +219,8 @@ class MicroGemOptionsFlow(OptionsFlow):
             return self.async_create_entry(data=options)
         if gem80:
             schema = {vol.Required(CONF_MODEL, default=model_of(entry)): _models("gem80"),
-                      **_slots_schema(modules_of(entry))}
-            return self.async_show_form(step_id="modules", data_schema=vol.Schema(schema))
+                      **_slots_schema(modules)}
+            return self.async_show_form(step_id="modules", data_schema=vol.Schema(schema), errors=errors)
         schema = {vol.Required(CONF_EXPANSIONS, default=expansions_of(entry)): EXPANSIONS}
         return self.async_show_form(step_id="init", data_schema=vol.Schema(schema))
 

@@ -301,3 +301,61 @@ async def test_gem80_with_modules(hass: HomeAssistant, hass_ws_client, device_re
 
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
+
+
+async def test_gem80_analogue_channel_follows_a_sensor(hass: HomeAssistant, hass_ws_client):
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"name": "Boiler house", "model": "gem80-130c-12k"}
+    )
+    # An 8108 is two slots wide: slot 6 must be empty.
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**DEFAULT_SLOTS, "slot_5": "8108", "slot_6": "8110"}
+    )
+    assert result["type"] is FlowResultType.FORM and result["errors"] == {"base": "module_layout"}
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], {**DEFAULT_SLOTS, "slot_5": "8108"})
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    entry = result["result"]
+    await hass.async_block_till_done()
+    controller = entry.runtime_data.service.controller
+    assert controller.config.total_analogue == 16
+
+    hass.states.async_set("sensor.lounge", "20.0", {"unit_of_measurement": "°C"})
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "microgem/wire", "entry_id": entry.entry_id, "kind": "analogue",
+                            "index": 0, "entity_id": "sensor.lounge", "low": 0, "high": 40})
+    msg = await client.receive_json()
+    assert msg["success"], msg
+    assert msg["result"]["wiring"]["analogue"]["0"] == {"entity_id": "sensor.lounge", "low": 0.0, "high": 40.0}
+    assert controller.analogue[0] == pytest.approx(5.0)
+    hass.states.async_set("sensor.lounge", "30.0", {"unit_of_measurement": "°C"})
+    await hass.async_block_till_done()
+    assert controller.analogue[0] == pytest.approx(7.5)
+    hass.states.async_set("sensor.lounge", "unavailable")
+    await hass.async_block_till_done()
+    assert controller.analogue[0] == 0.0
+
+    await client.send_json({"id": 2, "type": "microgem/wire", "entry_id": entry.entry_id, "kind": "analogue",
+                            "index": 1, "entity_id": "sensor.lounge", "low": 5, "high": 5})
+    assert (await client.receive_json())["error"]["code"] == "invalid_range"
+
+    # Changing other modules keeps the wire on its channel; moving the 8108
+    # to other slots takes its terminals away, as for a digital module.
+    hass.states.async_set("sensor.lounge", "20.0")
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"model": "gem80-130c-12k", **DEFAULT_SLOTS, "slot_1": "8163", "slot_5": "8108"}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert entry.options["wiring"]["analogue"]["0"]["entity_id"] == "sensor.lounge"
+    assert entry.runtime_data.service.controller.analogue[0] == pytest.approx(5.0)
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"model": "gem80-130c-12k", **DEFAULT_SLOTS, "slot_7": "8108"}
+    )
+    await hass.async_block_till_done()
+    assert entry.options["modules"][6] == "8108" and entry.options["wiring"]["analogue"] == {}
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()

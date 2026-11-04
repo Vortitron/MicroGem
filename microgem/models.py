@@ -25,6 +25,8 @@ SPECIAL_NAMES = {
     "S11": "LINCON",
     "S12": "SQRT",
     "S20": "LOCATE",
+    "S22": "WRITEXT",
+    "S23": "WRINUM",
     "S30": "FGEN",
     "S31": "DEDBAND",
     "S32": "LIMIT",
@@ -43,10 +45,9 @@ SPECIAL_NUMBERS = {name: number for number, name in SPECIAL_NAMES.items()}
 
 _BASIC = ("S0", "S1", "S2", "S3", "S4")
 _100C_12K = _BASIC + ("S20", "S32", "T0", "T10", "T11", "T20", "T30")
-_130C = _BASIC + ("S11", "S12", "S20", "S30", "S31", "S32", "S34", "S35", "S36", "S37",
+_130C = _BASIC + ("S11", "S12", "S20", "S22", "S23", "S30", "S31", "S32", "S34", "S35", "S36", "S37",
                   "T0", "T10", "T11", "T20", "T30")
 _130C_12K = _130C + ("S33",)  # RAMP: 130C 12K and 130CE only
-# Not yet emulated, though the 130C has them: S22 WRITEXT and S23 WRINUM (printer port).
 
 MICROGEM_LETTERS = "ABCDEFGHIJKLNOPRSUW"
 
@@ -68,6 +69,11 @@ class ControllerModel:
         return f"{self.title} {self.memory}" if self.memory else self.title
 
     @property
+    def printer(self) -> bool:
+        """A printer port: the 130C and 130CE have one (T278)."""
+        return "S22" in self.special and self.family == "gem80"
+
+    @property
     def letters(self) -> str:
         return "".join(self.tables)
 
@@ -87,6 +93,7 @@ class ControllerModel:
             "tables": dict(self.tables),
             "special": sorted(self.special, key=lambda n: (n[0], int(n[1:]))),
             "eprom": self.eprom,
+            "printer": self.printer,
         }
 
 
@@ -140,6 +147,24 @@ def get_model(key: str) -> ControllerModel:
 
 SLOTS = 8
 
+# The 8108 Compact Analogue Input Module (T443) multiplexes 16 channels of
+# ±10 V (full scale 10.235 V) into one A table word, addressed like an 8-point
+# module and twice as wide as the others: it takes two slots. Each channel
+# takes 70 ± 20 ms to convert; the word holds the value in bits 4 to 15 (11
+# bits plus sign, so full scale is 32752) and the channel in bits 0 to 3. The
+# emulator has it in self-scan mode with all 16 channels, its word the first
+# of its slot (the LOWER WORD switch setting).
+ANALOGUE_FULL_SCALE_V = 10.235
+ANALOGUE_CONVERSION_MS = 70
+ANALOGUE_CHANNELS = 16
+
+
+def analogue_word(volts: float, channel: int) -> int:
+    """The 8108's output word for a channel at a voltage."""
+    counts = round(max(-ANALOGUE_FULL_SCALE_V, min(ANALOGUE_FULL_SCALE_V, volts)) / ANALOGUE_FULL_SCALE_V * 32768)
+    counts = max(-32752, min(32752, counts))  # 11 bits and sign: T443 Figure 11
+    return (counts & 0xFFF0) | (channel & 0xF)
+
 
 @dataclass(frozen=True)
 class IOModule:
@@ -148,6 +173,7 @@ class IOModule:
     channels: int
     title: str
     relay: bool = False
+    width: int = 1  # slots it takes in the subrack
 
 
 IO_MODULES: dict[str, IOModule] = {
@@ -156,6 +182,7 @@ IO_MODULES: dict[str, IOModule] = {
         IOModule("8110", "input", 8, "8 channel input"),
         IOModule("8177", "input", 16, "16 channel input"),
         IOModule("8163", "input", 32, "32 channel input, 24 V d.c."),
+        IOModule("8108", "analogue", 16, "16 channel analogue input, ±10 V", width=2),
         IOModule("8113", "output", 8, "8 channel output"),
         IOModule("8130", "output", 8, "8 channel relay output", relay=True),
         IOModule("8178", "output", 16, "16 channel output, 110 V a.c."),
@@ -163,8 +190,9 @@ IO_MODULES: dict[str, IOModule] = {
     )
 }
 
-#: What a new GEM 80 has in its slots: 24 inputs and 24 outputs.
-DEFAULT_MODULES = ("8177", "8178", "8110", "8130", None, None, None, None)
+#: What a new GEM 80 has in its slots: 24 inputs, 24 outputs and an 8108
+#: with 16 analogue inputs (in slots 5 and 6).
+DEFAULT_MODULES = ("8177", "8178", "8110", "8130", "8108", None, None, None)
 
 
 def get_module(code: str) -> IOModule:

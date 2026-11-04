@@ -7,9 +7,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from . import functions
+from .printer import Printer
 from .models import (
     DEFAULT_MODEL,
+    ANALOGUE_CHANNELS,
+    ANALOGUE_CONVERSION_MS,
     SLOTS,
+    analogue_word,
     ControllerModel,
     get_model,
     get_module,
@@ -51,6 +55,7 @@ from .program import (
 from .tables import Address, AddressError, DataTables, clamp16, to_signed
 
 INPUT_TABLE = "A"
+ANALOGUE_LIMIT_V = 12.0  # what the emulator lets a terminal see; the 8108 reads ±10.235 V
 OUTPUT_TABLE = "B"
 FLAG_TABLE = "E"
 
@@ -104,21 +109,32 @@ class ControllerConfig:
             modules = tuple(self.modules) + (None,) * (SLOTS - len(self.modules))
             if len(modules) > SLOTS:
                 raise ValueError(f"a GEM 80 subrack has {SLOTS} I/O slots")
-            for code in modules:
-                if code is not None:
-                    get_module(code)
+            for slot, code in enumerate(modules, start=1):
+                if code is None:
+                    continue
+                module = get_module(code)
+                for extra in range(slot + 1, slot + module.width):
+                    if extra > SLOTS or modules[extra - 1] is not None:
+                        raise ValueError(f"the {code} in slot {slot} is {module.width} slots wide: "
+                                         f"slot {extra} must be empty" if extra <= SLOTS else
+                                         f"the {code} is {module.width} slots wide and does not fit in slot {slot}")
             object.__setattr__(self, "modules", modules)
-            ins, outs = [], []
+            ins, outs, analogue = [], [], []
             for slot, code in enumerate(modules, start=1):
                 if code is None:
                     continue
                 module = get_module(code)
                 words = slot_words(slot)
+                if module.kind == "analogue":
+                    analogue.append((slot, Address(INPUT_TABLE, words[0])))
+                    continue
                 table, points = (ins, INPUT_TABLE) if module.kind == "input" else (outs, OUTPUT_TABLE)
                 for ch in range(module.channels):
                     table.append(Address(points, words[ch // 16], ch % 16))
             object.__setattr__(self, "_points", (tuple(ins), tuple(outs)))
+            object.__setattr__(self, "_analogue", tuple(analogue))
             return
+        object.__setattr__(self, "_analogue", ())
         if self.inputs < 1 or self.outputs < 1:
             raise ValueError("a unit needs at least one input and one output")
         if not 0 <= self.expansions <= MAX_EXPANSIONS:
@@ -148,6 +164,15 @@ class ControllerConfig:
     def total_outputs(self) -> int:
         return len(self._points[1])
 
+    @property
+    def multiplexers(self) -> tuple[tuple[int, Address], ...]:
+        """(slot, A word) of each analogue input module."""
+        return self._analogue
+
+    @property
+    def total_analogue(self) -> int:
+        return ANALOGUE_CHANNELS * len(self._analogue)
+
     def input_address(self, index: int) -> Address:
         return self._points[0][index]
 
@@ -158,12 +183,22 @@ class ControllerConfig:
         info = {"family": self.family, "model": self.model,
                 "units": self.units, "inputs": self.inputs, "outputs": self.outputs}
         if self.family == "gem80":
-            slots, first_in, first_out = [], 0, 0
+            slots, first_in, first_out, first_an, covered = [], 0, 0, 0, {}
             for slot, code in enumerate(self.modules, start=1):
                 if code is None:
-                    slots.append({"slot": slot, "module": None})
+                    slots.append({"slot": slot, "module": None, "covered_by": covered.get(slot)})
                     continue
                 module = get_module(code)
+                for extra in range(slot + 1, slot + module.width):
+                    covered[extra] = slot
+                if module.kind == "analogue":
+                    slots.append({
+                        "slot": slot, "module": code, "kind": "analogue", "title": module.title,
+                        "channels": module.channels, "relay": False, "width": module.width,
+                        "words": [slot_words(slot)[0]], "first": first_an,
+                    })
+                    first_an += module.channels
+                    continue
                 first = first_in if module.kind == "input" else first_out
                 slots.append({
                     "slot": slot, "module": code, "kind": module.kind, "title": module.title,
@@ -175,7 +210,8 @@ class ControllerConfig:
                     first_in += module.channels
                 else:
                     first_out += module.channels
-            info.update(slots=slots, inputs=self.total_inputs, outputs=self.total_outputs)
+            info.update(slots=slots, inputs=self.total_inputs, outputs=self.total_outputs,
+                        analogue=self.total_analogue)
         return info
 
 
@@ -202,7 +238,12 @@ class Controller:
             words_needed = cfg.units * -(-max(cfg.inputs, cfg.outputs) // 16)
             sizes = {letter: max(size, words_needed) for letter, size in sizes.items()}
         self.tables = DataTables(sizes, self.model.letters)
-        self._special = functions.Context(self.tables, self.model.protected)
+        self.printer = Printer() if self.model.printer else None
+        # Analogue channels (volts on the terminals) and each 8108's
+        # multiplexer: the channel on its output and how long it has been there.
+        self.analogue = [0.0] * cfg.total_analogue
+        self._mux = [[0, 0] for _ in cfg.multiplexers]
+        self._special = functions.Context(self.tables, self.model.protected, self.printer)
         self.program = Program()
         self.instructions = 0
         self.running = False
@@ -252,6 +293,10 @@ class Controller:
                 raise ProgramError(f"PRESET {address}: {exc}") from None
             if address.table == FLAG_TABLE:
                 raise ProgramError(f"PRESET {address}: the E tables are set by the controller")
+            if address.table not in model.retained:
+                keep = " or ".join(t for t in model.retained if t in self.tables.letters and t != "A")
+                raise ProgramError(f"PRESET {address}: table {address.table} is cleared when the "
+                                   f"controller goes to Run, so the preset would be lost; use {keep}")
         for address in program.notes:
             try:
                 self.tables.check(address)
@@ -329,6 +374,8 @@ class Controller:
         self.halt()
         self.load("")
         self.tables.clear("".join(t for t in self.tables.letters if t != FLAG_TABLE))
+        if self.printer is not None:
+            self.printer.clear()
         if not self.test_inputs:
             self.set_test_inputs(False)  # the inputs as wired
 
@@ -357,8 +404,13 @@ class Controller:
 
     def scan(self, dt_ms: int) -> None:
         """Run the whole program once, as if ``dt_ms`` passed since the last scan."""
+        if self.printer is not None:
+            # The port empties its buffer whether or not the program runs.
+            self.printer.tick(dt_ms)
+            self.printer.flags(self.tables)
         if not self.running:
             return
+        self._read_multiplexers(dt_ms)
         self._dt_ms = dt_ms
         self._update_flags(dt_ms)
         self._skipped.clear()
@@ -381,6 +433,25 @@ class Controller:
         self.scan_count += 1
         self.elapsed_ms += dt_ms
         self._check_watchdog(dt_ms)
+
+    def _read_multiplexers(self, dt_ms: int) -> None:
+        """Each 8108 moves on to its next channel once the last one has been
+        read and the converter has settled, then shows it on its A word."""
+        for k, (_slot, address) in enumerate(self.config.multiplexers):
+            mux = self._mux[k]
+            mux[1] += dt_ms
+            if mux[1] >= ANALOGUE_CONVERSION_MS:
+                mux[0] = (mux[0] + 1) % ANALOGUE_CHANNELS
+                mux[1] = 0
+            if not self.test_inputs:
+                volts = self.analogue[k * ANALOGUE_CHANNELS + mux[0]]
+                self.tables.set_word(address, analogue_word(volts, mux[0]))
+
+    def set_analogue(self, index: int, volts: float) -> None:
+        """The voltage on analogue channel ``index`` (all the 8108s' channels in slot order)."""
+        if not 0 <= index < len(self.analogue):
+            raise IndexError(f"analogue channel {index} does not exist")
+        self.analogue[index] = max(-ANALOGUE_LIMIT_V, min(ANALOGUE_LIMIT_V, float(volts)))
 
     def _check_watchdog(self, dt_ms: int) -> None:
         code = to_signed(self.tables.get_word(F_USER_TRIP))
@@ -583,5 +654,8 @@ class Controller:
             "flow": self.flow(),
             "names": {str(a): list(n) for a, n in self.program.notes.items()},
             "skipped": sorted(self._skipped),
+            "printer": self.printer.snapshot() if self.printer is not None else None,
+            "analogue": [round(v, 3) for v in self.analogue],
+            "mux": [k * ANALOGUE_CHANNELS + m[0] for k, m in enumerate(self._mux)],
         }
 

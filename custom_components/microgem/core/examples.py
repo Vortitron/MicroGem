@@ -239,10 +239,129 @@ NOT G0.0 AND NOT G1.0 -> B6.3
 AND G12 SPEC BCDOUT -> OUT B2
 """
 
+HEATING = """\
+; Room heating with three-term control and a printed log, for a GEM 80/130C
+; with the default modules (the 8108 analogue module is in slots 5 and 6).
+; Analogue A8 (8108): channel 0 room temperature, 0 to 10 V for 0 to 40 C;
+;         channel 1 the set point knob, 0 to 10 V for 5 to 30 C
+; Inputs  A0.0 heating on
+; Outputs B6.0 heater (time-proportioned over 10 s), B6.1 heating on lamp,
+;         B6.2 too hot lamp (2 C over the set point)
+; Printer a time-stamped line when the heating goes on or off, or it gets too hot
+; Special Functions: LOCATE and MOVE to read the 8108, LINCON to scale,
+; PIDABS for the control, DIV and COMPARE for the heater, WRITEXT and WRINUM.
+; In Home Assistant, wire channel 0 to a temperature sensor and B6.0 to a heater.
+
+NAME A0.0 HEATING Heating on switch
+NAME B6.0 HEATER Heater contactor
+NAME B6.1 ONLAMP Heating on lamp
+NAME B6.2 TOOHOT Too hot lamp
+NAME G120 TEMP Room temperature, 0.1 C
+NAME G121 SETPT Set point, 0.1 C
+NAME G140 OUTPUT Heater output, 0.1 percent
+NAME G150 TICKS Tenths of a second in the heater cycle
+
+; LINCON data (F M D C): the temperature in tenths of a degree, 0 to 400,
+; and the set point, 50 to 300
+PRESET R100 = 0 400 32000 0
+PRESET R104 = 0 250 32000 50
+; PIDABS data: F P I D L+ L- L1 L2 S H
+PRESET R200 = 0 600 40 0 1000 0 1000 1000 1 0
+; The printed text
+MESSAGE P100 = ":"
+MESSAGE P102 = "0"
+MESSAGE P104 = "  HEATING ON, SET POINT "
+MESSAGE P120 = "  HEATING OFF, ROOM "
+MESSAGE P140 = "  TOO HOT, ROOM "
+MESSAGE P160 = "."
+MESSAGE P162 = " C\\n"
+
+; Read the 8108 (as in its manual, T443 8.3): the channel to G20, the value
+; to G21, then MOVE it to G100 + channel: G100 is channel 0, G101 channel 1
+AND A8 AND 15 -> OUT G20
+AND A8 AND @FFF0 -> OUT G21
+AND 0 SPEC LOCATE VALUE G21 SPEC MOVE [AND G20 SPEC LOCATE VALUE G100] VALUE 1 -> OUT G22
+
+; Scale to tenths of a degree
+AND G100 SPEC LINCON VALUE R100 -> OUT TEMP
+AND G101 SPEC LINCON VALUE R104 -> OUT SETPT
+
+; PIDABS runs while the heating is on (S = 1); S = 0 runs the output down
+AND 0 -> OUT R208
+HEATING -> BLOCK
+AND 1 -> OUT R208
+END BLOCK
+
+; Three-term control once a second, on the error: set point - temperature
+E0.1 -> BLOCK
+AND SETPT SUB TEMP SPEC PIDABS VALUE R200 -> OUT OUTPUT
+END BLOCK
+
+; A 10 s heater cycle: TICKS counts 0 to 99 in tenths of a second
+E0.0 -> BLOCK
+AND TICKS ADD 1 -> OUT TICKS
+END BLOCK
+AND TICKS SPEC COMPARE [AND 99] VALUE G151 -> OUT G152
+G151.13 -> BLOCK
+AND 0 -> OUT TICKS
+END BLOCK
+
+; The heater is on while the output in percent is more than the count
+AND OUTPUT SPEC DIV [AND 10] VALUE G153 -> OUT G154
+AND G154 SPEC COMPARE [AND TICKS] VALUE G155 -> OUT G156
+HEATING AND G155.13 -> HEATER
+HEATING -> ONLAMP
+
+; Too hot: 2 C (20 tenths) over the set point
+AND SETPT ADD 20 SPEC COMPARE [AND TEMP] VALUE G157 -> OUT G158
+HEATING AND G157.11 -> TOOHOT
+
+; One-scan pulses: G1.0 heating on, G1.2 heating off, G1.3 too hot
+HEATING AND NOT G1.1 -> G1.0
+NOT HEATING AND G1.1 -> G1.2
+HEATING -> G1.1
+TOOHOT AND NOT G1.4 -> G1.3
+TOOHOT -> G1.4
+
+; Each log line starts with the time, hh:mm, from the clock in E3 and E2
+G1.0 OR G1.2 OR G1.3 -> BLOCK
+AND E3 SPEC WRINUM VALUE 2 -> OUT G160
+AND 1 SPEC WRITEXT VALUE P100 -> OUT G160
+AND E2 SPEC COMPARE [AND 10] VALUE G164 -> OUT G165
+G164.11 -> BLOCK
+AND 1 SPEC WRITEXT VALUE P102 -> OUT G160
+END BLOCK
+AND E2 SPEC WRINUM VALUE 0 -> OUT G160
+END BLOCK
+
+G1.0 -> BLOCK
+AND 1 SPEC WRITEXT VALUE P104 -> OUT G160
+AND SETPT -> OUT G170
+END BLOCK
+G1.2 -> BLOCK
+AND 1 SPEC WRITEXT VALUE P120 -> OUT G160
+AND TEMP -> OUT G170
+END BLOCK
+G1.3 -> BLOCK
+AND 1 SPEC WRITEXT VALUE P140 -> OUT G160
+AND TEMP -> OUT G170
+END BLOCK
+
+; Then the degrees in G170, to a tenth, and the end of the line
+G1.0 OR G1.2 OR G1.3 -> BLOCK
+AND G170 SPEC DIV [AND 10] VALUE G171 -> OUT G172
+AND G172 SPEC WRINUM VALUE 0 -> OUT G160
+AND 1 SPEC WRITEXT VALUE P160 -> OUT G160
+AND G171 SPEC WRINUM VALUE 0 -> OUT G160
+AND 1 SPEC WRITEXT VALUE P162 -> OUT G160
+END BLOCK
+"""
+
 #: Demo programmes for the GEM 80 compact controllers (default modules).
 GEM80_EXAMPLES = [
     Example("bottling", "Bottle filling line", "Fills, counts and crates bottles, with Special Functions.", BOTTLING),
     Example("car-wash", "Car wash", "A timed wash and dry cycle that any GEM 80 can run.", CAR_WASH),
+    Example("heating", "Room heating", "PID control from an analogue input, with a printed log (130C).", HEATING),
 ]
 
 EXAMPLES = [

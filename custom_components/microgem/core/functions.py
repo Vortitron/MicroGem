@@ -32,9 +32,10 @@ def _limit(value: int) -> int:
 class Context:
     """What a Special Function can see of the controller."""
 
-    def __init__(self, tables: DataTables, protected: str) -> None:
+    def __init__(self, tables: DataTables, protected: str, printer=None) -> None:
         self.tables = tables
         self.protected = protected
+        self.printer = printer  # printer.Printer on a controller with a printer port
 
     # Zm and the locations after it, in the same table.
     def fits(self, zm: Address, count: int) -> bool:
@@ -549,9 +550,53 @@ def store(ctx: Context, x: int, y: int, zm: Address) -> int:
     return q
 
 
+# --- printer port: S22 WRITEXT and S23 WRINUM -----------------------------
+# No data sheet for these two has been found. The message layout is the one
+# the PRITEXT (S38) sheet gives, which the WRITEXT example in the Serial Links
+# manual (T418, 6.3) bears out: bits 0-7 of Zm hold the length (0 to 255),
+# bits 8-15 the first character, then two characters a word, the low byte
+# first. The rung input selects the port as for PRITEXT (0 = do nothing), and
+# the fault codes are PRITEXT's: 0 done, 9 message beyond the table, 17 no
+# printer port, 129 printer buffer full.
+
+def message_codes(ctx: Context, zm: Address) -> list[int] | None:
+    first = ctx.get(zm) & 0xFFFF
+    length = first & 0xFF
+    words = 1 + length // 2
+    if not ctx.fits(zm, words):
+        return None
+    codes = [first >> 8]
+    for k in range(1, words):
+        w = ctx.get(zm, k) & 0xFFFF
+        codes += [w & 0xFF, w >> 8]
+    return codes[:length]
+
+
+def writext(ctx: Context, x: int, _y: int, zm: Address) -> int:
+    if x == 0:
+        return 0
+    if ctx.printer is None:
+        return 17
+    codes = message_codes(ctx, zm)
+    if codes is None:
+        return 9
+    return 0 if ctx.printer.put(codes) else 129
+
+
+def wrinum(ctx: Context, x: int, _y: int, value: Address | int) -> int:
+    """The rung word as a signed decimal number, right-justified in a field
+    VALUE characters wide (0 for no padding). Our reading of the name; no data
+    sheet has been found."""
+    if ctx.printer is None:
+        return 17
+    width = max(0, min(15, ctx.number(value)))
+    text = str(to_signed(x)).rjust(width)
+    return 0 if ctx.printer.put([ord(c) for c in text]) else 129
+
+
 FUNCTIONS: dict[str, Function] = {
     "S0": dbounce, "S1": bcdin, "S2": bcdout, "S3": histate, "S4": swap,
-    "S11": lincon, "S12": sqrt, "S20": locate, "S30": fgen, "S31": dedband,
+    "S11": lincon, "S12": sqrt, "S20": locate, "S22": writext, "S23": wrinum, "S30": fgen, "S31": dedband,
     "S32": limit, "S33": ramp, "S34": pidabs, "S35": pidinc, "S36": incout, "S37": analag,
     "T0": compare, "T10": mult, "T11": div, "T20": move, "T30": store,
 }

@@ -83,6 +83,10 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
   box-shadow: inset 0 2px 0 rgba(255,255,255,.06), 0 3px 8px rgba(0,0,0,.25); }
 .sim-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 .72rem/1 Arial, sans-serif; letter-spacing: .12em; }
 .group-label { margin-top: 10px; font: 600 .62rem/1 Arial, sans-serif; letter-spacing: .1em; color: #b8ad95; }
+.analogue { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 14px; margin-top: 8px; }
+.an-row { display: grid; grid-template-columns: 46px 1fr 58px; align-items: center; gap: 6px; font: 12px var(--mono); }
+.an-row input { width: 100%; accent-color: #5d7f46; }
+.an-row .an-val { text-align: right; color: var(--muted); }
 .toggles { display: grid; grid-template-columns: repeat(var(--n, 12), minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
 .toggle { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; touch-action: manipulation; }
 .toggle .plate { width: 22px; height: 34px; border-radius: 4px; background: linear-gradient(#5a554d, #2b2824); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.6); }
@@ -213,6 +217,21 @@ textarea { width: 100%; min-height: 320px; resize: vertical; font: 13px/1.5 var(
 .message { font-size: .85rem; color: var(--muted); }
 .demo-row { margin: 0 0 8px; }
 .files { margin-top: 6px; }
+.vp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vp-head h2 { margin: 0; }
+.vp-tools { margin-left: auto; display: flex; gap: 6px; }
+.vp-tools .btn { padding: 5px 10px; font-size: .85rem; }
+.vp-lamp { width: 10px; height: 10px; border-radius: 50%; background: #3a3a3a; box-shadow: inset 0 0 2px #000; }
+.vp-lamp.on { background: #4cff6a; box-shadow: 0 0 6px #4cff6a; }
+.vp-paper { position: relative; max-height: 340px; overflow: auto; border-radius: 3px; padding: 6px 34px;
+  background:
+    radial-gradient(circle at 12px 9px, var(--panel) 4px, transparent 5px) left top / 24px 18px repeat-y,
+    radial-gradient(circle at 12px 9px, var(--panel) 4px, transparent 5px) right top / 24px 18px repeat-y,
+    repeating-linear-gradient(#fbfbf4 0 54px, #dff0dc 54px 108px);
+  background-attachment: local; border: 1px solid #c9c9bd; }
+.vp-paper pre { margin: 0; font: 13px/18px "Courier New", var(--mono); color: #232323; white-space: pre; min-height: 108px; }
+.vp-paper .head::after { content: "\\2588"; animation: vp-blink 1s steps(1) infinite; color: #555; }
+@keyframes vp-blink { 50% { opacity: 0; } }
 .files .btn { padding: 5px 10px; font-size: .85rem; }
 textarea.drop { outline: 2px dashed var(--accent); }
 .printout { margin-top: 10px; border: 1px solid var(--border); border-radius: 6px; padding: 0 10px 10px; background: var(--bg); }
@@ -262,6 +281,8 @@ const MARKUP = `
         <div class="fields">
           <label id="we-attr-box">Read<select id="we-attr"></select></label>
           <label id="we-above-box">Contact closes above<input id="we-above" type="number" step="any" placeholder="leave empty for on/off"></label>
+          <label id="we-low-box">Value at 0 V<input id="we-low" type="number" step="any" value="0"></label>
+          <label id="we-high-box">Value at 10 V<input id="we-high" type="number" step="any" value="100"></label>
           <label class="check" id="we-invert-box"><input type="checkbox" id="we-invert"> Invert: the contact is closed while the entity is <i>off</i> (like a normally closed switch)</label>
         </div>
         <p class="message" id="we-now"></p>
@@ -300,6 +321,16 @@ const MARKUP = `
   </div>
 
   <section class="p8920" id="p8920" aria-label="8920 Portable Programmer" hidden></section>
+
+  <section class="panel vprinter" id="printer" aria-label="Printer on the printer port" hidden>
+    <div class="vp-head">
+      <h2>Printer</h2>
+      <span class="vp-lamp" id="vp-lamp" title="On line"></span><span class="message" id="vp-status"></span>
+      <span class="vp-tools"><button class="btn" id="vp-line">Off line</button><button class="btn" id="vp-tear">Tear off</button><button class="btn" id="vp-save">Download</button></span>
+    </div>
+    <p class="hint">What the program prints with <code>SPEC WRITEXT</code> (S22) and <code>SPEC WRINUM</code> (S23) on the printer port. Put the text in a table with a <code>MESSAGE P100 = "PUMP 1 TRIPPED\\n"</code> line. The program can watch <code>F50.1</code> (buffer filling), <code>F50.2</code> (empty) and <code>F50.0</code> (printer off line).</p>
+    <div class="vp-paper" id="vp-paper"><pre id="vp-lines"></pre></div>
+  </section>
 
   <section class="panel ha-links" id="ha-links" hidden>
     <h2>In Home Assistant</h2>
@@ -495,7 +526,57 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
 // serial port lamps and the programming socket on the processor; power and
 // output healthy lamps and the run/shutdown switch on the power supply.
 
-const G80_MODULE_COLOURS = { input: "#4c7a9e", output: "#a4473a", relay: "#c98a2b" };
+const G80_MODULE_COLOURS = { input: "#4c7a9e", output: "#a4473a", relay: "#c98a2b", analogue: "#5d7f46" };
+
+// The 8108 Compact Analogue Input Module (T443 Fig 4): its switches, the
+// plant connector for the harness, and for the emulator a bar and the
+// voltage of each of its 16 channels, beside the channel it is reading.
+const AN_ROW0 = 118, AN_STEP = 13.4;
+function analogueModuleSvg(slot, sx, top, w, MH, wires, { screw, lamp, txt }) {
+  const sw = (x, y, label, a, b, up) => `${txt(x, y - 16, label, "g8 small")}
+    <rect x="${x - 7}" y="${y - 10}" width="14" height="22" rx="3" fill="#0d0d0d" stroke="#555"/>
+    <rect x="${x - 3}" y="${up ? y - 8 : y}" width="6" height="10" rx="2" fill="#cfcac0"/>
+    ${txt(x + 18, y - 3, a, "g8 tiny")}${txt(x + 18, y + 10, b, "g8 tiny")}`;
+  let out = `<rect x="${sx}" y="${top}" width="${w}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
+    <rect x="${sx + w / 2 - 18}" y="${top + 4}" width="36" height="12" rx="3" fill="#0d0d0d"/>
+    <rect x="${sx + 6}" y="${top + 22}" width="${w - 12}" height="30" rx="2" fill="${G80_MODULE_COLOURS.analogue}"/>
+    ${txt(sx + w / 2, top + 36, slot.module, "g8 type")}
+    ${txt(sx + w / 2, top + 47, "ANALOGUE INPUT 16 CH", "g8 small")}
+    ${sw(sx + 20, top + 80, "INPUT", "10V", "5V", true)}
+    ${sw(sx + 64, top + 80, "WORD", "UPPER", "LOWER", false)}
+    ${sw(sx + 110, top + 80, "SCAN", "SELF", "FORCED", true)}
+    <circle cx="${sx + w - 22}" cy="${top + 80}" r="10" fill="#0d0d0d" stroke="#555"/>
+    <path d="M${sx + w - 22} ${top + 80}l7 -5" stroke="#cfcac0" stroke-width="2.4" stroke-linecap="round"/>
+    ${txt(sx + w - 22, top + 64, "No.", "g8 small")}${txt(sx + w - 22, top + 102, "8", "g8 tiny")}
+    ${txt(sx + 30, top + AN_ROW0 - 8, `A${slot.words[0]}`, "g8 word")}`;
+  for (let c = 0; c < 16; c++) {
+    const g = slot.first + c, cy = top + AN_ROW0 + c * AN_STEP;
+    out += txt(sx + 22, cy + 3.5, String(c), "g8 ch") + lamp("g", `mux-${g}`, sx + 30, cy, 3) +
+      `<rect x="${sx + 40}" y="${cy - 4}" width="${w - 96}" height="8" rx="2" fill="#111" stroke="#333"/>` +
+      `<line x1="${sx + 40 + (w - 96) / 2}" y1="${cy - 5}" x2="${sx + 40 + (w - 96) / 2}" y2="${cy + 5}" stroke="#555"/>` +
+      `<rect class="an-bar" id="an-${g}" x="${sx + 40 + (w - 96) / 2}" y="${cy - 3}" width="0" height="6" fill="#7ad36b"/>` +
+      `<text class="g8 an-v" id="anv-${g}" x="${sx + w - 10}" y="${cy + 3.5}">0.00</text>`;
+    if (wires.analogue && wires.analogue[g]) {
+      out += `<path class="cable in" d="M${sx + 2} ${cy} h-6"/>`;
+    }
+  }
+  const py = top + MH - 44;
+  out += `<rect x="${sx + 30}" y="${py}" width="${w - 60}" height="32" rx="5" fill="#2a2a2a" stroke="#555"/>
+    <rect x="${sx + 40}" y="${py + 7}" width="${w - 80}" height="18" rx="4" fill="#0e0e0e"/>
+    ${txt(sx + w / 2, py - 6, "PLANT SIGNALS", "g8 tiny")}
+    ${screw(sx + w / 2, top + MH - 4, 3)}`;
+  return out;
+}
+
+function analogueTerms(slot, sx, top, w, wires) {
+  let out = "";
+  for (let c = 0; c < 16; c++) {
+    const g = slot.first + c, cy = top + AN_ROW0 + c * AN_STEP;
+    const wired = wires.analogue && wires.analogue[g];
+    out += `<rect class="term" data-kind="analogue" data-index="${g}" x="${sx + 10}" y="${cy - AN_STEP / 2}" width="${w - 20}" height="${AN_STEP}" rx="2"><title>Slot ${slot.slot} (${slot.module}) analogue channel ${c}, read through A${slot.words[0]} (${wired ? "wired to " + esc(wired.title) : "click to wire it to a sensor"})</title></rect>`;
+  }
+  return out;
+}
 
 function gem80Svg(io, model, wires = { inputs: {}, outputs: {} }) {
   const slots = io.slots || [];
@@ -512,12 +593,23 @@ function gem80Svg(io, model, wires = { inputs: {}, outputs: {} }) {
     <rect x="22" y="${top - 18}" width="${W - 44}" height="${MH + 36}" rx="3" fill="#141414" stroke="#2c2c2c"/>
     ${screw(12, 30)}${screw(12, H - 30)}${screw(W - 12, 30)}${screw(W - 12, H - 30)}`;
 
-  // I/O slots, 8 to 1 from the left.
-  let x = 40;
+  // I/O slots, 8 to 1 from the left. A double-width module (the 8108)
+  // starts at the slot to its left, which it covers.
+  let x = 40, coverX = null;
   for (let s = slots.length; s >= 1; s--) {
     const slot = slots[s - 1];
-    const sx = x;
+    let sx = x;
     x += SW + gap;
+    if (slot && !slot.module && slot.covered_by) { coverX = sx; continue; }
+    if (slot && slot.kind === "analogue") {
+      if (coverX !== null) sx = coverX;
+      coverX = null;
+      const w = x - gap - sx;
+      body += analogueModuleSvg(slot, sx, top, w, MH, wires, { screw, lamp, txt });
+      body += txt(sx + w / 2, top + MH + 30, `SLOTS ${s + 1}–${s}`, "g8 slot");
+      terms += analogueTerms(slot, sx, top, w, wires);
+      continue;
+    }
     if (!slot || !slot.module) {
       body += `<rect x="${sx}" y="${top}" width="${SW}" height="${MH}" rx="3" fill="#232323" stroke="#333"/>
         <rect x="${sx + 8}" y="${top + 10}" width="${SW - 16}" height="${MH - 20}" rx="2" fill="#1b1b1b"/>
@@ -616,6 +708,7 @@ function gem80Svg(io, model, wires = { inputs: {}, outputs: {} }) {
       .g8.type{font:900 15px Arial Black,Arial,sans-serif;fill:#fff}.g8.model{font:900 13px Arial Black,Arial,sans-serif}
       .g8.word{font-size:9px;fill:#ffd36b}.g8.ch{font-size:8px;fill:#aaa;text-anchor:end}
       .g8.slot{font-size:11px;fill:#d8d4ca}.g8.dim{fill:#666;letter-spacing:.2em}
+      .g8.tiny{font-size:7px;fill:#bbb;text-anchor:start}.g8.an-v{font:600 8.5px var(--mono,monospace);fill:#cde8c6;text-anchor:end}
     </style>
   </defs>
   ${body}${terms}
@@ -1012,7 +1105,7 @@ function textRung(rung, flow) {
     return { sym: "?", addr: "" };
   };
   const branchOf = (n) => (n.t === "count" ? n.reset : (n.t === "logic" || n.t === "arith" || n.t === "spec") && n.arg && typeof n.arg === "object" ? n.arg : null);
-  const width = (n) => Math.max(CELL, leaf(n).sym.length + 4);
+  const width = (n) => { const l = leaf(n); return Math.max(CELL, l.sym.length + 4, String(l.addr).length + 4); };
 
   function measure(n) {
     if (!n) return { w: 0, h: 1 };
@@ -1865,8 +1958,8 @@ class MicroGemPanel extends HTMLElement {
 
     function buildGem80() {
       const info = io(), model = state.model;
-      const wires = { inputs: {}, outputs: {} };
-      for (const kind of ["inputs", "outputs"]) {
+      const wires = { inputs: {}, outputs: {}, analogue: {} };
+      for (const kind of ["inputs", "outputs", "analogue"]) {
         for (const [i, point] of Object.entries(wiring()[kind])) wires[kind][i] = describe(point);
       }
       $("unit").innerHTML = gem80Svg(info, model, wires);
@@ -1879,9 +1972,12 @@ class MicroGemPanel extends HTMLElement {
       $("g80-ctl").hidden = false;
       $("p8920").hidden = false;
       if (!pp) pp = new Programmer8920($("p8920"), send);
+      $("printer").hidden = !(model.printer);
+      if (model.printer && !paper) { paper = []; send({ type: "paper" }); }
       const t = $("toggles");
       t.replaceChildren();
       for (const slot of info.slots) {
+        if (slot.kind === "analogue") { buildAnalogue(t, slot); continue; }
         if (!slot.module || slot.kind !== "input") continue;
         t.append(el("div", "group-label", `SLOT ${slot.slot} · ${slot.module} · ${slot.words.map((w) => "A" + w).join(" ")}`));
         const group = el("div", "toggles");
@@ -1898,6 +1994,47 @@ class MicroGemPanel extends HTMLElement {
       }
       built = true;
       buildLinks();
+    }
+    // Sliders for an 8108's channels, in volts; a wired channel follows its sensor.
+    function buildAnalogue(t, slot) {
+      t.append(el("div", "group-label", `SLOTS ${slot.slot + 1}–${slot.slot} · ${slot.module} · A${slot.words[0]} · ANALOGUE, VOLTS`));
+      const group = el("div", "analogue");
+      for (let c = 0; c < slot.channels; c++) {
+        const i = slot.first + c;
+        const row = el("label", "an-row");
+        const input = document.createElement("input");
+        Object.assign(input, { type: "range", min: "-10", max: "10", step: "0.05", value: "0" });
+        input.id = `ans-${i}`;
+        input.setAttribute("aria-label", `Analogue channel ${c} (slot ${slot.slot}), volts`);
+        input.addEventListener("input", () => send({ type: "analogue", index: i, value: Number(input.value) }));
+        row.append(el("span", "an-ch", `CH ${c}`), input, el("span", "an-val", "0.00 V"));
+        row.lastChild.id = `ansv-${i}`;
+        group.append(row);
+      }
+      t.append(group);
+    }
+    function renderAnalogue() {
+      const volts = state.analogue || [];
+      const u = $("unit");
+      const wiredAn = (wiring().analogue) || {};
+      volts.forEach((v, i) => {
+        const bar = u.querySelector(`#an-${i}`);
+        if (bar) {
+          const full = Number(bar.previousElementSibling.previousElementSibling.getAttribute("width"));
+          const half = full / 2, len = Math.min(1, Math.abs(v) / 10) * half;
+          const mid = Number(bar.previousElementSibling.getAttribute("x1"));
+          bar.setAttribute("x", v < 0 ? mid - len : mid);
+          bar.setAttribute("width", len);
+        }
+        const tv = u.querySelector(`#anv-${i}`);
+        if (tv) tv.textContent = v.toFixed(2);
+        const sl = root.querySelector(`#ans-${i}`);
+        if (sl && root.activeElement !== sl) { sl.value = v; sl.disabled = !!wiredAn[i]; }
+        const sv = root.querySelector(`#ansv-${i}`);
+        if (sv) sv.textContent = `${v.toFixed(2)} V`;
+      });
+      const mux = state.mux || [];
+      u.querySelectorAll("[id^=mux-]").forEach((n) => n.classList.toggle("on", mux.includes(Number(n.id.slice(4)))));
     }
     let g80Built = false;
     let pp = null; // the 8920 Portable Programmer, for a GEM 80
@@ -2010,7 +2147,7 @@ class MicroGemPanel extends HTMLElement {
     const OFF = new Set(["off", "closed", "not_home", "away", "idle", "standby", "paused", "locked", "false", "0", "none", "", "unavailable", "unknown"]);
     const TRIGGERED = new Set(["button", "input_button", "scene", "script", "automation"]);
     const SWITCHABLE = new Set(["switch", "light", "fan", "input_boolean", "siren", "cover", "valve", "climate", "humidifier", "media_player", "water_heater", "vacuum", "remote", ...TRIGGERED]);
-    const wiring = () => (ha && ha.wiring) || { inputs: {}, outputs: {} };
+    const wiring = () => Object.assign({ inputs: {}, outputs: {}, analogue: {} }, (ha && ha.wiring) || {});
     const canWire = () => !!(ha && transport.wire);
     const hassState = (id) => host._hass && host._hass.states[id];
     function describe(point) {
@@ -2039,6 +2176,7 @@ class MicroGemPanel extends HTMLElement {
     function openEditor(kind, index) {
       if (!canWire()) return;
       editing = { kind, index };
+      if (kind === "analogue") return openAnalogueEditor(index);
       const { inputs: nIn, outputs: nOut } = io();
       const per = kind === "inputs" ? nIn : nOut, unit = Math.floor(index / per);
       let where = `${kind === "inputs" ? "input terminal" : "relay output"} ${String(index % per).padStart(2, "0")}${unit ? ` on expansion unit ${unit}` : ""}`;
@@ -2059,6 +2197,7 @@ class MicroGemPanel extends HTMLElement {
       $("we-above").value = point && point.above != null ? point.above : "";
       $("we-invert").checked = !!(point && point.invert);
       $("we-attr-box").hidden = $("we-above-box").hidden = $("we-invert-box").hidden = kind !== "inputs";
+      $("we-low-box").hidden = $("we-high-box").hidden = true;
       $("we-remove").hidden = !point;
       fillAttributes(point && point.attribute);
       renderPicker(true);
@@ -2067,6 +2206,35 @@ class MicroGemPanel extends HTMLElement {
       $("wire-ed").scrollIntoView({ block: "nearest", behavior: "smooth" });
       $("we-search").focus();
     }
+    // An 8108 channel follows a number: low reads 0 V and high 10 V, in a
+    // straight line, up to the module's ±10 V.
+    function openAnalogueEditor(index) {
+      const slot = io().slots.find((sl) => sl.kind === "analogue" && index >= sl.first && index < sl.first + sl.channels);
+      const ch = index - slot.first;
+      const point = wiring().analogue[index];
+      $("we-title").textContent = `Wire analogue channel ${ch} of slot ${slot.slot} (${slot.module}, read through A${slot.words[0]})`;
+      $("we-hint").textContent = "The channel's voltage follows the entity's number: the value you give for 0 V reads 0 V, the one for 10 V reads 10 V, in a straight line (the 8108 reads -10 V to +10 V). A temperature of 0 to 40 °C suits the Room heating demo.";
+      chosen = point ? point.entity_id : "";
+      $("we-search").value = "";
+      filter = "sensor";
+      $("we-low").value = point && point.low != null ? point.low : 0;
+      $("we-high").value = point && point.high != null ? point.high : 40;
+      $("we-attr-box").hidden = false;
+      $("we-above-box").hidden = $("we-invert-box").hidden = true;
+      $("we-low-box").hidden = $("we-high-box").hidden = false;
+      $("we-remove").hidden = !point;
+      fillAttributes(point && point.attribute);
+      renderPicker(true);
+      $("unit").querySelectorAll(".term").forEach((t) => t.classList.toggle("sel", t.dataset.kind === "analogue" && Number(t.dataset.index) === index));
+      $("wire-ed").hidden = false;
+      $("wire-ed").scrollIntoView({ block: "nearest", behavior: "smooth" });
+      $("we-search").focus();
+    }
+    const volts = (value, point) => {
+      const n = Number(value), lo = Number(point.low ?? 0), hi = Number(point.high ?? 100);
+      if (value === null || value === "" || Number.isNaN(n) || hi === lo) return null;
+      return Math.max(-10.235, Math.min(10.235, ((n - lo) / (hi - lo)) * 10));
+    };
     function closeEditor() {
       editing = null;
       $("wire-ed").hidden = true;
@@ -2085,6 +2253,12 @@ class MicroGemPanel extends HTMLElement {
       const entity_id = chosen;
       if (!entity_id) return null;
       const point = { entity_id };
+      if (editing.kind === "analogue") {
+        if ($("we-attr").value) point.attribute = $("we-attr").value;
+        point.low = Number($("we-low").value || 0);
+        point.high = Number($("we-high").value || 0);
+        return point;
+      }
       if (editing.kind === "inputs") {
         if ($("we-attr").value) point.attribute = $("we-attr").value;
         if ($("we-above").value !== "") point.above = Number($("we-above").value);
@@ -2101,6 +2275,14 @@ class MicroGemPanel extends HTMLElement {
       if (!st) { now.textContent = `${point.entity_id} is not in Home Assistant at the moment.`; now.classList.add("error"); return; }
       const value = point.attribute ? st.attributes[point.attribute] : st.state;
       const shown = typeof value === "object" ? JSON.stringify(value) : String(value);
+      if (editing.kind === "analogue") {
+        const v = volts(value, point);
+        now.textContent = point.high === point.low ? "The values for 0 V and 10 V must differ."
+          : v === null ? `${describe(point).name} is ${shown.slice(0, 60)} now, which is not a number: the channel would read 0 V.`
+          : `${describe(point).name} is ${shown.slice(0, 60)} now, so the channel would read ${v.toFixed(2)} V.`;
+        if (point.high === point.low) now.classList.add("error");
+        return;
+      }
       now.textContent = editing.kind === "inputs"
         ? `${describe(point).name} is ${shown.slice(0, 60)} now, so ${io_addr()} would be ${closes(st, point) ? "closed (on)" : "open (off)"}.`
         : `${describe(point).name} is ${shown.slice(0, 60)} now.${TRIGGERED.has(point.entity_id.split(".")[0]) ? " Pressed or run when the relay closes." : ""}`;
@@ -2123,7 +2305,7 @@ class MicroGemPanel extends HTMLElement {
     ];
     const NAMED = new Set(FILTERS.flatMap((f) => f.domains || []));
     const filterHas = (f, domain) => f.key === "all" || (f.domains ? f.domains.includes(domain) : !NAMED.has(domain));
-    const allowed = (kind, f) => kind === "inputs" || !f.inputsOnly;
+    const allowed = (kind, f) => kind !== "outputs" || !f.inputsOnly;
     let chosen = "", filter = "switch", highlight = 0, shownIds = [];
     function matcher(text) {
       const terms = text.trim().toLowerCase().split(/\s+/).filter(Boolean).map((t) =>
@@ -2136,7 +2318,7 @@ class MicroGemPanel extends HTMLElement {
       const states = (host._hass && host._hass.states) || {};
       // This controller's own switches and sensors are its internal I/O, not field devices.
       const own = new Set(Object.values(ha.entities || {}));
-      return Object.keys(states).filter((id) => !own.has(id) && (editing.kind === "inputs" || SWITCHABLE.has(id.split(".")[0])));
+      return Object.keys(states).filter((id) => !own.has(id) && (editing.kind !== "outputs" || SWITCHABLE.has(id.split(".")[0])));
     }
     function renderPicker(scrollToChosen) {
       const states = (host._hass && host._hass.states) || {};
@@ -2182,7 +2364,7 @@ class MicroGemPanel extends HTMLElement {
     }
     function choose(id) {
       chosen = id;
-      fillAttributes(editing.kind === "inputs" ? $("we-attr").value : "");
+      fillAttributes(editing.kind !== "outputs" ? $("we-attr").value : "");
       renderPicker();
     }
 
@@ -2217,6 +2399,8 @@ class MicroGemPanel extends HTMLElement {
     });
     $("we-attr").addEventListener("change", wirePreview);
     $("we-above").addEventListener("input", wirePreview);
+    $("we-low").addEventListener("input", wirePreview);
+    $("we-high").addEventListener("input", wirePreview);
     $("we-invert").addEventListener("change", wirePreview);
     $("we-save").addEventListener("click", () => saveWire(editedPoint()));
     $("we-remove").addEventListener("click", () => saveWire(null));
@@ -2258,6 +2442,8 @@ class MicroGemPanel extends HTMLElement {
       renderTables();
       renderLcd();
       if (pp && isGem80()) pp.update(state);
+      if (state.printer) renderPrinter(state.printer);
+      if (state.analogue && state.analogue.length) renderAnalogue();
       if (!programDirty && state.program !== undefined && $("program").value !== state.program) $("program").value = state.program;
     }
     const schedule = () => { if (!frame) frame = requestAnimationFrame(render); };
@@ -2702,6 +2888,11 @@ class MicroGemPanel extends HTMLElement {
         draftRungs = msg.rungs;
         if (!P.draft.acts.length && draftRungs[0]) draftRungs[0].output = null;
         schedule();
+      } else if (msg.type === "paper") {
+        paper = msg.lines.slice();
+        printedSeen = msg.printed;
+        if (state) state.printer = Object.assign({}, state.printer || {}, msg, { lines: msg.lines.slice(-20) });
+        drawPaper(msg);
       } else if (msg.type === "imported") {
         $("program").value = msg.source;
         programDirty = true;
@@ -2734,6 +2925,37 @@ class MicroGemPanel extends HTMLElement {
       selected = 0;
     });
     $("load").addEventListener("click", () => send({ type: "load", source: $("program").value }));
+
+    // The printer on the printer port: keep our own roll of paper, topped
+    // up from the last lines in each state, or fetched whole after a gap.
+    let paper = null, printedSeen = 0;
+    function renderPrinter(pr) {
+      if (!paper) return;
+      const fresh = pr.printed - printedSeen;
+      if (fresh > pr.lines.length) { printedSeen = pr.printed; send({ type: "paper" }); return; }
+      if (fresh > 0) paper.push(...pr.lines.slice(pr.lines.length - fresh));
+      printedSeen = pr.printed;
+      if (paper.length > 200) paper.splice(0, paper.length - 200);
+      drawPaper(pr);
+    }
+    function drawPaper(pr) {
+      const box = $("vp-paper"), pre = $("vp-lines");
+      const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+      const text = paper.join("\n") + (paper.length ? "\n" : "");
+      const key = text + "\u0000" + pr.head;
+      if (pre.dataset.key !== key) {
+        pre.dataset.key = key;
+        pre.textContent = text;
+        pre.append(el("span", "head", pr.head || ""));
+        if (atEnd) box.scrollTop = box.scrollHeight;
+      }
+      $("vp-lamp").classList.toggle("on", !!pr.on_line);
+      $("vp-line").textContent = pr.on_line ? "Off line" : "On line";
+      $("vp-status").textContent = `${pr.on_line ? "On line" : "Off line"} · buffer ${pr.buffered} of ${pr.size} characters · ${pr.printed} lines printed`;
+    }
+    $("vp-line").addEventListener("click", () => send({ type: "printer", action: state.printer && state.printer.on_line ? "off_line" : "on_line" }));
+    $("vp-tear").addEventListener("click", () => send({ type: "printer", action: "tear_off" }));
+    $("vp-save").addEventListener("click", () => download(`${fileStem()}-printer.txt`, (paper || []).join("\n") + "\n"));
 
     // Files: open, drop, convert, save and print-out.
     let printoutForPp = false;
