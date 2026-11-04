@@ -93,6 +93,56 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .seg button { border: 0; background: #4a453d; color: #e8e1d2; padding: 4px 9px; font: 600 .7rem/1.2 Arial, sans-serif; letter-spacing: .06em; cursor: pointer; min-width: 30px; }
 .seg button.active { background: #e8e1d2; color: #2a241c; }
 
+/* ---------- 8920 Portable Programmer (GEM 80) ---------- */
+.p8920 { margin-top: 22px; }
+.p8920[hidden] { display: none; }
+.p89 { outline: none; max-width: 1000px; margin: 0 auto; padding: 18px; border-radius: 14px; color: #2a2721;
+  background: linear-gradient(#e4dece, #cec6b0); box-shadow: 0 12px 22px rgba(0,0,0,.35); }
+.p89:focus-visible { box-shadow: 0 0 0 3px var(--accent), 0 12px 22px rgba(0,0,0,.35); }
+.p89.alarm { animation: p89-alarm .35s; }
+@keyframes p89-alarm { 30% { box-shadow: 0 0 0 4px #d33, 0 12px 22px rgba(0,0,0,.35); } }
+.p89-hood { display: grid; grid-template-columns: minmax(0, 1fr) 140px; gap: 16px; align-items: center; }
+.p89-bezel { background: #2c2b28; border-radius: 22px; padding: 16px; box-shadow: inset 0 4px 10px rgba(0,0,0,.6); }
+.p89-screen { container-type: inline-size; border-radius: 18px / 26px; padding: 2.4% 2.8%;
+  background: radial-gradient(ellipse at center, #0c2617, #030b06 85%); box-shadow: inset 0 0 30px rgba(0,0,0,.85); }
+.p89-screen pre { margin: 0; font: 400 calc(100cqw / 49)/1.2 var(--mono); color: #8dffb0; white-space: pre; overflow: hidden;
+  text-shadow: 0 0 4px rgba(90,255,150,.55); font-variant-numeric: slashed-zero; }
+.p89-side { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.p89-badge { display: flex; align-items: center; gap: 6px; background: #1d1d1d; color: #eee; padding: 6px 9px; border-radius: 3px; }
+.p89-badge b { font: 900 20px/1 "Arial Black", Arial, sans-serif; }
+.p89-badge span { font: 700 8px/1.2 Arial, sans-serif; text-align: left; }
+.p89-model { font: 900 24px/1 Arial, sans-serif; letter-spacing: .02em; }
+.p89-model small { display: block; font: 800 8.5px/1.4 Arial, sans-serif; letter-spacing: .06em; }
+.p89-key { width: 46px; height: 46px; border-radius: 50%; padding: 0; cursor: pointer; display: grid; place-items: center;
+  background: radial-gradient(circle at 40% 35%, #f0f0f0, #9a9a9a); border: 2px solid #6d6a62; }
+.p89-key .barrel { width: 6px; height: 28px; border-radius: 3px; background: linear-gradient(90deg, #555, #222, #555); transform: rotate(-45deg); transition: transform .15s; }
+.p89-key.mon .barrel { transform: rotate(45deg); }
+.p89-keypos { display: flex; justify-content: space-between; width: 130px; font: 700 8px/1.2 Arial, sans-serif; color: #77705f; letter-spacing: .04em; }
+.p89-keypos .on { color: #1d1b17; }
+.p89-tray { margin-top: 16px; padding: 12px; border-radius: 10px; background: linear-gradient(#cfc7b1, #bdb49c); box-shadow: inset 0 2px 5px rgba(0,0,0,.25); }
+.p89 button { font: 700 11px/1 Arial, sans-serif; color: #2a2721; min-width: 30px; height: 30px; padding: 0 5px; border-radius: 4px; cursor: pointer;
+  border: 1px solid #8c8676; background: linear-gradient(#f6f3ea, #d9d3c3); box-shadow: 0 2px 0 #7d7768; }
+.p89 button:active { transform: translateY(2px); box-shadow: none; }
+.p89 button.p89-key { box-shadow: none; }
+.p89-fkeys { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-bottom: 12px; }
+.p89 .fk { min-width: 52px; height: 40px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px;
+  color: #f4f1e8; background: linear-gradient(#5b5851, #3a3833); border-color: #2a2824; font-size: 10px; }
+.p89 .fk small { font: 700 10px/1 var(--mono); }
+.p89-main { display: flex; gap: 18px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+.p89 .kr { display: flex; gap: 4px; margin-bottom: 4px; }
+.p89 .wide { min-width: 58px; }
+.p89 .space { flex: 1; min-width: 160px; }
+.p89-pad button { min-width: 36px; }
+.p89-help { max-width: 1000px; margin: 8px auto 0; }
+@media (max-width: 700px) {
+  .p89 { padding: 10px; }
+  .p89-hood { grid-template-columns: 1fr; }
+  .p89-side { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  .p89-bezel { padding: 8px; border-radius: 12px; }
+  .p89 button { min-width: 24px; height: 28px; font-size: 10px; }
+  .p89 .fk { min-width: 44px; }
+}
+
 /* ---------- MicroGEM Programmer ---------- */
 .progwrap { display: flex; flex-direction: column; align-items: center; }
 .lead { width: 6px; height: 26px; background: #111; border-radius: 3px; margin-left: 150px; }
@@ -243,6 +293,8 @@ const MARKUP = `
       <p class="prog-help" id="prog-help"></p>
     </section>
   </div>
+
+  <section class="p8920" id="p8920" aria-label="8920 Portable Programmer" hidden></section>
 
   <section class="panel ha-links" id="ha-links" hidden>
     <h2>In Home Assistant</h2>
@@ -1067,6 +1119,647 @@ const draftText = (d) => {
   return (c || "") + (d.acts.length ? " -> " + d.acts.join(", ") : "");
 };
 
+// ---------------------------------------------------------------------------
+// The 8920 Portable Programmer, for the GEM 80 (product data sheet T208): a
+// 9 inch monochrome screen of 24 lines of 80 characters over a typewriter
+// keyboard, a number pad and a row of GEM 80 function keys, with a key
+// switch for PROGRAM or MONITOR ONLY. The screens follow the data sheet's
+// Figure 7: the rung drawn as text with its addresses under it, where it is
+// stored, the COMMAND LEVEL options and the controller status. The sheet
+// names the options but not what each does; the meanings here are our best
+// reading of them (see the ? help screen).
+
+const COLS = 80, ROWS = 24;
+// Figure 2, left to right; each with the PC key that also gives it.
+const FKEYS = [
+  ["SPEC", ""], ["BLOCK", ""], ["LOGIC", ""], ["ADD", ""], ["SUB", ""], ["AND", ""], ["VALUE", "F10"], ["OUT", ""],
+  ["COUNT", "F8"], ["DELAY", "F7"], ["SEQR", ""], ["LINK", "F4"], ["JOIN", "F6"], ["N/O\n-] [-", "F1"], ["N/C\n-]/[-", "F2"], ["COIL\n-( )-", "F3"],
+];
+const PC_FKEY = { F1: "N/O", F2: "N/C", F3: "COIL", F4: "LINK", F5: "LF", F6: "JOIN", F7: "DELAY", F8: "COUNT", F9: "SPEC", F10: "VALUE" };
+const ALPHA = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+const NUMPAD = ["789", "456", "123", "0.-"];
+// Series elements that pass the word on, so follow the one before with a space, not AND.
+const WORD_ELEMENT = /^(AND|OR|XOR|ADD|SUB|SPEC|INV|DELAY|COUNT)\b/;
+const RUNG_COMMANDS = "S, F, L, N, E, B, D, I, R, C, M, W, T?.";
+const MAX_SERIES = 9, MAX_BRANCHES = 5; // per rung line, per branch point (T208, 4)
+
+class Programmer8920 {
+  constructor(box, send) {
+    this.send = send;
+    this.state = null;
+    this.mode = "power"; // power, control, ladder, entry, tables, help
+    this.monitorOnly = false;
+    this.monitor = true;
+    this.cur = 0; // the stored rung on screen
+    this.pan = 0; this.scroll = 0;
+    this.prompt = null; // { label, buf, done(text), hint }
+    this.confirm = null; // { label, yes() }
+    this.message = "";
+    this.draft = null; // a rung being keyed in
+    this.shown = null; // a rung keyed in or changed, displayed but not yet stored
+    this.preview = null; // its parsed form, from the controller
+    this.wantPreview = false;
+    this.tableAt = "G0"; this.values = null;
+    this.pendingLoad = null;
+    box.innerHTML = this.markup();
+    this.screen = box.querySelector(".p89-screen pre");
+    this.unit = box.querySelector(".p89");
+    this.keyEl = box.querySelector(".p89-key");
+    box.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { this.unit.focus(); this.key(b.dataset.k); }));
+    this.keyEl.addEventListener("click", () => { this.monitorOnly = !this.monitorOnly; this.draw(); });
+    this.unit.addEventListener("keydown", (e) => this.keydown(e));
+    setTimeout(() => { this.mode = "control"; this.draw(); }, 1400);
+    setInterval(() => { if (this.mode === "tables") this.readTables(); }, 400);
+  }
+
+  markup() {
+    const fk = FKEYS.map(([k, pc]) => {
+      const [name, sym] = k.split("\n");
+      return `<button class="fk" data-k="${name}" title="${name}${pc ? ` (${pc})` : ""}">${name}${sym ? `<small>${sym}</small>` : ""}</button>`;
+    }).join("");
+    const alpha = ALPHA.map((row, r) => `<div class="kr" style="padding-left:${r * 14}px">${[...row].map((c) => `<button data-k="${c}">${c}</button>`).join("")}${r === 2 ? `<button data-k="@">@</button><button data-k="[">[</button><button data-k="]">]</button><button data-k="?">?</button>` : ""}</div>`).join("");
+    const pad = NUMPAD.map((row) => `<div class="kr">${[...row].map((c) => `<button data-k="${c}">${c}</button>`).join("")}</div>`).join("");
+    return `
+<div class="p89" tabindex="0" aria-label="8920 Portable Programmer: click here, then type">
+  <div class="p89-hood">
+    <div class="p89-bezel"><div class="p89-screen"><pre aria-live="polite"></pre></div></div>
+    <div class="p89-side">
+      <div class="p89-badge"><b>${MAKER.mark}</b><span>${MAKER.line1}<br>${MAKER.line2}</span></div>
+      <div class="p89-model">8920<small>PORTABLE PROGRAMMER</small></div>
+      <button class="p89-key" title="Key switch: PROGRAM or MONITOR ONLY"><span class="barrel"></span></button>
+      <div class="p89-keypos"><span data-pos="prog">PROGRAM</span><span data-pos="mon">MONITOR ONLY</span></div>
+    </div>
+  </div>
+  <div class="p89-tray">
+    <div class="p89-fkeys">${fk}</div>
+    <div class="p89-main">
+      <div class="p89-alpha">
+        <div class="kr"><button data-k="ESC" class="wide">ESC</button><button data-k="◄">◄</button><button data-k="►">►</button><button data-k="▲">▲</button><button data-k="▼">▼</button><button data-k="RUBOUT" class="wide">RUBOUT</button></div>
+        ${alpha}
+        <div class="kr"><button data-k="LF" class="wide">LF</button><button data-k="SPACE" class="space">SPACE</button><button data-k="CR" class="wide">CR</button></div>
+      </div>
+      <div class="p89-pad">${pad}</div>
+    </div>
+  </div>
+</div>
+<p class="hint p89-help">Click the programmer and type, or use its keys. The PC keys F1 to F10 give N/O, N/C, COIL, LINK, LF, JOIN, DELAY, COUNT, SPEC and VALUE; Enter is CR, Backspace RUBOUT and Esc ESC. Press <b>?</b> for the options on each screen.</p>`;
+  }
+
+  // --- state from the controller --------------------------------------------
+
+  update(state) {
+    this.state = state;
+    const n = (state.ladder || []).length;
+    if (this.cur >= n) this.cur = Math.max(0, n - 1);
+    this.draw();
+  }
+
+  reply(msg) {
+    if (msg.type === "values" && this.mode === "tables") { this.values = msg; this.draw(); return true; }
+    if (msg.type === "preview" && this.wantPreview) {
+      this.wantPreview = false;
+      this.preview = msg.rungs[0] || null;
+      if (this.preview && this.draft && !this.draft.acts.length) this.preview.output = null;
+      this.draw();
+      return true;
+    }
+    if (msg.type === "error" && this.wantPreview) {
+      // The last thing keyed in made the rung invalid: take it back.
+      this.wantPreview = false;
+      this.alarm("INVALID ENTRY - " + msg.message.toUpperCase());
+      if (this.draft && this.draft.history.length) this.undo();
+      else if (this.mode !== "entry") this.shown = null;
+      return true;
+    }
+    if (msg.type === "loaded" && this.pendingLoad) {
+      const done = this.pendingLoad; this.pendingLoad = null;
+      this.shown = null; this.preview = null;
+      if (done.cur !== undefined) this.cur = done.cur;
+      this.say(done.message);
+      return false;
+    }
+    if (msg.type === "error" && this.pendingLoad) {
+      this.pendingLoad = null;
+      this.alarm("NOT STORED - " + msg.message.toUpperCase());
+      return false;
+    }
+    return false;
+  }
+
+  // --- keys --------------------------------------------------------------------
+
+  keydown(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    let k = PC_FKEY[e.key] || { Enter: "CR", Escape: "ESC", Backspace: "RUBOUT", " ": "SPACE",
+      ArrowLeft: "◄", ArrowRight: "►", ArrowUp: "▲", ArrowDown: "▼" }[e.key];
+    if (!k && e.key.length === 1) k = e.key.toUpperCase();
+    if (!k) return;
+    e.preventDefault();
+    this.key(k);
+  }
+
+  key(k) {
+    this.unlockAudio();
+    if (this.mode === "power") return;
+    if (this.confirm) {
+      const c = this.confirm; this.confirm = null;
+      if (k === "Y") c.yes(); else this.say("CANCELLED");
+      return this.draw();
+    }
+    if (["◄", "►", "▲", "▼"].includes(k) && !this.prompt) return this.move(k);
+    if (this.prompt) return this.promptKey(k);
+    this.message = "";
+    const handler = { control: this.controlKey, ladder: this.ladderKey, entry: this.entryKey, tables: this.tablesKey, help: this.helpKey }[this.mode];
+    handler.call(this, k);
+    this.draw();
+  }
+
+  move(k) {
+    if (this.mode === "ladder" || this.mode === "entry") {
+      if (k === "◄") this.pan = Math.max(0, this.pan - 8);
+      if (k === "►") this.pan += 8;
+      if (k === "▲") this.scroll = Math.max(0, this.scroll - 2);
+      if (k === "▼") this.scroll += 2;
+    } else if (this.mode === "tables") {
+      if (k === "▲" || k === "◄") this.stepTables(-16);
+      if (k === "▼" || k === "►") this.stepTables(16);
+    }
+    this.draw();
+  }
+
+  ask(label, done, hint = "") { this.prompt = { label, buf: "", done, hint }; }
+
+  promptKey(k) {
+    const p = this.prompt;
+    if (k === "ESC") { this.prompt = null; this.say(this.mode === "entry" ? "ELEMENT ABANDONED" : ""); }
+    else if (k === "RUBOUT") p.buf = p.buf.slice(0, -1);
+    else if (k === "CR" || (k === "SPACE" && p.spaceEnds !== false)) { this.prompt = null; p.done(p.buf.trim()); }
+    else if (k === "SPACE") p.buf += " ";
+    else if (k === "VALUE" && p.onValue) p.onValue();
+    else if (k.length === 1) p.buf += k;
+    else this.alarm("NOT ALLOWED HERE");
+    this.draw();
+  }
+
+  // --- control mode ---------------------------------------------------------------
+
+  controlKey(k) {
+    const cmd = { H: "halt", R: "run", S: "single" }[k];
+    if (k === "L") { this.mode = "ladder"; this.pan = 0; this.scroll = 0; }
+    else if (k === "D") this.ask("FIRST LOCATION? ", (a) => this.openTables(a), "A TABLE AND WORD, E.G. G0");
+    else if (k === "?") this.help("control");
+    else if (cmd || k === "T" || k === "N" || k === "C") {
+      if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
+      if (cmd) { this.send({ type: cmd }); this.say({ halt: "HALT", run: "RUN", single: "SINGLE CYCLE" }[cmd] + " SENT"); }
+      else if (k === "T" || k === "N") { this.send({ type: "test_inputs", value: k === "T" }); this.say(k === "T" ? "TEST INPUTS" : "NORMAL INPUTS"); }
+      else if (this.eprom()) this.alarm("PROGRAM IN EPROM - CANNOT CLEAR STORE");
+      else this.confirm = { label: "CLEAR STORE: PROGRAM AND DATA TABLES WILL BE LOST. ARE YOU SURE (Y/N)? ",
+        yes: () => { this.send({ type: "clear" }); this.cur = 0; this.say(`${this.connected()} - STORE CLEARED`); } };
+    } else this.alarm("NOT AN OPTION");
+  }
+
+  // --- ladder mode: command level ----------------------------------------------
+
+  rungs() { return (this.state && this.state.ladder) || []; }
+
+  ladderKey(k) {
+    const rungs = this.rungs(), n = rungs.length;
+    const go = (i) => { this.cur = Math.max(0, Math.min(n - 1, i)); this.shown = null; this.preview = null; this.pan = 0; this.scroll = 0; };
+    switch (k) {
+      case "F": return n ? go(0) : this.alarm("NO PROGRAM");
+      case "L": return n ? go(n - 1) : this.alarm("NO PROGRAM");
+      case "N": return this.cur < n - 1 ? go(this.cur + 1) : this.alarm("LAST RUNG");
+      case "B": return this.cur > 0 ? go(this.cur - 1) : this.alarm("FIRST RUNG");
+      case "M": this.monitor = !this.monitor; return this.say(this.monitor ? "MONITOR ON" : "MONITOR OFF");
+      case "T": this.mode = "control"; this.shown = null; this.preview = null; return;
+      case "?": return this.help("ladder");
+      case "S": return this.ask("SEARCH FOR? ", (a) => this.search(a), "AN ADDRESS, E.G. A0.3 OR G25: THE NEXT RUNG THAT USES IT");
+      case "W": return this.askWrite();
+    }
+    if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
+    if (this.eprom()) return this.alarm("PROGRAM IN EPROM - CANNOT ALTER ON LINE");
+    switch (k) {
+      case "E": this.draft = { stack: [{ branches: [[]] }], acts: [], history: [] }; this.mode = "entry"; this.preview = null; this.shown = null; this.pan = 0; this.scroll = 0; return;
+      case "C": {
+        const r = rungs[this.cur];
+        if (!r) return this.alarm("NO RUNG TO CHANGE");
+        this.ask("CHANGE RUNG: ", (text) => this.showText(text), "EDIT THE RUNG AS TEXT, THEN CR. I OR R STORES IT");
+        this.prompt.buf = this.shown || r.source.split(";")[0].trim();
+        this.prompt.spaceEnds = false;
+        return;
+      }
+      case "I": case "R": {
+        if (!this.shown) return this.alarm(k === "I" ? "NO NEW RUNG - E ENTERS ONE" : "NO CHANGED RUNG - C CHANGES THIS ONE");
+        if (k === "R" && !rungs[this.cur]) return this.alarm("NO STORED RUNG TO REPLACE");
+        return this.store(k === "R");
+      }
+      case "D": {
+        if (this.shown) { this.shown = null; this.preview = null; return this.say("DISPLAYED RUNG ABANDONED"); }
+        const r = rungs[this.cur];
+        if (!r) return this.alarm("NO RUNG TO DELETE");
+        this.confirm = { label: `DELETE RUNG ${this.cur + 1} (Y/N)? `, yes: () => this.remove() };
+        return;
+      }
+    }
+    this.alarm("NOT AN OPTION");
+  }
+
+  search(addr) {
+    const rungs = this.rungs();
+    if (!/^[A-Z]\d+(\.\d+)?$/.test(addr)) return this.alarm("NOT AN ADDRESS");
+    const re = new RegExp("(^|[^A-Z0-9.@])" + addr.replace(".", "\\.") + "(?![0-9.])");
+    for (let s = 1; s <= rungs.length; s++) {
+      const j = (this.cur + s) % rungs.length;
+      if (re.test(rungs[j].source.split(";")[0])) { this.cur = j; this.shown = null; this.preview = null; return this.say(`${addr} FOUND IN RUNG ${j + 1}`); }
+    }
+    this.alarm(`${addr} NOT FOUND`);
+  }
+
+  askWrite() {
+    if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
+    this.ask("WRITE TO? ", (addr) => {
+      if (!/^[A-Z]\d+(\.\d+)?$/.test(addr)) return this.alarm("NOT AN ADDRESS");
+      this.ask(`WRITE TO ${addr}  VALUE? `, (v) => {
+        const value = /^@[0-9A-F]+$/.test(v) ? parseInt(v.slice(1), 16) : Number(v);
+        if (v === "" || Number.isNaN(value)) return this.alarm("NOT A NUMBER");
+        this.send({ type: "write", address: addr, value: value > 32767 ? value - 65536 : value });
+        this.say(`${addr} = ${value}`);
+      }, addr.includes(".") ? "1 OR 0" : "-32768 TO 32767, OR @0000 TO @FFFF");
+    }, "A TABLE ADDRESS, E.G. G12 OR A0.3");
+  }
+
+  showText(text) {
+    if (!text) return;
+    this.shown = text;
+    this.wantPreview = true;
+    this.send({ type: "preview", source: text });
+    this.say("DISPLAYED RUNG NOT STORED - I INSERTS IT, R REPLACES THE STORED RUNG");
+  }
+
+  store(replace) {
+    const rungs = this.rungs();
+    const lines = (this.state.program || "").split("\n");
+    const r = rungs[this.cur];
+    let cur = this.cur;
+    if (replace) lines.splice(r.line - 1, 1, this.shown);
+    else { lines.splice(r ? r.line : lines.length, 0, this.shown); cur = r ? this.cur + 1 : 0; }
+    this.pendingLoad = { cur, message: replace ? `RUNG ${cur + 1} REPLACED` : `RUNG INSERTED AS RUNG ${cur + 1}` };
+    this.send({ type: "load", source: lines.join("\n") });
+  }
+
+  remove() {
+    const r = this.rungs()[this.cur];
+    const lines = this.state.program.split("\n");
+    lines.splice(r.line - 1, 1);
+    this.pendingLoad = { cur: Math.max(0, this.cur - 1), message: `RUNG ${this.cur + 1} DELETED` };
+    this.send({ type: "load", source: lines.join("\n") });
+  }
+
+  // --- ladder mode: rung entry -------------------------------------------------
+
+  entryKey(k) {
+    const d = this.draft;
+    const top = d.stack.at(-1), line = top.branches.at(-1);
+    const done = d.acts.length > 0;
+    const element = (label, make, hint, opts = {}) => {
+      if (done) return this.alarm("RUNG HAS ITS OUTPUT - ESC, THEN I TO INSERT IT");
+      if (!opts.output && line.length >= MAX_SERIES) return this.alarm(`AT MOST ${MAX_SERIES} ELEMENTS IN SERIES`);
+      this.ask(label, (text) => {
+        if (!text && !opts.empty) return this.alarm("NOTHING ENTERED");
+        this.push(make(text), opts.output);
+      }, hint);
+      Object.assign(this.prompt, opts.prompt || {});
+    };
+    const addr = "AN ADDRESS, E.G. A2.8 - SPACE OR CR ENDS IT";
+    switch (k) {
+      case "N/O": return element("N/O CONTACT ", (a) => a, addr);
+      case "N/C": return element("N/C CONTACT ", (a) => "NOT " + a, addr);
+      case "COIL": return element("COIL ", (a) => a, "A BIT ADDRESS, E.G. B1.13", { output: true });
+      case "OUT": return element("OUT ", (a) => "OUT " + a, "A WORD, E.G. G12: THE RUNG WORD IS WRITTEN TO IT", { output: true });
+      case "SEQR": return element("SEQR ", (a) => "SEQR " + a, "THE SEQUENCER WORD, E.G. G12", { output: true });
+      case "AND": case "ADD": case "SUB":
+        return element(k + " ", (a) => `${k} ${a}`, "A WORD OR A NUMBER, E.G. G4, 12 OR @00FF");
+      case "LOGIC": return element("LOGIC ", (a) => a, "OR, XOR OR INV, AND ITS WORD OR NUMBER: E.G. OR @00F0", { prompt: { spaceEnds: false } });
+      case "DELAY": case "COUNT": case "SPEC": return this.withValue(k);
+      case "BLOCK":
+        if (done) return this.alarm("RUNG HAS ITS OUTPUT");
+        return this.ask("BLOCK: O = OBEY BLOCK, E = END OF BLOCK? ", (a) => {
+          if (a === "O") this.push("BLOCK", true);
+          else if (a === "E") { if (line.length || d.stack.length > 1 || top.branches.length > 1) return this.alarm("END OF BLOCK STANDS ALONE IN ITS RUNG"); this.push("END BLOCK", true); }
+          else this.alarm("O OR E");
+        });
+      case "LINK":
+        if (done) return this.alarm("RUNG HAS ITS OUTPUT");
+        d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+        d.stack.push({ branches: [[]] });
+        return this.say("BRANCH POINT - KEY THE TOP LINE, LF FOR THE NEXT LINE DOWN, JOIN TO CLOSE");
+      case "LF":
+        if (!line.length) return this.alarm("THIS LINE IS EMPTY");
+        if (top.branches.length >= MAX_BRANCHES) return this.alarm(`AT MOST ${MAX_BRANCHES} PARALLEL BRANCHES`);
+        d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+        top.branches.push([]);
+        return this.say("NEXT LINE DOWN");
+      case "JOIN": {
+        if (d.stack.length === 1 && top.branches.length === 1) return this.alarm("NO BRANCH TO JOIN");
+        d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+        if (d.stack.length > 1) {
+          const s = joinLines(d.stack.pop());
+          if (s) d.stack.at(-1).branches.at(-1).push(s);
+        } else top.branches = [[joinLines(top)]];
+        return this.refresh();
+      }
+      case "RUBOUT": return d.history.length ? this.undo() : this.alarm("NOTHING TO RUB OUT");
+      case "ESC": {
+        this.mode = "ladder";
+        if (!done) { this.draft = null; this.preview = null; return this.say("RUNG ABANDONED: IT HAD NO OUTPUT"); }
+        this.shown = draftSource(d); this.draft = null;
+        return this.say("DISPLAYED RUNG NOT STORED - I INSERTS IT AFTER THE STORED RUNG, R REPLACES IT");
+      }
+      case "?": return this.help("entry");
+    }
+    this.alarm("PRESS A FUNCTION KEY FIRST: N/O, N/C, COIL ...");
+  }
+
+  // DELAY G26 VALUE 50, COUNT G25 VALUE 12, SPEC SQRT VALUE 100: the VALUE
+  // key (or SPACE, after the word of a DELAY or COUNT) moves on to the value.
+  withValue(k) {
+    const d = this.draft;
+    if (d.acts.length) return this.alarm("RUNG HAS ITS OUTPUT - ESC, THEN I TO INSERT IT");
+    if (d.stack.at(-1).branches.at(-1).length >= MAX_SERIES) return this.alarm(`AT MOST ${MAX_SERIES} ELEMENTS IN SERIES`);
+    const p = {
+      label: k + " ", buf: "", first: null, spaceEnds: k !== "SPEC",
+      hint: { DELAY: "ITS WORD, E.G. G26, THEN VALUE AND THE TIME IN 0.1 S", COUNT: "ITS WORD, E.G. G25, THEN VALUE AND THE COUNT",
+        SPEC: "E.G. SQRT OR S12, OR DIV [AND 12] FOR A T FUNCTION, THEN VALUE OR CR" }[k],
+    };
+    p.onValue = () => {
+      if (p.first !== null || !p.buf.trim()) return this.alarm("NOT ALLOWED HERE");
+      p.first = p.buf.trim();
+      p.label = `${k} ${p.first} VALUE `;
+      p.buf = "";
+      p.spaceEnds = true;
+      p.hint = k === "DELAY" ? "THE TIME IN 0.1 S, OR A WORD" : "A NUMBER OR A WORD";
+    };
+    p.done = (text) => {
+      if (p.first === null) {
+        if (!text) return this.alarm("NOTHING ENTERED");
+        if (k === "SPEC") return this.push(`SPEC ${text}`);
+        p.buf = text; p.onValue(); this.prompt = p;
+        return;
+      }
+      if (!text) { this.prompt = p; return this.alarm("NEEDS A VALUE"); }
+      this.push(`${k} ${p.first} VALUE ${text}`);
+    };
+    this.prompt = p;
+  }
+
+  push(text, output) {
+    const d = this.draft;
+    d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+    if (output) d.acts.push(text); else d.stack.at(-1).branches.at(-1).push(text);
+    this.refresh();
+  }
+
+  undo() {
+    const d = this.draft;
+    Object.assign(d, JSON.parse(d.history.pop()));
+    this.refresh();
+  }
+
+  refresh() {
+    const d = this.draft;
+    const cond = draftCond8920(d);
+    if (!cond && !d.acts.length) { this.preview = null; return this.draw(); }
+    const out = d.acts[0];
+    this.wantPreview = true;
+    this.send({ type: "preview", source: out === "END BLOCK" ? "END BLOCK" : `${cond} -> ${out || "G63.15"}` });
+  }
+
+  // --- data tables mode ---------------------------------------------------------
+
+  openTables(a) {
+    if (!/^[A-Z]\d+$/.test(a)) return this.alarm("A TABLE AND WORD, E.G. G0");
+    this.tableAt = a; this.values = null; this.mode = "tables";
+    this.readTables();
+  }
+
+  readTables() { this.send({ type: "read", address: this.tableAt, count: 32 }); }
+
+  stepTables(n) {
+    const m = /^([A-Z])(\d+)$/.exec(this.tableAt);
+    const size = this.values ? this.values.size : 9999;
+    const w = Math.max(0, Math.min(Number(m[2]) + n, Math.max(0, size - 1)));
+    this.tableAt = m[1] + w; this.readTables();
+  }
+
+  tablesKey(k) {
+    if (k === "N") return this.stepTables(32);
+    if (k === "B") return this.stepTables(-32);
+    if (k === "S") return this.ask("FIRST LOCATION? ", (a) => this.openTables(a), "A TABLE AND WORD, E.G. R100");
+    if (k === "W") return this.askWrite();
+    if (k === "T") { this.mode = "control"; return; }
+    if (k === "?") return this.help("tables");
+    this.alarm("NOT AN OPTION");
+  }
+
+  // --- help -----------------------------------------------------------------
+
+  help(from) { this.helpFrom = from; this.mode = "help"; }
+  helpKey() { this.mode = this.helpFrom; }
+
+  // --- the screen -----------------------------------------------------------------
+
+  eprom() { return !!(this.state && this.state.model && this.state.model.eprom); }
+  connected() { const m = this.state && this.state.model; return m ? `GEM80 ${m.title.replace("GEM 80/", "")}` : "NOT CONNECTED TO GEM80"; }
+
+  status() {
+    const s = this.state;
+    if (!s) return "NOT CONNECTED TO GEM80";
+    const run = s.running ? "RUNNING" : s.trip_code ? `HALTED - WATCHDOG TRIP F1=${s.trip_code}` : "HALTED";
+    return `GEM 80 STATUS - ${run} - ${s.test_inputs ? "TEST" : "NORMAL"} INPUTS.`;
+  }
+
+  say(text) { this.message = text; this.draw(); }
+
+  alarm(text) {
+    this.message = text;
+    this.beep();
+    this.unit.classList.remove("alarm"); void this.unit.offsetWidth; this.unit.classList.add("alarm");
+    this.draw();
+  }
+
+  unlockAudio() {
+    if (this.audio) return;
+    try { this.audio = new (window.AudioContext || window.webkitAudioContext)(); } catch { this.audio = null; }
+  }
+
+  beep() {
+    const a = this.audio;
+    if (!a) return;
+    try {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = "square"; o.frequency.value = 1150; g.gain.value = 0.04;
+      o.connect(g).connect(a.destination);
+      o.start(); o.stop(a.currentTime + 0.12);
+    } catch { /* no sound */ }
+  }
+
+  lines() {
+    const L = [];
+    const s = this.state;
+    if (this.mode === "power") {
+      L.push("", "", "", "", "", "", "", "", center("PORTABLE GEM 80 PROGRAMMER - VERSION 4.5"), "", center("8920 - ENGLISH - 50 HZ"));
+      return L;
+    }
+    if (!s) return ["", "", center("NOT CONNECTED TO GEM80")];
+    if (this.mode === "help") return this.helpLines();
+    if (this.mode === "control") {
+      const m = s.model;
+      L.push(center("PORTABLE GEM 80 PROGRAMMER - VERSION 4.5"), "", `  CONNECTED TO ${this.connected()}   ${m.memory} ${m.eprom ? "EPROM" : "RAM"}   PROGRAM ${s.instructions} OF ${m.instructions} INSTRUCTIONS`, "");
+      L.push("  CONTROL MODE - OPTIONS:", "");
+      L.push("     L   LADDER DIAGRAM - DISPLAY, MONITOR AND EDIT RUNGS");
+      L.push("     D   DATA TABLES - MONITOR AND WRITE, 32 LOCATIONS AT A TIME", "");
+      L.push("     H   HALT                R   RUN                 S   SINGLE CYCLE");
+      L.push("     T   TEST INPUTS         N   NORMAL INPUTS       C   CLEAR STORE", "");
+      L.push(`     KEY SWITCH AT ${this.monitorOnly ? "MONITOR ONLY: MONITORING ONLY" : "PROGRAM: ENTRY AND EDITING ALLOWED"}`);
+      return this.foot(L, "COMMAND LEVEL - OPTIONS:  L, D, H, R, S, T, N, C, ?.");
+    }
+    if (this.mode === "tables") return this.tableLines();
+    // ladder and entry
+    const rungs = this.rungs();
+    const r = rungs[this.cur];
+    L.push(`INSTRUCTIONS END AT ${s.instructions}`);
+    if (this.mode === "entry") L.push("RUNG ENTRY - RUNG NOT YET STORED");
+    else if (this.shown) L.push("DISPLAYED RUNG NOT STORED");
+    else if (r && r.instructions) L.push(`DISPLAYED RUNG ${this.cur + 1} OF ${rungs.length} STORED AS INSTRUCTIONS ${r.instructions[0]} to ${r.instructions[1]}`);
+    else L.push(rungs.length ? "" : "NO PROGRAM - E ENTERS A RUNG");
+    L.push("");
+    const show = this.mode === "entry" || this.shown ? this.preview : r;
+    const body = [];
+    if (show) {
+      if (show.comment && !this.shown && this.mode !== "entry") body.push(";" + String(show.comment).split("\n")[0].toUpperCase());
+      const live = this.monitor && show === r ? (s.flow || {}) : null;
+      body.push(...textRung(show, live).lines);
+    }
+    const room = ROWS - 7;
+    this.scroll = Math.min(this.scroll, Math.max(0, body.length - room));
+    for (const line of body.slice(this.scroll, this.scroll + room)) L.push(line.slice(this.pan, this.pan + COLS));
+    while (L.length < ROWS - 4) L.push("");
+    if (this.mode === "entry") {
+      const d = this.draft, top = d.stack.at(-1);
+      L.push(`RUNG ENTRY - ${d.stack.length > 1 ? `BRANCH LINE ${top.branches.length} OF ${d.stack.length - 1} OPEN BRANCH POINT${d.stack.length > 2 ? "S" : ""}` : "MAIN LINE"} - ${d.acts.length ? "OUTPUT ENTERED: ESC" : "FUNCTION KEYS ENTER ELEMENTS"}`);
+      return this.foot(L, "");
+    }
+    return this.foot(L, `COMMAND LEVEL - OPTIONS:  ${RUNG_COMMANDS}`);
+  }
+
+  tableLines() {
+    const v = this.values;
+    const L = [`DATA TABLE MONITOR - 32 LOCATIONS FROM ${this.tableAt}${v ? ` - ${v.address[0]} TABLE HAS ${v.size} WORDS` : ""}`, ""];
+    const m = /^([A-Z])(\d+)$/.exec(this.tableAt);
+    const cell = (i) => {
+      if (!v || i >= v.values.length) return "".padEnd(38);
+      const val = v.values[i], bits = (val & 0xFFFF).toString(2).padStart(16, "0");
+      return `${(m[1] + (Number(m[2]) + i)).padEnd(6)}${String(val).padStart(7)}  ${bits.replace(/(\d{4})(?=\d)/g, "$1 ")}`.padEnd(38);
+    };
+    for (let i = 0; i < 16; i++) L.push(" " + cell(i) + "  " + cell(i + 16));
+    while (L.length < ROWS - 4) L.push("");
+    L.push("");
+    return this.foot(L, "COMMAND LEVEL - OPTIONS:  N, B, S, W, T?.   ▲ ▼ MOVE 16 WORDS");
+  }
+
+  helpLines() {
+    const text = {
+      control: [
+        "CONTROL MODE", "",
+        "L  LADDER DIAGRAM: SHOW THE PROGRAM A RUNG AT A TIME, MONITOR IT AND EDIT IT",
+        "D  DATA TABLES: MONITOR 32 LOCATIONS, AND WRITE TO THEM",
+        "H  HALT    R  RUN    S  SINGLE CYCLE: OBEY THE PROGRAM ONCE, FROM HALT",
+        "T  TEST INPUTS: THE A TABLE IS NO LONGER UPDATED FROM THE INPUTS, SO INPUTS",
+        "   CAN BE FORCED WITH W; THE WATCHDOG STAYS OPEN.    N  NORMAL INPUTS",
+        "C  CLEAR STORE: ERASE THE PROGRAM AND THE DATA TABLES (ASKS FIRST)", "",
+        "THE KEY SWITCH (RIGHT OF THE SCREEN) SETS PROGRAM OR MONITOR ONLY.",
+      ],
+      ladder: [
+        "COMMAND LEVEL (LADDER DIAGRAM)", "",
+        "F  FIRST RUNG      L  LAST RUNG       N  NEXT RUNG      B  BACK ONE RUNG",
+        "S  SEARCH: THE NEXT RUNG THAT USES AN ADDRESS",
+        "E  ENTER A NEW RUNG WITH THE FUNCTION KEYS; ESC WHEN IT IS COMPLETE",
+        "I  INSERT THE DISPLAYED NEW RUNG AFTER THE STORED ONE",
+        "R  REPLACE THE STORED RUNG WITH THE DISPLAYED ONE",
+        "C  CHANGE: EDIT THE STORED RUNG AS TEXT, THEN I OR R",
+        "D  DELETE THE STORED RUNG (ASKS FIRST), OR ABANDON A DISPLAYED ONE",
+        "M  MONITOR ON OR OFF: ..] [.. AN OPEN CONTACT, --] [-- A CLOSED ONE",
+        "W  WRITE A VALUE TO A DATA TABLE LOCATION    T  TERMINATE: BACK TO CONTROL MODE",
+        "◄ ► ▲ ▼  MOVE ROUND A RUNG TOO BIG FOR THE SCREEN",
+        "OUR READING OF THE OPTIONS: THE 8920 DATA SHEET NAMES THEM BUT NOT WHAT EACH DOES.",
+      ],
+      entry: [
+        "RUNG ENTRY", "",
+        "N/O -] [-  N/C -]/[-  AND THE ADDRESS, SPACE: A CONTACT IN SERIES",
+        "LINK  OPEN A BRANCH POINT     LF  NEXT LINE DOWN     JOIN  CLOSE IT",
+        "DELAY G26 VALUE 50, COUNT G25 VALUE 12, SPEC SQRT VALUE 100: ELEMENTS IN THE RUNG",
+        "AND, ADD, SUB AND A WORD OR NUMBER; LOGIC FOR OR, XOR AND INV",
+        "COIL -( )-, OUT, SEQR OR BLOCK: THE OUTPUT, WHICH ENDS THE RUNG",
+        "RUBOUT  TAKE BACK THE LAST ENTRY     ESC  FINISH (OR ABANDON A RUNG WITH NO OUTPUT)",
+        `A RUNG HAS UP TO ${MAX_BRANCHES} PARALLEL BRANCHES OF UP TO ${MAX_SERIES} SERIES ELEMENTS.`,
+      ],
+      tables: [
+        "DATA TABLE MONITOR", "",
+        "N  NEXT 32 LOCATIONS     B  BACK 32     ▲ ▼  16 AT A TIME",
+        "S  START FROM ANOTHER LOCATION     W  WRITE A VALUE     T  TERMINATE",
+        "EACH LOCATION SHOWS ITS VALUE AND BITS 15 TO 0.",
+      ],
+    }[this.helpFrom] || [];
+    const L = ["", ...text.map((t) => "  " + t)];
+    while (L.length < ROWS - 4) L.push("");
+    return this.foot(L, "PRESS ANY KEY TO GO BACK");
+  }
+
+  foot(L, options) {
+    while (L.length < ROWS - 3) L.push("");
+    L.length = ROWS - 3;
+    if (this.confirm) L.push(this.confirm.label + "_");
+    else if (this.prompt) {
+      const line = this.prompt.label + this.prompt.buf + "_";
+      L.push(line.length > COLS ? "…" + line.slice(line.length - COLS + 1) : line);
+    } else L.push(options);
+    L.push(this.message || (this.prompt && this.prompt.hint ? "(" + this.prompt.hint + ")" : ""));
+    L.push(this.status());
+    return L;
+  }
+
+  draw() {
+    if (!this.screen) return;
+    const text = this.lines().slice(0, ROWS).map((l) => String(l).slice(0, COLS).padEnd(COLS)).join("\n");
+    if (text !== this.last) { this.last = text; this.screen.textContent = text; }
+    this.keyEl.classList.toggle("mon", this.monitorOnly);
+    this.unit.querySelectorAll("[data-pos]").forEach((n) => n.classList.toggle("on", (n.dataset.pos === "mon") === this.monitorOnly));
+  }
+}
+
+const center = (t) => " ".repeat(Math.max(0, Math.floor((COLS - t.length) / 2))) + t;
+
+// A line of series elements: contacts follow each other with AND; an element
+// that passes the word on (DELAY, SPEC, ADD ...) just follows.
+const seriesText = (items) => items.reduce((acc, t) => (acc ? acc + (WORD_ELEMENT.test(t) ? " " : " AND ") + t : t), "");
+function joinLines(section) {
+  const lines = section.branches.filter((b) => b.length).map(seriesText);
+  if (!lines.length) return "";
+  return lines.length === 1 ? lines[0] : "(" + lines.join(" OR ") + ")";
+}
+function draftCond8920(d) {
+  const stack = JSON.parse(JSON.stringify(d.stack));
+  while (stack.length > 1) {
+    const s = joinLines(stack.pop());
+    if (s) stack.at(-1).branches.at(-1).push(s);
+  }
+  return joinLines(stack[0]);
+}
+function draftSource(d) {
+  const out = d.acts[0];
+  return out === "END BLOCK" ? out : `${draftCond8920(d)} -> ${out}`.trim();
+}
+
 class MicroGemPanel extends HTMLElement {
   constructor() {
     super();
@@ -1158,11 +1851,13 @@ class MicroGemPanel extends HTMLElement {
       $("unit").innerHTML = gem80Svg(info, model, wires);
       $("unit").classList.toggle("wirable", canWire());
       $("title").textContent = `Virtual ${model.label}`;
-      $("about").textContent = `A ${model.label} compact controller running in software: a 19 inch subrack with ${info.slots.filter((s) => s.module).length} Compact I/O modules. Flip the inputs, watch the module lamps and the ladder, and program it from the text editor.`;
+      $("about").textContent = `A ${model.label} compact controller running in software: a 19 inch subrack with ${info.slots.filter((s) => s.module).length} Compact I/O modules. Flip the inputs, watch the module lamps and the ladder, and program it from the 8920 Portable Programmer or the text editor.`;
       host.classList.add("g80");
       root.querySelector(".hw").classList.add("g80");
       $("progwrap").style.display = "none";
       $("g80-ctl").hidden = false;
+      $("p8920").hidden = false;
+      if (!pp) pp = new Programmer8920($("p8920"), send);
       const t = $("toggles");
       t.replaceChildren();
       for (const slot of info.slots) {
@@ -1184,6 +1879,7 @@ class MicroGemPanel extends HTMLElement {
       buildLinks();
     }
     let g80Built = false;
+    let pp = null; // the 8920 Portable Programmer, for a GEM 80
 
     function build() {
       if (isGem80()) return buildGem80();
@@ -1540,6 +2236,7 @@ class MicroGemPanel extends HTMLElement {
       renderLadder();
       renderTables();
       renderLcd();
+      if (pp && isGem80()) pp.update(state);
       if (!programDirty && state.program !== undefined && $("program").value !== state.program) $("program").value = state.program;
     }
     const schedule = () => { if (!frame) frame = requestAnimationFrame(render); };
@@ -1958,6 +2655,7 @@ class MicroGemPanel extends HTMLElement {
     });
 
     function onMessage(msg) {
+      if (pp && state && isGem80() && pp.reply(msg)) return;
       if (msg.type === "state") {
         if (!examples) { examples = []; send({ type: "examples" }); }
         state = Object.assign(state || {}, msg);

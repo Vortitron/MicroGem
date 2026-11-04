@@ -43,6 +43,7 @@ from .program import (
     Spec,
     addresses,
     instruction_count,
+    instruction_ranges,
     parse_program,
     walk,
     rung_to_json,
@@ -216,6 +217,11 @@ class Controller:
         self._previous_bits: dict[Address, bool] = {}
         self.watchdog = False  # True while the watchdog contacts are closed
         self.trip_code = 0  # the F1 code of the last user watchdog trip
+        # TEST INPUTS (set from a programmer): the field inputs are still read,
+        # but no longer copied into the A table, so the program can be tried
+        # with forced inputs; the watchdog contacts stay open (T478, 2.3.8).
+        self.test_inputs = False
+        self._field = [False] * cfg.total_inputs
         self._clean_scans = 0
         self._f1_held_ms = 0
 
@@ -276,12 +282,46 @@ class Controller:
         self.halt()
         self.trip_code = code
 
+    def single_cycle(self, dt_ms: int) -> bool:
+        """From Halt, obey the program once (inputs, program and outputs), as a
+        programmer's SINGLE CYCLE command does. The watchdog stays open."""
+        if self.running:
+            return False
+        self.running = True
+        try:
+            self.scan(dt_ms)
+        finally:
+            self.running = False
+            self.watchdog = False
+            self._clean_scans = 0
+        return True
+
+    def set_test_inputs(self, on: bool) -> None:
+        """TEST INPUTS (True) or NORMAL INPUTS (False)."""
+        self.test_inputs = bool(on)
+        if self.test_inputs:
+            self.watchdog = False
+            self._clean_scans = 0
+        else:
+            for index, value in enumerate(self._field):
+                self.tables.set_bit(self.config.input_address(index), value)
+
+    def clear_store(self) -> None:
+        """CLEAR STORE: halt, then wipe the program and the data tables."""
+        self.halt()
+        self.load("")
+        self.tables.clear("".join(t for t in self.tables.letters if t != FLAG_TABLE))
+        if not self.test_inputs:
+            self.set_test_inputs(False)  # the inputs as wired
+
     # --- physical I/O ---------------------------------------------------------
 
     def set_input(self, index: int, value: bool) -> None:
         if not 0 <= index < self.config.total_inputs:
             raise IndexError(f"input {index} does not exist")
-        self.tables.set_bit(self.config.input_address(index), value)
+        self._field[index] = bool(value)
+        if not self.test_inputs:
+            self.tables.set_bit(self.config.input_address(index), value)
 
     def input(self, index: int) -> bool:
         return self.tables.get_bit(self.config.input_address(index))
@@ -331,7 +371,7 @@ class Controller:
             self.trip(code)
             return
         self._clean_scans += 1
-        self.watchdog = self._clean_scans >= WATCHDOG_CLEAN_SCANS
+        self.watchdog = self._clean_scans >= WATCHDOG_CLEAN_SCANS and not self.test_inputs
 
     def _update_flags(self, dt_ms: int) -> None:
         tables = self.tables
@@ -480,7 +520,10 @@ class Controller:
             self.tables.set_word(address, clamp16(int(value)))
 
     def ladder(self) -> list[dict]:
-        return [rung_to_json(rung) for rung in self.program.rungs]
+        rungs = [rung_to_json(rung) for rung in self.program.rungs]
+        for rung, span in zip(rungs, instruction_ranges(self.program)):
+            rung["instructions"] = list(span)
+        return rungs
 
     def live(self) -> dict[str, int | bool]:
         """Current value of every address the program uses, for live ladder diagrams."""
@@ -506,6 +549,7 @@ class Controller:
             "model": self.model.info(),
             "instructions": self.instructions,
             "running": self.running,
+            "test_inputs": self.test_inputs,
             "watchdog": self.watchdog,
             "trip_code": self.trip_code,
             "scan_count": self.scan_count,

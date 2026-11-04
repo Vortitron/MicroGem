@@ -649,6 +649,22 @@ def instruction_count(program: Program) -> int:
     COUNT or Special Function, two for each branch opened and one for each
     branch closed.
     """
+    return sum(rung_instructions(rung) for rung in program.rungs)
+
+
+def instruction_ranges(program: Program) -> list[tuple[int, int]]:
+    """Where each rung sits in the controller's store, as first and last
+    instruction numbers (counting from 0), as a programmer reports it."""
+    ranges, at = [], 0
+    for rung in program.rungs:
+        size = rung_instructions(rung)
+        ranges.append((at, at + size - 1))
+        at += size
+    return ranges
+
+
+def rung_instructions(rung: Rung) -> int:
+    """The instructions one rung takes; see ``instruction_count``."""
 
     def size(node: object) -> int:
         if node is None:
@@ -667,11 +683,9 @@ def instruction_count(program: Program) -> int:
             count += size(operand.node) + 3
         return count
 
-    total = 0
-    for rung in program.rungs:
-        total += size(rung.condition) + 1
-        if isinstance(rung.output, Seqr) and rung.output.reset is not None:
-            total += size(rung.output.reset) + 3
+    total = size(rung.condition) + 1
+    if isinstance(rung.output, Seqr) and rung.output.reset is not None:
+        total += size(rung.output.reset) + 3
     return total
 
 
@@ -683,6 +697,7 @@ __all__ = [
     "Arith", "Branch", "Coil", "Compare", "Constant", "Contact", "Count", "Delay", "Edge",
     "EndBlock", "Inv", "Latch", "Logic", "ObeyBlock", "Out", "Parallel", "Program",
     "ProgramError", "Rung", "Seqr", "Series", "Spec", "SPEC_VALUE", "instruction_count", "ARITHMETIC", "COMPARISONS", "LOGIC", "RAIL",
-    "SPECIAL", "VALUE_MAX", "addresses", "clamp16", "parse_program", "rung_to_json",
+    "SPECIAL", "VALUE_MAX", "addresses", "clamp16", "instruction_ranges", "parse_program",
+    "rung_instructions", "rung_to_json",
     "to_signed", "walk",
 ]

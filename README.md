@@ -5,8 +5,8 @@
 [![Validate](https://github.com/Vortitron/MicroGem/actions/workflows/validate.yml/badge.svg)](https://github.com/Vortitron/MicroGem/actions/workflows/validate.yml)
 [![Tests](https://github.com/Vortitron/MicroGem/actions/workflows/tests.yml/badge.svg)](https://github.com/Vortitron/MicroGem/actions/workflows/tests.yml)
 
-A software emulation of the GEC **MicroGEM** programmable controller, with the
-bigger **GEM 80** as the longer-term goal. It runs a ladder program against
+A software emulation of the GEC **MicroGEM** programmable controller and the
+bigger **GEM 80** compact controllers (80/100C, 100CE, 130C and 130CE). It runs a ladder program against
 GEM 80 style data tables and shows a front panel whose input and output lights
 change live. In Home Assistant the virtual controller's relays can switch real
 lights, and its inputs can be wired to real sensors.
@@ -147,6 +147,38 @@ It shows:
 
 ![The live ladder diagram, drawn like the GEM 80 programmer screen](https://raw.githubusercontent.com/Vortitron/MicroGem/main/docs/images/ladder.png)
 
+### A GEM 80
+
+A GEM 80 is drawn as its 19 inch subrack: eight I/O slots (right to left, as
+on the real one) with a lamp for each channel of each Compact I/O module, the
+power supply and the processor module. Below it is the **8920 Portable
+Programmer** (product data sheet T208): a 24 line by 80 character screen, the
+GEM 80 function keys, a typewriter keyboard, a number pad and a key switch for
+PROGRAM or MONITOR ONLY. Click it and type, or use its keys; the PC keys F1 to
+F10 give N/O, N/C, COIL, LINK, LF, JOIN, DELAY, COUNT, SPEC and VALUE.
+
+- *Control mode*: `L` ladder diagram, `D` data tables, `H` halt, `R` run, `S`
+  single cycle, `T` test inputs (the A table stops following the inputs, so
+  they can be forced, and the watchdog stays open), `N` normal inputs, `C`
+  clear store.
+- *Ladder diagram*: one rung to a screen, as in the data sheet's Figure 7,
+  with where it is stored (`DISPLAYED RUNG STORED AS INSTRUCTIONS 25 to 62`)
+  and live monitoring (`..] [..` open, `--] [--` closed). At COMMAND LEVEL:
+  `F` first, `L` last, `N` next and `B` back a rung, `S` search for an
+  address, `E` enter a new rung, `I` insert it, `R` replace the stored rung
+  with it, `C` change a rung as text, `D` delete, `M` monitor on or off, `W`
+  write to a data table and `T` back to control mode.
+- *Rung entry*: `N/O` and the address then SPACE puts a contact in series;
+  `LINK` opens a branch point, `LF` starts the next line down and `JOIN` closes
+  it; `DELAY G26 VALUE 50`, `COUNT`, `SPEC`, `AND`, `ADD`, `SUB` and `LOGIC`
+  are keyed the same way; `COIL`, `OUT`, `SEQR` or `BLOCK` ends the rung, and
+  `ESC` shows it for `I` or `R`. A rung holds up to five parallel branches of
+  up to nine series elements, as on the real programmer.
+- *Data tables*: 32 locations at a time, each as a number and as bits.
+
+The programmer will not change the program of a CE model (it is in EPROM), and
+does nothing but monitor with the key at MONITOR ONLY.
+
 ## Run it without Home Assistant
 
 ```sh
@@ -154,6 +186,7 @@ pip install -e .
 python -m microgem            # then open http://127.0.0.1:8080
 python -m microgem --program my_program.txt --port 8080
 python -m microgem --expansions 2   # add two expansion units
+python -m microgem --model gem80-130c-12k --modules 8177,8178,8110,8130   # a GEM 80
 ```
 
 ## How it works
@@ -221,6 +254,10 @@ and `SET` / `RESET` outputs (the real one latches with a seal-in branch).
   them all.
 - The default 12 inputs / 8 outputs match the MicroGEM60; `--inputs` /
   `--outputs` change them.
+- What most of the 8920's COMMAND LEVEL options do. Its data sheet lists them
+  (`S, F, L, N, E, B, D, I, R, C, M, W, T?`) and says `I` inserts the
+  displayed rung and `T` terminates, but no 8920 manual has turned up; the
+  rest are our reading of the letters, and control mode is laid out to suit.
 
 ## Development
 

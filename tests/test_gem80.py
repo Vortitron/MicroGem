@@ -409,3 +409,44 @@ def test_car_wash_demo_runs_on_the_smallest_gem80():
     assert plc.tables.get_word(parse_address("B2")) == 0x0001
     seconds(6)
     assert not on("B6.4")
+
+
+def test_programmer_commands_single_cycle_test_inputs_and_clear_store():
+    from microgem.models import DEFAULT_MODULES
+    from microgem.service import ControllerService
+
+    service = ControllerService(ControllerConfig(model="gem80-130c-12k", modules=DEFAULT_MODULES), "A0.0 -> B2.0\nA0.1 COUNT G5 VALUE 99 -> G0.0")
+    plc = service.controller
+    ladder = plc.ladder()
+    assert ladder[0]["instructions"] == [0, 1] and ladder[1]["instructions"] == [2, 5]
+    assert plc.instructions == 6
+
+    # TEST INPUTS: the field no longer reaches the A table, which the
+    # programmer can force instead; the watchdog stays open.
+    service.command({"type": "test_inputs", "value": True})
+    service.set_input(0, True)
+    for _ in range(4):
+        plc.scan(20)
+    assert not plc.output(0) and not plc.watchdog and plc.snapshot()["test_inputs"]
+    service.write("A0.0", True)
+    plc.scan(20)
+    assert plc.output(0)
+    service.write("A0.0", False)
+    service.command({"type": "test_inputs", "value": False})  # back to the field: A0.0 is on
+    plc.scan(20)
+    assert plc.output(0) and plc.input(0)
+
+    # SINGLE CYCLE from Halt: one scan, outputs updated, watchdog open.
+    service.halt()
+    service.set_input(1, True)
+    assert service.command({"type": "single"}) is None
+    assert not plc.running and plc.output(0) and not plc.watchdog
+    assert word(plc, "G5") & 0x7FFF == 1  # bit 15 holds the last input
+
+    reply = service.command({"type": "read", "address": "G4", "count": 3})
+    assert reply == {"type": "values", "address": "G4", "values": [0, word(plc, "G5"), 0], "size": 800}
+    assert service.command({"type": "read", "address": "C0", "count": 3})["type"] == "error"
+
+    service.command({"type": "clear"})
+    assert plc.program.rungs == [] and plc.instructions == 0 and word(plc, "G5") == 0
+    assert plc.input(1)  # the inputs are still as wired

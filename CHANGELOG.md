@@ -22,6 +22,14 @@ The GEM 80 compact controllers join the MicroGEM60.
   them (and a GEM 80's memory size) later. The device's model is the
   controller's. GEM 80 entities are keyed by address, so they and their field
   wiring stay with their terminals when modules move.
+- The 8920 Portable Programmer on the GEM 80 panel (data sheet T208): an 80
+  by 24 screen with the ladder drawn as in its Figure 7, the GEM 80 function
+  keys, rung entry, change, insert, replace and delete, search, live
+  monitoring, a 32 location data table monitor, and HALT, RUN, SINGLE CYCLE,
+  TEST INPUTS, NORMAL INPUTS and CLEAR STORE. The key switch gives MONITOR
+  ONLY; CE models refuse program changes.
+- The engine has SINGLE CYCLE, TEST INPUTS (T478, 2.3.8) and CLEAR STORE, and
+  reports which instructions each rung is stored as.
 - A car wash demo for the GEM 80s without DIV and COMPARE (100C 2K and 6K).
   A saved program that no longer fits the controller is kept aside in the
   store as `rejected_program` when the example replaces it.

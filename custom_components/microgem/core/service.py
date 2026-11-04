@@ -13,7 +13,7 @@ from collections.abc import Callable
 from .engine import Controller, ControllerConfig
 from .examples import BEDROOM, examples_for
 from .program import ProgramError, parse_program, rung_to_json
-from .tables import AddressError, parse_address, to_signed
+from .tables import Address, AddressError, parse_address, to_signed
 
 SCAN_INTERVAL_MS = 20
 
@@ -104,6 +104,18 @@ class ControllerService:
         self.controller.halt()
         self._notify_if_changed(force=True)
 
+    def single_cycle(self) -> None:
+        self.controller.single_cycle(SCAN_INTERVAL_MS)
+        self._notify_if_changed(force=True)
+
+    def set_test_inputs(self, on: bool) -> None:
+        self.controller.set_test_inputs(on)
+        self._notify_if_changed(force=True)
+
+    def clear_store(self) -> None:
+        self.controller.clear_store()
+        self._notify_if_changed(force=True)
+
     def write(self, address: str, value: int | bool) -> None:
         self.controller.write(parse_address(address), value)
         self._notify_if_changed()
@@ -120,7 +132,10 @@ class ControllerService:
         ``{"type": "halt"}``, ``{"type": "read", "address": "G12"}``,
         ``{"type": "preview", "source": "..."}`` (parse without loading), ``{"type": "write", "address": "G12", "value": 5}`` and
         ``{"type": "load", "source": "..."}`` and ``{"type": "examples"}`` (the demo
-        programmes, to pick from).
+        programmes, to pick from). A programmer also sends ``{"type": "single"}``
+        (SINGLE CYCLE), ``{"type": "test_inputs", "value": true}`` (TEST or
+        NORMAL INPUTS), ``{"type": "clear"}`` (CLEAR STORE) and ``{"type":
+        "read", "address": "G0", "count": 32}`` for a run of words.
         """
         kind = message.get("type")
         try:
@@ -130,6 +145,23 @@ class ControllerService:
                 self.run()
             elif kind == "halt":
                 self.halt()
+            elif kind == "single":
+                self.single_cycle()
+            elif kind == "test_inputs":
+                self.set_test_inputs(bool(message["value"]))
+            elif kind == "clear":
+                self.clear_store()
+            elif kind == "read" and "count" in message:
+                start = parse_address(str(message["address"]))
+                if start.is_bit:
+                    raise ValueError("a run of words starts at a word address, such as G0")
+                tables = self.controller.tables
+                tables.check(start)
+                size = tables.size(start.table)
+                last = min(size, start.word + max(1, min(int(message["count"]), 64)))
+                values = [to_signed(tables.get_word(Address(start.table, w)))
+                          for w in range(start.word, last)]
+                return {"type": "values", "address": str(start), "values": values, "size": size}
             elif kind == "read":
                 address = parse_address(str(message["address"]))
                 tables = self.controller.tables
