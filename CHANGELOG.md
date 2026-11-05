@@ -39,7 +39,10 @@ The GEM 80 compact controllers join the MicroGEM60.
   part lines with ETX and a keyboard into `J0` on the 12K.
 - The 8108 Compact Analogue Input Module: 16 channels multiplexed into one A
   word (T443), sliders on the panel, and in Home Assistant a channel can follow
-  any numeric entity. It is in the default modules (slots 5 and 6).
+  any numeric entity. It is in the default modules (slots 5 and 6). Its
+  INPUT (10 V, 5 V, 20 mA), Scan Number and SELF/FORCED scan switches work,
+  forced scan taking the channel from a B word, and are kept by Home
+  Assistant.
 - A Room heating demo: an analogue temperature and set point, PIDABS, a
   time-proportioned heater and a time-stamped printed log.
 - `NAME`, `PRESET` and `MESSAGE` lines keep mnemonics, preset data and

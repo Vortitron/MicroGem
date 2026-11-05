@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import voluptuous as vol
@@ -52,6 +52,7 @@ class MicroGemData:
     service: ControllerService
     store: Store
     wiring: Wiring
+    saved: dict = field(default_factory=dict)  # what the store holds, or will after its delay
 
 
 type MicroGemConfigEntry = ConfigEntry[MicroGemData]
@@ -109,18 +110,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> 
         rejected = saved.get("program")
     if saved.get("running") is False:
         service.halt()
+    if saved.get("analogue_switches"):
+        service.set_analogue_switches(saved["analogue_switches"])
 
     wiring = Wiring(hass, service, entry.entry_id)
     entry.runtime_data = MicroGemData(service, store, wiring)
 
-    # Keep the program and the Run/Halt state across restarts.
-    last_saved = {"program": service.controller.program.source, "running": service.controller.running}
+    # Keep the program, the Run/Halt state and the 8108 switches across restarts.
+    last_saved = {"program": service.controller.program.source, "running": service.controller.running,
+                  "analogue_switches": service.controller.snapshot()["analogue_switches"]}
     if rejected is not None:
         last_saved["rejected_program"] = rejected
+    entry.runtime_data.saved = last_saved
 
     @callback
     def persist(state: dict) -> None:
-        current = {"program": state["program"], "running": state["running"]}
+        current = {"program": state["program"], "running": state["running"],
+                   "analogue_switches": state.get("analogue_switches", {})}
         if any(last_saved.get(key) != value for key, value in current.items()):
             last_saved.update(current)
             store.async_delay_save(lambda: dict(last_saved), SAVE_DELAY_S)
@@ -178,4 +184,8 @@ def remove_missing_io(hass: HomeAssistant, entry: ConfigEntry, config: Controlle
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: MicroGemConfigEntry) -> bool:
+    # Write now what is waiting for the save delay, so a reload (which opens
+    # the store afresh) finds it.
+    data = entry.runtime_data
+    await data.store.async_save(dict(data.saved))
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

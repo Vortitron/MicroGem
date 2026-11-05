@@ -12,6 +12,8 @@ from .models import (
     DEFAULT_MODEL,
     ANALOGUE_CHANNELS,
     ANALOGUE_CONVERSION_MS,
+    ANALOGUE_RANGES,
+    ANALOGUE_SCAN_NUMBERS,
     SLOTS,
     analogue_word,
     ControllerModel,
@@ -58,6 +60,8 @@ from .tables import Address, AddressError, DataTables, clamp16, to_signed
 
 INPUT_TABLE = "A"
 ANALOGUE_LIMIT_V = 12.0  # what the emulator lets a terminal see; the 8108 reads ±10.235 V
+ANALOGUE_LIMIT_MA = 24.0  # and a current loop: 0 to 24 mA
+DEFAULT_SWITCHES = {"input": "10V", "scan": 8, "forced": False}
 OUTPUT_TABLE = "B"
 FLAG_TABLE = "E"
 
@@ -252,6 +256,8 @@ class Controller:
         # multiplexer: the channel on its output and how long it has been there.
         self.analogue = [0.0] * cfg.total_analogue
         self._mux = [[0, 0] for _ in cfg.multiplexers]
+        # Each 8108's front-panel switches, by slot (see models.ANALOGUE_RANGES).
+        self.analogue_switches = {slot: dict(DEFAULT_SWITCHES) for slot, _a in cfg.multiplexers}
         self._special = functions.Context(self.tables, self.model.protected, self.printer)
         self.program = Program()
         self.instructions = 0
@@ -463,21 +469,73 @@ class Controller:
     def _read_multiplexers(self, dt_ms: int) -> None:
         """Each 8108 moves on to its next channel once the last one has been
         read and the converter has settled, then shows it on its A word."""
-        for k, (_slot, address) in enumerate(self.config.multiplexers):
-            mux = self._mux[k]
+        for k, (slot, address) in enumerate(self.config.multiplexers):
+            mux, switches = self._mux[k], self.analogue_switches[slot]
             mux[1] += dt_ms
             if mux[1] >= ANALOGUE_CONVERSION_MS:
-                mux[0] = (mux[0] + 1) % ANALOGUE_CHANNELS
+                mux[0] = self._next_channel(mux[0], address, switches)
                 mux[1] = 0
             if not self.test_inputs:
-                volts = self.analogue[k * ANALOGUE_CHANNELS + mux[0]]
-                self.tables.set_word(address, analogue_word(volts, mux[0]))
+                full_scale = ANALOGUE_RANGES[switches["input"]][1]
+                signal = self.analogue[k * ANALOGUE_CHANNELS + mux[0]]
+                self.tables.set_word(address, analogue_word(signal, mux[0], full_scale))
 
-    def set_analogue(self, index: int, volts: float) -> None:
-        """The voltage on analogue channel ``index`` (all the 8108s' channels in slot order)."""
+    def _next_channel(self, channel: int, address: Address, switches: dict) -> int:
+        if switches["forced"]:
+            request = Address(OUTPUT_TABLE, address.word + 1)
+            if self.tables.size(OUTPUT_TABLE) > request.word:
+                bits = self.tables.get_word(request) & 0xFFFF
+                if bits:  # one bit for the channel; the lowest if more are set
+                    return (bits & -bits).bit_length() - 1
+        return (channel + 1) % (2 * switches["scan"])
+
+    def set_analogue_switch(self, slot: int, *, input: str | None = None, scan: int | None = None,
+                            forced: bool | None = None) -> dict:
+        """Set an 8108's switches: INPUT (10V, 5V, 20mA), Scan Number, SELF/FORCED."""
+        if slot not in self.analogue_switches:
+            raise ValueError(f"there is no 8108 in slot {slot}")
+        switches = self.analogue_switches[slot]
+        if input is not None:
+            if input not in ANALOGUE_RANGES:
+                raise ValueError(f"the 8108's INPUT is one of {', '.join(ANALOGUE_RANGES)}")
+            if input != switches["input"]:
+                k = [s for s, _a in self.config.multiplexers].index(slot)
+                old, new = ANALOGUE_RANGES[switches["input"]][0], ANALOGUE_RANGES[input][0]
+                for i in range(k * ANALOGUE_CHANNELS, (k + 1) * ANALOGUE_CHANNELS):
+                    # The same fraction of the range on the new one.
+                    self.analogue[i] = self._clamp_signal(self.analogue[i] / old * new, input)
+            switches["input"] = input
+        if scan is not None:
+            if int(scan) not in ANALOGUE_SCAN_NUMBERS:
+                raise ValueError("the 8108's Scan Number is 1 to 8")
+            switches["scan"] = int(scan)
+        if forced is not None:
+            switches["forced"] = bool(forced)
+        return dict(switches)
+
+    def _range_of(self, index: int) -> str:
+        slot = self.config.multiplexers[index // ANALOGUE_CHANNELS][0]
+        return self.analogue_switches[slot]["input"]
+
+    @staticmethod
+    def _clamp_signal(value: float, input: str) -> float:
+        if ANALOGUE_RANGES[input][2] == "mA":
+            return max(0.0, min(ANALOGUE_LIMIT_MA, float(value)))
+        return max(-ANALOGUE_LIMIT_V, min(ANALOGUE_LIMIT_V, float(value)))
+
+    def set_analogue(self, index: int, value: float) -> None:
+        """The signal on analogue channel ``index`` (all the 8108s' channels in
+        slot order), in volts, or mA on a 20 mA channel."""
         if not 0 <= index < len(self.analogue):
             raise IndexError(f"analogue channel {index} does not exist")
-        self.analogue[index] = max(-ANALOGUE_LIMIT_V, min(ANALOGUE_LIMIT_V, float(volts)))
+        self.analogue[index] = self._clamp_signal(value, self._range_of(index))
+
+    def set_analogue_fraction(self, index: int, fraction: float) -> None:
+        """A channel at a fraction of its range: 1.0 is 10 V, 5 V or 20 mA."""
+        if not 0 <= index < len(self.analogue):
+            raise IndexError(f"analogue channel {index} does not exist")
+        input = self._range_of(index)
+        self.analogue[index] = self._clamp_signal(fraction * ANALOGUE_RANGES[input][0], input)
 
     def _check_watchdog(self, dt_ms: int) -> None:
         code = to_signed(self.tables.get_word(F_USER_TRIP))
@@ -708,5 +766,6 @@ class Controller:
             "printer": self._printer_snapshot(),
             "analogue": [round(v, 3) for v in self.analogue],
             "mux": [k * ANALOGUE_CHANNELS + m[0] for k, m in enumerate(self._mux)],
+            "analogue_switches": {str(slot): dict(sw) for slot, sw in self.analogue_switches.items()},
         }
 

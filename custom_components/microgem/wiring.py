@@ -12,7 +12,8 @@ needed. The wiring lives in the config entry's options under ``wiring``:
      "analogue": {"0": {"entity_id": "sensor.lounge_temperature", "low": 0, "high": 40}}}
 
 An analogue channel (on a GEM 80's 8108 module) follows a number: ``low``
-reads 0 V and ``high`` 10 V, in a straight line, within the module's ±10 V.
+reads zero and ``high`` the top of the module's range (10 V, 5 V or 20 mA, as
+its INPUT switch is set), in a straight line.
 """
 
 from __future__ import annotations
@@ -64,11 +65,12 @@ ANALOGUE_SCHEMA = vol.Schema(
         vol.Optional("high", default=100.0): vol.Coerce(float),
     }
 )
-FULL_SCALE_V = 10.235
+FULL_SCALE = 10.235 / 10  # the 8108 reads a little over its nominal range
 
 
-def volts(state: State | None, point: dict) -> float:
-    """The channel voltage for a wired entity; 0 V when it has no number."""
+def fraction(state: State | None, point: dict) -> float:
+    """How far up its range a wired entity puts a channel (1.0 at ``high``);
+    0 when it has no number."""
     if state is None or state.state in (STATE_UNAVAILABLE, STATE_UNKNOWN):
         return 0.0
     attribute = point.get("attribute")
@@ -80,7 +82,7 @@ def volts(state: State | None, point: dict) -> float:
         return 0.0
     if high == low:
         return 0.0
-    return max(-FULL_SCALE_V, min(FULL_SCALE_V, (number - low) / (high - low) * 10))
+    return max(-FULL_SCALE, min(FULL_SCALE, (number - low) / (high - low)))
 
 
 def closed(value: Any, above: float | None) -> bool:
@@ -164,7 +166,7 @@ class Wiring:
 
     def _feed(self, kind: str, index: int, point: dict, state: State | None) -> None:
         if kind == "analogue":
-            self.service.set_analogue(index, volts(state, point))
+            self.service.set_analogue_fraction(index, fraction(state, point))
         else:
             self.service.set_input(index, input_value(state, point))
 

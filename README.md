@@ -186,13 +186,20 @@ The programmer will not change the program of a CE model (it is in EPROM), and
 does nothing but monitor with the key at MONITOR ONLY.
 
 An **8108 analogue input module** (in slots 5 and 6 by default; it is two
-slots wide) reads 16 channels of ±10 V, multiplexed into one A word as its
-manual (T443) describes: bits 4 to 15 the value, bits 0 to 3 the channel, a
-new channel every 70 ms. Sliders set the voltages; in Home Assistant a channel
-can follow any numeric entity (click the channel and give the values at 0 V
-and 10 V). The **Room heating** demo reads it with LOCATE and MOVE exactly as
-the manual's example does, scales with LINCON, controls with PIDABS and
-switches a heater relay in proportion over a 10 s cycle.
+slots wide) reads 16 channels, multiplexed into one A word as its manual
+(T443) describes: bits 4 to 15 the value, bits 0 to 3 the channel, a new
+channel every 70 ms. Its front-panel switches work (click them on the
+drawing): **INPUT** ±10 V, ±5 V, or 0 to 20 mA (the 5 V setting with the
+20 mA termination panel); the **Scan Number** dial, 1 to 8, self-scans twice
+that many channels; and **SELF / FORCED** scan, where the program asks for a
+channel by setting one bit of the B word after the module's A word (`B9` for
+`A8`; bit *n* for channel *n*, all off to self-scan again), and the module
+still waits for its conversion timer. Sliders set the signals; in Home
+Assistant a channel can follow any numeric entity (click the channel and give
+the values at zero and at the top of the range), and the switch settings are
+kept. The **Room heating** demo reads it with LOCATE and MOVE exactly as the
+manual's example does, scales with LINCON, controls with PIDABS and switches
+a heater relay in proportion over a 10 s cycle.
 
 On a 130C or 130CE, port 1 can be a **printer port**, set up by preset data as
 the data sheets give it (T278 Table 5, and T247/T419 for the 225 series of the
@@ -346,8 +353,11 @@ and `SET` / `RESET` outputs (the real one latches with a seal-in branch).
 - The 130C's printer port preset words: the 130C data sheet (T278) says only
   that preset data sets the port up, so the 225/235/245's `P2` to `P5` (T419)
   are used. The 130C has `E0` to `E6`, and its E0.8 is taken from the 225's.
-- The 8108's forced-scan mode, its 5 V and 20 mA ranges and the scan number
-  switch are not emulated: it self-scans all 16 channels at ±10 V.
+- Where the 8108's forced-scan B word is in a compact controller: T443 gives
+  it for an 8859 subrack (the word after the module's A word, the module
+  taking four slots), and the emulator uses the word after it in the same way.
+  What the 8108 does with more than one request bit set is not given; the
+  emulator takes the lowest.
 - The 8920's preset data table and print-out keys (`P` and `O`): its data
   sheet says it has both, but not which keys.
 - What most of the 8920's COMMAND LEVEL options do. Its data sheet lists them

@@ -787,6 +787,56 @@ AND 0 SPEC LOCATE VALUE G21 SPEC MOVE [AND G20 SPEC LOCATE VALUE G100] VALUE 1 -
         plc.set_analogue(16, 1.0)
 
 
+def test_8108_switches_scan_number_range_and_forced_scan():
+    modules = ("8177", "8178", "8110", "8130", "8108")
+    plc = gem80("AND A8 AND 15 -> OUT G20\nAND A8 AND @FFF0 -> OUT G21\n", modules=modules)
+
+    def channels(scans, dt=70):
+        seen = []
+        for _ in range(scans):
+            plc.scan(dt)
+            seen.append(word(plc, "A8") & 15)
+        return seen
+
+    # Scan Number 3: self-scan covers channels 0 to 5 (T443 4.2).
+    plc.set_analogue_switch(5, scan=3)
+    assert set(channels(12)) == {0, 1, 2, 3, 4, 5}
+    with pytest.raises(ValueError, match="1 to 8"):
+        plc.set_analogue_switch(5, scan=9)
+
+    # The 5 V range: 2.5 V is half scale; the same fraction carries over.
+    plc.set_analogue_switch(5, scan=1)
+    plc.set_analogue(0, 5.0)
+    plc.set_analogue_switch(5, input="5V")
+    assert plc.analogue[0] == pytest.approx(2.5)
+    plc.scan(1)
+    while word(plc, "A8") & 15:
+        plc.scan(70)
+    assert word(plc, "A8") & 0xFFF0 == round(2.5 / 5.117 * 32768) & 0xFFF0
+    # 20 mA: 10 mA through the termination panel is 2.5 V.
+    plc.set_analogue_switch(5, input="20mA")
+    plc.set_analogue(0, 10.0)
+    plc.set_analogue(1, -3)  # a current loop goes no lower than 0 mA
+    assert plc.analogue[1] == 0.0
+    plc.scan(1)
+    while word(plc, "A8") & 15:
+        plc.scan(70)
+    assert to_signed(word(plc, "A8") & 0xFFF0) == round(10.0 / 20.468 * 32768) & 0xFFF0
+
+    # Forced scan: one bit of B9 (the word after A8) picks the channel, at the
+    # next conversion; no bits goes back to self-scan.
+    plc.set_analogue_switch(5, forced=True, scan=8)
+    plc.load("AND 1024 -> OUT B9\n")
+    plc.scan(10)
+    assert channels(4) == [10, 10, 10, 10]
+    plc.load("AND 0 -> OUT B9\n")
+    seen = channels(4)
+    assert seen == [10, 11, 12, 13]  # the request is read before the rung clears it
+    assert plc.snapshot()["analogue_switches"]["5"] == {"input": "20mA", "scan": 8, "forced": True}
+    with pytest.raises(ValueError, match="no 8108 in slot 1"):
+        plc.set_analogue_switch(1, scan=2)
+
+
 def test_heating_demo_controls_and_logs():
     from microgem.examples import HEATING
     from microgem.models import DEFAULT_MODULES

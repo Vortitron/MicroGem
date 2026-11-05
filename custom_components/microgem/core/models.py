@@ -147,21 +147,40 @@ def get_model(key: str) -> ControllerModel:
 
 SLOTS = 8
 
-# The 8108 Compact Analogue Input Module (T443) multiplexes 16 channels of
-# ±10 V (full scale 10.235 V) into one A table word, addressed like an 8-point
-# module and twice as wide as the others: it takes two slots. Each channel
-# takes 70 ± 20 ms to convert; the word holds the value in bits 4 to 15 (11
-# bits plus sign, so full scale is 32752) and the channel in bits 0 to 3. The
-# emulator has it in self-scan mode with all 16 channels, its word the first
-# of its slot (the LOWER WORD switch setting).
+# The 8108 Compact Analogue Input Module (T443) multiplexes 16 channels into
+# one A table word, addressed like an 8-point module and twice as wide as the
+# others: it takes two slots. Each channel takes 70 ± 20 ms to convert; the
+# word holds the value in bits 4 to 15 (11 bits plus sign, so full scale is
+# 32752) and the channel in bits 0 to 3. Its front-panel switches (T443
+# section 4 and Figure 4):
+#
+# * INPUT: all channels ±10 V (full scale 10.235 V) or ±5 V (5.117 V); 0 to
+#   20 mA is the 5 V setting with the 20 mA termination panel, whose
+#   precision resistors turn 20 mA into 5 V;
+# * Scan Number 1 to 8: self-scan covers twice that many channels, from 0;
+# * SELF / FORCED scan: forced, the program asks for a channel with one bit
+#   of a B word (bit n for channel n; all off goes back to self-scan), and the
+#   module still waits for the conversion timer before it changes channel.
+#   On an 8859 subrack the B word is the one after the 8108's A word (A0 and
+#   B1, T443 6.2.3); the emulator does the same in the compact controller.
+#
+# The UPPER/LOWER WORD switch only picks the byte addressing in an 8-point
+# subrack; the emulator has the module's word the first of its slot.
 ANALOGUE_FULL_SCALE_V = 10.235
 ANALOGUE_CONVERSION_MS = 70
 ANALOGUE_CHANNELS = 16
+#: INPUT switch setting -> (nominal, full scale, unit) of the plant signal.
+ANALOGUE_RANGES = {
+    "10V": (10.0, 10.235, "V"),
+    "5V": (5.0, 5.117, "V"),
+    "20mA": (20.0, 20.468, "mA"),
+}
+ANALOGUE_SCAN_NUMBERS = range(1, 9)
 
 
-def analogue_word(volts: float, channel: int) -> int:
-    """The 8108's output word for a channel at a voltage."""
-    counts = round(max(-ANALOGUE_FULL_SCALE_V, min(ANALOGUE_FULL_SCALE_V, volts)) / ANALOGUE_FULL_SCALE_V * 32768)
+def analogue_word(signal: float, channel: int, full_scale: float = ANALOGUE_FULL_SCALE_V) -> int:
+    """The 8108's output word for a channel at a signal (volts or mA) with this full scale."""
+    counts = round(max(-full_scale, min(full_scale, signal)) / full_scale * 32768)
     counts = max(-32752, min(32752, counts))  # 11 bits and sign: T443 Figure 11
     return (counts & 0xFFF0) | (channel & 0xF)
 

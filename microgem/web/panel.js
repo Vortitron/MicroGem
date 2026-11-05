@@ -35,6 +35,8 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .unit svg + svg { margin-top: 14px; }
 .unit svg { color: var(--text); overflow: visible; }
 .term { fill: transparent; }
+.an-switch { fill: transparent; cursor: pointer; }
+.an-switch:hover { fill: rgba(255, 216, 58, .14); stroke: #ffd83a; stroke-width: 1; }
 .unit.wirable .term { cursor: pointer; }
 .unit.wirable .term:hover, .term.sel { fill: rgba(255, 216, 58, .14); stroke: #ffd83a; stroke-width: 1.5; }
 .cable { fill: none; stroke-width: 4; stroke-linecap: round; }
@@ -287,8 +289,8 @@ const MARKUP = `
         <div class="fields">
           <label id="we-attr-box">Read<select id="we-attr"></select></label>
           <label id="we-above-box">Contact closes above<input id="we-above" type="number" step="any" placeholder="leave empty for on/off"></label>
-          <label id="we-low-box">Value at 0 V<input id="we-low" type="number" step="any" value="0"></label>
-          <label id="we-high-box">Value at 10 V<input id="we-high" type="number" step="any" value="100"></label>
+          <label id="we-low-box"><span id="we-low-label">Value at 0 V</span><input id="we-low" type="number" step="any" value="0"></label>
+          <label id="we-high-box"><span id="we-high-label">Value at 10 V</span><input id="we-high" type="number" step="any" value="100"></label>
           <label class="check" id="we-invert-box"><input type="checkbox" id="we-invert"> Invert: the contact is closed while the entity is <i>off</i> (like a normally closed switch)</label>
         </div>
         <p class="message" id="we-now"></p>
@@ -542,23 +544,31 @@ const G80_MODULE_COLOURS = { input: "#4c7a9e", output: "#a4473a", relay: "#c98a2
 // plant connector for the harness, and for the emulator a bar and the
 // voltage of each of its 16 channels, beside the channel it is reading.
 const AN_ROW0 = 118, AN_STEP = 13.4;
+// The 8108's INPUT range: nominal, full scale and unit of the plant signal (T443).
+const AN_RANGES = { "10V": [10, 10.235, "V"], "5V": [5, 5.117, "V"], "20mA": [20, 20.468, "mA"] };
+const AN_DIAL = (n) => -135 + (n - 1) * 270 / 7; // the Scan Number dial, 1 to 8
+
 function analogueModuleSvg(slot, sx, top, w, MH, wires, { screw, lamp, txt }) {
-  const sw = (x, y, label, a, b, up) => `${txt(x, y - 16, label, "g8 small")}
+  const s = slot.slot;
+  const sw = (x, y, label, a, b, id, title) => `${txt(x, y - 16, label, "g8 small")}
     <rect x="${x - 7}" y="${y - 10}" width="14" height="22" rx="3" fill="#0d0d0d" stroke="#555"/>
-    <rect x="${x - 3}" y="${up ? y - 8 : y}" width="6" height="10" rx="2" fill="#cfcac0"/>
-    ${txt(x + 18, y - 3, a, "g8 tiny")}${txt(x + 18, y + 10, b, "g8 tiny")}`;
+    <rect id="${id}" data-y="${y}" x="${x - 3}" y="${y - 8}" width="6" height="10" rx="2" fill="#cfcac0"/>
+    ${txt(x + 18, y - 3, a, "g8 tiny")}${txt(x + 18, y + 10, b, "g8 tiny")}
+    <rect class="an-switch" data-slot="${s}" data-switch="${id.split("-")[2]}" x="${x - 12}" y="${y - 26}" width="${a.length > 3 ? 52 : 40}" height="42" rx="3"><title>${title}</title></rect>`;
   let out = `<rect x="${sx}" y="${top}" width="${w}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
     <rect x="${sx + w / 2 - 18}" y="${top + 4}" width="36" height="12" rx="3" fill="#0d0d0d"/>
     <rect x="${sx + 6}" y="${top + 22}" width="${w - 12}" height="30" rx="2" fill="${G80_MODULE_COLOURS.analogue}"/>
     ${txt(sx + w / 2, top + 36, slot.module, "g8 type")}
     ${txt(sx + w / 2, top + 47, "ANALOGUE INPUT 16 CH", "g8 small")}
-    ${sw(sx + 20, top + 80, "INPUT", "10V", "5V", true)}
-    ${sw(sx + 64, top + 80, "WORD", "UP", "LO", false)}
-    ${sw(sx + 110, top + 80, "SCAN", "SELF", "FORCED", true)}
+    ${sw(sx + 20, top + 80, "INPUT", "10V", "5V", `an-sw-input-${s}`, "INPUT: ±10 V, ±5 V, or 0 to 20 mA (5 V with the 20 mA termination panel). Click to change.")}
+    ${sw(sx + 64, top + 80, "WORD", "UP", "LO", `an-sw-word-${s}`, "UPPER/LOWER WORD: byte addressing on an 8-point subrack; LOWER here")}
+    ${sw(sx + 110, top + 80, "SCAN", "SELF", "FORCED", `an-sw-forced-${s}`, "SELF or FORCED scan: forced, one bit of B" + (slot.words[0] + 1) + " picks the channel. Click to change.")}
     <circle cx="${sx + w - 22}" cy="${top + 80}" r="10" fill="#0d0d0d" stroke="#555"/>
-    <path d="M${sx + w - 22} ${top + 80}l7 -5" stroke="#cfcac0" stroke-width="2.4" stroke-linecap="round"/>
-    ${txt(sx + w - 22, top + 64, "No.", "g8 small")}${txt(sx + w - 22, top + 102, "8", "g8 tiny")}
-    ${txt(sx + 30, top + AN_ROW0 - 8, `A${slot.words[0]}`, "g8 word")}`;
+    <path id="an-dial-${s}" d="M${sx + w - 22} ${top + 80}v-8" stroke="#cfcac0" stroke-width="2.4" stroke-linecap="round" transform="rotate(${AN_DIAL(8)} ${sx + w - 22} ${top + 80})"/>
+    ${txt(sx + w - 22, top + 64, "No.", "g8 small")}<text id="an-dialn-${s}" x="${sx + w - 22}" y="${top + 102}" class="g8 tiny">8</text>
+    <rect class="an-switch" data-slot="${s}" data-switch="scan" x="${sx + w - 36}" y="${top + 56}" width="28" height="50" rx="3"><title>Scan Number 1 to 8: self-scan reads twice as many channels, from 0. Click to change.</title></rect>
+    ${txt(sx + 30, top + AN_ROW0 - 8, `A${slot.words[0]}`, "g8 word")}
+    <text id="an-unit-${s}" x="${sx + w - 10}" y="${top + AN_ROW0 - 8}" class="g8 tiny" text-anchor="end">VOLTS</text>`;
   for (let c = 0; c < 16; c++) {
     const g = slot.first + c, cy = top + AN_ROW0 + c * AN_STEP;
     out += txt(sx + 22, cy + 3.5, String(c), "g8 ch") + lamp("g", `mux-${g}`, sx + 30, cy, 3) +
@@ -573,7 +583,7 @@ function analogueModuleSvg(slot, sx, top, w, MH, wires, { screw, lamp, txt }) {
   const py = top + MH - 44;
   out += `<rect x="${sx + 30}" y="${py}" width="${w - 60}" height="32" rx="5" fill="#2a2a2a" stroke="#555"/>
     <rect x="${sx + 40}" y="${py + 7}" width="${w - 80}" height="18" rx="4" fill="#0e0e0e"/>
-    ${txt(sx + w / 2, py - 6, "PLANT SIGNALS", "g8 tiny")}
+    <text id="an-term-${s}" x="${sx + w / 2}" y="${py - 6}" class="g8 tiny">PLANT SIGNALS</text>
     ${screw(sx + w / 2, top + MH - 4, 3)}`;
   return out;
 }
@@ -2099,8 +2109,12 @@ class MicroGemPanel extends HTMLElement {
       buildLinks();
     }
     // Sliders for an 8108's channels, in volts; a wired channel follows its sensor.
+    // An 8108's range from its INPUT switch: [nominal, full scale, unit].
+    const anSwitches = (slotNo) => (state.analogue_switches || {})[String(slotNo)] || { input: "10V", scan: 8, forced: false };
+    const anRange = (slotNo) => AN_RANGES[anSwitches(slotNo).input] || AN_RANGES["10V"];
+    const anSlotOf = (i) => io().slots.find((sl) => sl.kind === "analogue" && i >= sl.first && i < sl.first + sl.channels);
     function buildAnalogue(t, slot) {
-      t.append(el("div", "group-label", `SLOTS ${slot.slot + 1}–${slot.slot} · ${slot.module} · A${slot.words[0]} · ANALOGUE, VOLTS`));
+      t.append(el("div", "group-label", `SLOTS ${slot.slot + 1}–${slot.slot} · ${slot.module} · A${slot.words[0]} · ANALOGUE`));
       const group = el("div", "analogue");
       for (let c = 0; c < slot.channels; c++) {
         const i = slot.first + c;
@@ -2108,7 +2122,7 @@ class MicroGemPanel extends HTMLElement {
         const input = document.createElement("input");
         Object.assign(input, { type: "range", min: "-10", max: "10", step: "0.05", value: "0" });
         input.id = `ans-${i}`;
-        input.setAttribute("aria-label", `Analogue channel ${c} (slot ${slot.slot}), volts`);
+        input.setAttribute("aria-label", `Analogue channel ${c} (slot ${slot.slot})`);
         input.addEventListener("input", () => send({ type: "analogue", index: i, value: Number(input.value) }));
         row.append(el("span", "an-ch", `CH ${c}`), input, el("span", "an-val", "0.00 V"));
         row.lastChild.id = `ansv-${i}`;
@@ -2120,11 +2134,14 @@ class MicroGemPanel extends HTMLElement {
       const volts = state.analogue || [];
       const u = $("unit");
       const wiredAn = (wiring().analogue) || {};
+      for (const slot of io().slots.filter((sl) => sl.kind === "analogue")) renderAnalogueSwitches(slot);
       volts.forEach((v, i) => {
+        const slot = anSlotOf(i);
+        const [nominal, , unit] = slot ? anRange(slot.slot) : AN_RANGES["10V"];
         const bar = u.querySelector(`#an-${i}`);
         if (bar) {
           const full = Number(bar.previousElementSibling.previousElementSibling.getAttribute("width"));
-          const half = full / 2, len = Math.min(1, Math.abs(v) / 10) * half;
+          const half = full / 2, len = Math.min(1, Math.abs(v) / nominal) * half;
           const mid = Number(bar.previousElementSibling.getAttribute("x1"));
           bar.setAttribute("x", v < 0 ? mid - len : mid);
           bar.setAttribute("width", len);
@@ -2132,12 +2149,32 @@ class MicroGemPanel extends HTMLElement {
         const tv = u.querySelector(`#anv-${i}`);
         if (tv) tv.textContent = v.toFixed(2);
         const sl = root.querySelector(`#ans-${i}`);
-        if (sl && root.activeElement !== sl) { sl.value = v; sl.disabled = !!wiredAn[i]; }
+        if (sl) {
+          const lo = unit === "mA" ? 0 : -nominal;
+          if (Number(sl.max) !== nominal || Number(sl.min) !== lo) Object.assign(sl, { min: String(lo), max: String(nominal), step: String(nominal / 200) });
+          if (root.activeElement !== sl) { sl.value = v; sl.disabled = !!wiredAn[i]; }
+        }
         const sv = root.querySelector(`#ansv-${i}`);
-        if (sv) sv.textContent = `${v.toFixed(2)} V`;
+        if (sv) sv.textContent = `${v.toFixed(2)} ${unit}`;
       });
       const mux = state.mux || [];
       u.querySelectorAll("[id^=mux-]").forEach((n) => n.classList.toggle("on", mux.includes(Number(n.id.slice(4)))));
+    }
+    // The 8108's switches on the drawing, as the controller has them.
+    function renderAnalogueSwitches(slot) {
+      const u = $("unit"), s = slot.slot, sw = anSwitches(s);
+      const lever = (id, up) => { const n = u.querySelector(`#${id}`); if (n) n.setAttribute("y", Number(n.dataset.y) + (up ? -8 : 0)); };
+      lever(`an-sw-input-${s}`, sw.input === "10V");
+      lever(`an-sw-word-${s}`, false);
+      lever(`an-sw-forced-${s}`, !sw.forced);
+      const dial = u.querySelector(`#an-dial-${s}`);
+      if (dial) dial.setAttribute("transform", dial.getAttribute("transform").replace(/rotate\(-?[\d.]+/, `rotate(${AN_DIAL(sw.scan)}`));
+      const n = u.querySelector(`#an-dialn-${s}`);
+      if (n) n.textContent = String(sw.scan);
+      const unitText = u.querySelector(`#an-unit-${s}`);
+      if (unitText) unitText.textContent = sw.input === "20mA" ? "mA" : "VOLTS";
+      const term = u.querySelector(`#an-term-${s}`);
+      if (term) term.textContent = sw.input === "20mA" ? "20 mA PANEL" : "PLANT SIGNALS";
     }
     let g80Built = false;
     let pp = null; // the 8920 Portable Programmer, for a GEM 80
@@ -2316,7 +2353,10 @@ class MicroGemPanel extends HTMLElement {
       const ch = index - slot.first;
       const point = wiring().analogue[index];
       $("we-title").textContent = `Wire analogue channel ${ch} of slot ${slot.slot} (${slot.module}, read through A${slot.words[0]})`;
-      $("we-hint").textContent = "The channel's voltage follows the entity's number: the value you give for 0 V reads 0 V, the one for 10 V reads 10 V, in a straight line (the 8108 reads -10 V to +10 V). A temperature of 0 to 40 °C suits the Room heating demo.";
+      const [nominal, , unit] = anRange(slot.slot), top = `${nominal} ${unit}`;
+      $("we-low-label").textContent = `Value at 0 ${unit}`;
+      $("we-high-label").textContent = `Value at ${top}`;
+      $("we-hint").textContent = `The channel follows the entity's number: the value you give for 0 ${unit} reads 0 ${unit}, the one for ${top} reads ${top}, in a straight line (the module's INPUT switch is at ${anSwitches(slot.slot).input}; click it on the drawing to change the range). A temperature of 0 to 40 °C suits the Room heating demo.`;
       chosen = point ? point.entity_id : "";
       $("we-search").value = "";
       filter = "sensor";
@@ -2333,10 +2373,11 @@ class MicroGemPanel extends HTMLElement {
       $("wire-ed").scrollIntoView({ block: "nearest", behavior: "smooth" });
       $("we-search").focus();
     }
-    const volts = (value, point) => {
+    // What a wired number puts on a channel, in the module's unit (as the integration's wiring.fraction).
+    const signal = (value, point, nominal) => {
       const n = Number(value), lo = Number(point.low ?? 0), hi = Number(point.high ?? 100);
       if (value === null || value === "" || Number.isNaN(n) || hi === lo) return null;
-      return Math.max(-10.235, Math.min(10.235, ((n - lo) / (hi - lo)) * 10));
+      return Math.max(-1.0235, Math.min(1.0235, (n - lo) / (hi - lo))) * nominal;
     };
     function closeEditor() {
       editing = null;
@@ -2379,10 +2420,12 @@ class MicroGemPanel extends HTMLElement {
       const value = point.attribute ? st.attributes[point.attribute] : st.state;
       const shown = typeof value === "object" ? JSON.stringify(value) : String(value);
       if (editing.kind === "analogue") {
-        const v = volts(value, point);
-        now.textContent = point.high === point.low ? "The values for 0 V and 10 V must differ."
-          : v === null ? `${describe(point).name} is ${shown.slice(0, 60)} now, which is not a number: the channel would read 0 V.`
-          : `${describe(point).name} is ${shown.slice(0, 60)} now, so the channel would read ${v.toFixed(2)} V.`;
+        const slot = anSlotOf(editing.index), [nominal, , unit] = slot ? anRange(slot.slot) : AN_RANGES["10V"];
+        let v = signal(value, point, nominal);
+        if (v !== null && unit === "mA") v = Math.max(0, v);
+        now.textContent = point.high === point.low ? `The values for 0 ${unit} and ${nominal} ${unit} must differ.`
+          : v === null ? `${describe(point).name} is ${shown.slice(0, 60)} now, which is not a number: the channel would read 0 ${unit}.`
+          : `${describe(point).name} is ${shown.slice(0, 60)} now, so the channel would read ${v.toFixed(2)} ${unit}.`;
         if (point.high === point.low) now.classList.add("error");
         return;
       }
@@ -2484,6 +2527,15 @@ class MicroGemPanel extends HTMLElement {
         .catch((err) => { $("we-now").textContent = "Not saved: " + (err.message || err.code || err); $("we-now").classList.add("error"); });
     }
     $("unit").addEventListener("click", (e) => {
+      const a = e.target.closest && e.target.closest(".an-switch");
+      if (a) {
+        const slotNo = Number(a.dataset.slot), sw = anSwitches(slotNo), which = a.dataset.switch;
+        const order = Object.keys(AN_RANGES);
+        if (which === "input") send({ type: "analogue_switch", slot: slotNo, input: order[(order.indexOf(sw.input) + 1) % order.length] });
+        else if (which === "forced") send({ type: "analogue_switch", slot: slotNo, forced: !sw.forced });
+        else if (which === "scan") send({ type: "analogue_switch", slot: slotNo, scan: sw.scan % 8 + 1 });
+        return;
+      }
       const t = e.target.closest && e.target.closest(".term, .wl");
       if (t) openEditor(t.dataset.kind, Number(t.dataset.index));
     });

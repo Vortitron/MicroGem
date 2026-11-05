@@ -339,9 +339,16 @@ async def test_gem80_analogue_channel_follows_a_sensor(hass: HomeAssistant, hass
                             "index": 1, "entity_id": "sensor.lounge", "low": 5, "high": 5})
     assert (await client.receive_json())["error"]["code"] == "invalid_range"
 
+    # On the 20 mA range "high" is 20 mA, and the switch setting is kept.
+    await client.send_json({"id": 3, "type": "microgem/command", "entry_id": entry.entry_id,
+                            "command": {"type": "analogue_switch", "slot": 5, "input": "20mA"}})
+    assert (await client.receive_json())["success"]
+    hass.states.async_set("sensor.lounge", "20.0")
+    await hass.async_block_till_done()
+    assert controller.analogue[0] == pytest.approx(10.0)
+
     # Changing other modules keeps the wire on its channel; moving the 8108
     # to other slots takes its terminals away, as for a digital module.
-    hass.states.async_set("sensor.lounge", "20.0")
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"model": "gem80-130c-12k", **DEFAULT_SLOTS, "slot_1": "8163", "slot_5": "8108"}
@@ -349,7 +356,8 @@ async def test_gem80_analogue_channel_follows_a_sensor(hass: HomeAssistant, hass
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert entry.options["wiring"]["analogue"]["0"]["entity_id"] == "sensor.lounge"
-    assert entry.runtime_data.service.controller.analogue[0] == pytest.approx(5.0)
+    assert entry.runtime_data.service.controller.analogue_switches[5]["input"] == "20mA"
+    assert entry.runtime_data.service.controller.analogue[0] == pytest.approx(10.0)
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"model": "gem80-130c-12k", **DEFAULT_SLOTS, "slot_7": "8108"}

@@ -98,9 +98,25 @@ class ControllerService:
         self.controller.set_input(index, value)
         self._notify_if_changed()
 
-    def set_analogue(self, index: int, volts: float) -> None:
-        self.controller.set_analogue(index, volts)
+    def set_analogue(self, index: int, value: float) -> None:
+        self.controller.set_analogue(index, value)
         self._notify_if_changed()
+
+    def set_analogue_fraction(self, index: int, fraction: float) -> None:
+        """A channel at a fraction of its 8108's range (Home Assistant wiring)."""
+        self.controller.set_analogue_fraction(index, fraction)
+        self._notify_if_changed()
+
+    def set_analogue_switches(self, switches: dict) -> None:
+        """Each 8108's switches by slot, as the snapshot gives them; slots
+        without an 8108 now are skipped."""
+        for slot, sw in (switches or {}).items():
+            try:
+                self.controller.set_analogue_switch(int(slot), **{k: sw[k] for k in ("input", "scan", "forced")
+                                                                  if k in sw})
+            except (TypeError, ValueError):
+                continue
+        self._notify_if_changed(force=True)
 
     def run(self) -> None:
         self.controller.run()
@@ -140,7 +156,9 @@ class ControllerService:
         """Apply one command from a front end and return a reply, if any.
 
         Commands: ``{"type": "input", "index": 0, "value": true}``, ``{"type":
-        "analogue", "index": 0, "value": 4.5}`` (volts), ``{"type": "run"}``,
+        "analogue", "index": 0, "value": 4.5}`` (volts, or mA on a 20 mA 8108),
+        ``{"type": "analogue_switch", "slot": 5, "input": "5V", "scan": 4,
+        "forced": false}`` (an 8108's switches; any of them), ``{"type": "run"}``,
         ``{"type": "halt"}``, ``{"type": "power_cycle"}`` (switch off and on: the
         printer port reads its preset data again), ``{"type": "read", "address": "G12"}``,
         ``{"type": "preview", "source": "..."}`` (parse without loading), ``{"type": "write", "address": "G12", "value": 5}`` and
@@ -172,6 +190,10 @@ class ControllerService:
                 self.run()
             elif kind == "halt":
                 self.halt()
+            elif kind == "analogue_switch":
+                self.controller.set_analogue_switch(
+                    int(message["slot"]), **{k: message[k] for k in ("input", "scan", "forced") if k in message})
+                self._notify_if_changed(force=True)
             elif kind == "power_cycle":
                 self.controller.power_cycle()
                 self._notify_if_changed(force=True)
