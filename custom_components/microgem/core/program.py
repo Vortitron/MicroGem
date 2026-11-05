@@ -32,9 +32,31 @@ Functions T10 and T11. ``DELAY w VALUE v`` and ``COUNT w VALUE v [RESET c]``
 work as in the manual: the word ``w`` holds the time left (0.1 s units) or the
 count (bits 0 to 14, with bit 15 the last input).
 
+Special Functions: ``SPEC n`` where ``n`` is the number (``S12``) or the
+mnemonic (``SQRT``), then for the two-input T functions the lower branch in
+square brackets, then ``VALUE v`` where the function needs one::
+
+    AND G10 SPEC SQRT VALUE 100 -> OUT G11
+    AND G10 SPEC COMPARE [AND G11] VALUE G59 -> OUT G58
+    AND 0 SPEC LOCATE VALUE G20 SPEC MOVE [AND 0 SPEC LOCATE VALUE G100] VALUE 20 -> OUT F250
+
 Output elements: a bit address is a COIL; ``OUT w`` writes the rung word;
 ``SEQR w [RESET c]``; ``BLOCK`` (OBEY BLOCK). ``END BLOCK`` (or ``BLOCK`` on
 its own) closes a block.
+
+Preset data and names, which a programmer keeps with the program::
+
+    PRESET P1 = 20                          P1 (the repetition interval) is 20
+    PRESET W100 = 0 1067 3200 64 2          W100 to W104, one after another
+    MESSAGE P100 = "FILL FAULT\\n"           text for WRITEXT (S22), packed as it needs;
+    MESSAGE P107 = "DOOR OPEN\\n"            the next words: message 2 of the list at P100
+    NAME A0.0 START Start push button       a mnemonic (up to 7 characters) and
+                                            a description for an address
+
+A mnemonic can stand for its address in the rungs (``START AND NOT STOP ->
+MOTOR``); the ladder shows both. Presets are written into the tables when the
+program is loaded, and again only where they change, so data the program or
+an operator has changed since is left alone.
 
 Not in the GEM 80, kept as marked extensions for convenience: ``RISE``/``FALL``
 contacts (one-scan pulses), word comparisons such as ``G1 GE 5`` (the real
@@ -48,6 +70,7 @@ import itertools
 import re
 from dataclasses import dataclass, field
 
+from .models import SPECIAL_NAMES, SPECIAL_NUMBERS
 from .tables import Address, AddressError, clamp16, parse_address, to_signed
 
 COMPARISONS = {
@@ -74,6 +97,18 @@ ARITHMETIC = {
 
 # Special Function numbers of the arithmetic that is not a key of its own.
 SPECIAL = {"MULT": "T10", "DIV": "T11"}
+
+#: What follows SPEC: "none" (no VALUE), "ignored" (a VALUE does nothing),
+#: "location" (VALUE must be a table address, the start of the function's
+#: parameter list) or "either" (a number or a table address holding it).
+SPEC_VALUE = {
+    "S0": "location", "S1": "none", "S2": "none", "S3": "none", "S4": "ignored",
+    "S11": "location", "S12": "either", "S20": "location", "S22": "location",
+    "S23": "location", "S30": "location",
+    "S31": "location", "S32": "location", "S33": "location", "S34": "location",
+    "S35": "location", "S36": "location", "S37": "location",
+    "T0": "location", "T10": "none", "T11": "location", "T20": "either", "T30": "location",
+}
 
 VALUE_MAX = 32767
 RAIL = -1  # the left rail feeds 16 bits all set
@@ -172,6 +207,20 @@ class Count:
 
 
 @dataclass(frozen=True, eq=False)
+class Spec:
+    """A Special Function. T functions take a second (lower) branch input."""
+
+    number: str  # "S12", "T20"
+    value: Address | int | None = None
+    second: Branch | None = None
+    nid: int = field(default_factory=_nid)
+
+    @property
+    def name(self) -> str:
+        return SPECIAL_NAMES.get(self.number, self.number)
+
+
+@dataclass(frozen=True, eq=False)
 class Series:
     items: tuple
     nid: int = field(default_factory=_nid)
@@ -233,6 +282,10 @@ class Rung:
 class Program:
     rungs: list[Rung] = field(default_factory=list)
     source: str = ""
+    presets: dict[Address, int] = field(default_factory=dict)  # word -> value
+    names: dict[str, Address] = field(default_factory=dict)  # MNEMONIC -> address
+    notes: dict[Address, tuple[str, str]] = field(default_factory=dict)  # address -> (mnemonic, description)
+    messages: dict[Address, str] = field(default_factory=dict)  # start -> MESSAGE text as written
 
     def edge_addresses(self) -> set[Address]:
         return {n.address for rung in self.rungs for n in walk(rung) if isinstance(n, Edge)}
@@ -250,6 +303,8 @@ def walk(rung: Rung):
                 yield from visit(item)
         elif isinstance(node, (Logic, Arith)) and isinstance(node.operand, Branch):
             yield from visit(node.operand.node)
+        elif isinstance(node, Spec) and node.second is not None:
+            yield from visit(node.second.node)
         elif isinstance(node, Count):
             yield from visit(node.reset)
 
@@ -298,6 +353,10 @@ def node_to_json(node: object) -> dict:
     if isinstance(node, Count):
         return {"t": "count", "id": node.nid, "word": str(node.word), "value": str(node.value),
                 "reset": node_to_json(node.reset) if node.reset is not None else None}
+    if isinstance(node, Spec):
+        return {"t": "spec", "id": node.nid, "num": node.number, "name": node.name,
+                "value": None if node.value is None else str(node.value),
+                "arg": None if node.second is None else node_to_json(node.second.node)}
     if isinstance(node, Series):
         return {"t": "series", "id": node.nid, "items": [node_to_json(i) for i in node.items]}
     if isinstance(node, Parallel):
@@ -485,6 +544,9 @@ class _Parser:
                 self.take()
                 reset = self.item()
             return Count(word, value, reset)
+        if upper == "SPEC":
+            self.take()
+            return self.spec()
         if self._is_bit(token):
             self.take()
             return Contact(parse_address(token))
@@ -494,6 +556,36 @@ class _Parser:
         if op not in COMPARISONS:
             raise self.error(f"{token} is not an element; expected a contact, AND, ADD, DELAY, COUNT …")
         return Compare(op, left, self.number_or_word())
+
+    def spec(self) -> Spec:
+        token = self.take().upper()
+        number = SPECIAL_NUMBERS.get(token, token)
+        if number not in SPEC_VALUE:
+            if re.fullmatch(r"[ST]\d+", number):
+                raise self.error(f"Special Function {number} is not emulated")
+            raise self.error(f"{token} is not a Special Function; give its number (S12) or name (SQRT)")
+        name = SPECIAL_NAMES[number]
+        second = None
+        if number.startswith("T"):
+            if self.peek() != "[":
+                raise self.error(f"{name} ({number}) needs its lower input in square brackets")
+            second = self.operand()
+        elif self.peek() == "[":
+            raise self.error(f"{name} ({number}) has one input; only T functions take a second")
+        value = None
+        kind = SPEC_VALUE[number]
+        if self.upper() == "VALUE":
+            self.take()
+            if kind == "none":
+                raise self.error(f"{name} ({number}) takes no VALUE")
+            value = self.number_or_word()
+            if kind == "location" and not isinstance(value, Address):
+                raise self.error(f"the VALUE after {name} must be a table address, such as G100")
+            if kind == "ignored":
+                value = None
+        elif kind in ("location", "either"):
+            raise self.error(f"{name} ({number}) needs a VALUE after it")
+        return Spec(number, value, second)
 
     def value(self) -> Address | int:
         value = self.number_or_word()
@@ -529,11 +621,242 @@ class _Parser:
         return Coil(address)
 
 
+_NAME_RE = re.compile(r"[A-Z][A-Z0-9_]{0,11}")
+#: Words that cannot be mnemonics, as they mean something in a rung.
+RESERVED = {
+    "AND", "OR", "XOR", "NOT", "INV", "TRUE", "FALSE", "RISE", "FALL", "DELAY", "COUNT", "VALUE",
+    "RESET", "SET", "SPEC", "OUT", "SEQR", "BLOCK", "END", "OBEY", "ADD", "SUB", "MULT", "DIV",
+    "PRESET", "NAME", "MESSAGE", *COMPARISONS, *SPECIAL_NUMBERS,
+}
+
+
+def _number(token: str, line: int) -> int:
+    try:
+        value = int(token[1:], 16) if token.startswith("@") else int(token)
+    except ValueError:
+        raise ProgramError(f"{token!r} is not a number", line) from None
+    if not -32768 <= value <= 0xFFFF:
+        raise ProgramError(f"{token} does not fit in a 16-bit word", line)
+    return to_signed(value)
+
+
+_ESCAPES = {"n": "\r\n", "r": "\r", "l": "\n", "f": "\f", "e": "\x03", "\\": "\\", '"': '"'}
+
+
+def unescape(text: str, line: int = 0) -> str:
+    """Message text with its escapes: \\n a new line (CR LF), \\r CR, \\l LF,
+    \\f form feed, \\e ETX (send the part line now), \\xHH any code."""
+    out, i = [], 0
+    while i < len(text):
+        ch = text[i]
+        if ch != "\\":
+            out.append(ch)
+            i += 1
+            continue
+        nxt = text[i + 1:i + 2]
+        if nxt.isalpha():
+            nxt = nxt.lower()  # a programmer keyboard has capitals only
+        if nxt in _ESCAPES:
+            out.append(_ESCAPES[nxt])
+            i += 2
+        elif nxt == "x" and re.fullmatch(r"[0-9A-Fa-f]{2}", text[i + 2:i + 4]):
+            out.append(chr(int(text[i + 2:i + 4], 16)))
+            i += 4
+        else:
+            raise ProgramError(f"unknown escape \\{nxt} in a MESSAGE", line)
+    return "".join(out)
+
+
+def pack_message(text: str, line: int = 0) -> list[int]:
+    """Words for WRITEXT: the length in bits 0-7 of the first word and the
+    first character in bits 8-15, then two characters a word, low byte first."""
+    codes = [ord(c) for c in text]
+    if len(codes) > 255:
+        raise ProgramError("a MESSAGE holds at most 255 characters", line)
+    if any(c > 0x7F for c in codes):
+        raise ProgramError("a MESSAGE takes 7-bit ASCII characters only", line)
+    data = [len(codes)] + codes + ([0] if len(codes) % 2 == 0 else [])
+    return [to_signed(data[k] | (data[k + 1] << 8)) for k in range(0, len(data), 2)]
+
+
+def _uncommented(raw: str) -> str:
+    """A line without its comment, leaving a ; inside quotes alone."""
+    quoted = False
+    for i, ch in enumerate(raw):
+        if ch == '"' and (i == 0 or raw[i - 1] != "\\"):
+            quoted = not quoted
+        elif ch == ";" and not quoted:
+            return raw[:i]
+    return raw
+
+
+def _directive(program: Program, text: str, line: int) -> bool:
+    """PRESET, MESSAGE and NAME lines; True if the line was one."""
+    word, _, rest = text.partition(" ")
+    word = word.upper()
+    if word == "PRESET":
+        target, eq, values = rest.partition("=")
+        if not eq:
+            raise ProgramError("PRESET needs '=': PRESET P1 = 20", line)
+        try:
+            start = parse_address(target)
+        except AddressError as exc:
+            raise ProgramError(str(exc), line) from None
+        if start.is_bit:
+            raise ProgramError("PRESET takes a word address, such as P1", line)
+        numbers = values.replace(",", " ").split()
+        if not numbers:
+            raise ProgramError("PRESET needs at least one value", line)
+        for k, token in enumerate(numbers):
+            program.presets[Address(start.table, start.word + k)] = _number(token, line)
+        return True
+    if word == "MESSAGE":
+        target, eq, text = rest.partition("=")
+        text = text.strip()
+        if not eq or len(text) < 2 or text[0] != '"' or text[-1] != '"':
+            raise ProgramError('MESSAGE needs an address and quoted text: MESSAGE G100 = "FILL FAULT\\n"', line)
+        try:
+            start = parse_address(target)
+        except AddressError as exc:
+            raise ProgramError(str(exc), line) from None
+        if start.is_bit:
+            raise ProgramError("MESSAGE takes a word address, such as G100", line)
+        words = pack_message(unescape(text[1:-1], line), line)
+        for other, other_text in program.messages.items():
+            size = len(pack_message(unescape(other_text)))
+            if other.table == start.table and other.word < start.word + len(words) \
+                    and start.word < other.word + size:
+                end = Address(other.table, other.word + size)
+                raise ProgramError(f"this MESSAGE overlaps the one at {other}, which ends before {end}"
+                                   if other.word < start.word else
+                                   f"this MESSAGE ({len(words)} words) runs into the one at {other}", line)
+        for k, value in enumerate(words):
+            program.presets[Address(start.table, start.word + k)] = value
+        program.messages[start] = text[1:-1]
+        return True
+    if word == "NAME":
+        parts = rest.split(None, 2)
+        if len(parts) < 2:
+            raise ProgramError("NAME needs an address and a mnemonic: NAME A0.0 START Start button", line)
+        try:
+            address = parse_address(parts[0])
+        except AddressError as exc:
+            raise ProgramError(str(exc), line) from None
+        name = parts[1].upper()
+        if not _NAME_RE.fullmatch(name) or name in RESERVED:
+            raise ProgramError(f"{parts[1]!r} cannot be a mnemonic (letters and digits, "
+                               "starting with a letter, and not a word the rungs use)", line)
+        try:
+            parse_address(name)
+        except AddressError:
+            pass
+        else:
+            raise ProgramError(f"{name} looks like an address, so it cannot be a mnemonic", line)
+        if name in program.names and program.names[name] != address:
+            raise ProgramError(f"{name} already names {program.names[name]}", line)
+        program.names[name] = address
+        program.notes[address] = (name, parts[2].strip() if len(parts) > 2 else "")
+        return True
+    return False
+
+
+# --- editing presets in the program text -------------------------------------
+# A programmer changes one preset word at a time; these keep the program text
+# (which is what is saved) in step, changing the PRESET line that holds the
+# word, or adding one.
+
+def _preset_line(raw: str) -> tuple[Address, list[str]] | None:
+    text = _uncommented(raw).strip()
+    if text[:7].upper() != "PRESET ":
+        return None
+    target, eq, values = text[7:].partition("=")
+    try:
+        start = parse_address(target)
+    except AddressError:
+        return None
+    return (start, values.replace(",", " ").split()) if eq else None
+
+
+def _insert_directive(lines: list[str], line: str) -> list[str]:
+    """After the last PRESET, MESSAGE or NAME line, or before the first rung."""
+    last = None
+    for i, raw in enumerate(lines):
+        if _uncommented(raw).strip()[:7].upper() in ("PRESET ", "MESSAGE") or \
+                _uncommented(raw).strip()[:5].upper() == "NAME ":
+            last = i
+    if last is not None:
+        return lines[:last + 1] + [line] + lines[last + 1:]
+    first = next((i for i, raw in enumerate(lines) if _uncommented(raw).strip()), len(lines))
+    while first > 0 and lines[first - 1].strip().startswith(";"):
+        first -= 1  # keep the first rung's title with it
+    return lines[:first] + [line, ""] + lines[first:]
+
+
+def set_preset(source: str, address: Address, value: int | None) -> str:
+    """The program text with the preset for one word set (or, with None, removed)."""
+    if address.is_bit:
+        raise ProgramError("a preset is a whole word, such as R100")
+    lines = source.split("\n")
+    for i, raw in enumerate(lines):
+        found = _preset_line(raw)
+        if not found:
+            continue
+        start, values = found
+        k = address.word - start.word
+        if start.table != address.table or not 0 <= k < len(values):
+            continue
+        before, after = values[:k], values[k + 1:]
+        new = []
+        if before:
+            new.append(f"PRESET {start} = {' '.join(before)}")
+        if value is not None:
+            if before or after:
+                new = [f"PRESET {start} = {' '.join(before + [str(value)] + after)}"]
+            else:
+                new = [f"PRESET {address} = {value}"]
+        elif after:
+            new.append(f"PRESET {Address(address.table, address.word + 1)} = {' '.join(after)}")
+        return "\n".join(lines[:i] + new + lines[i + 1:])
+    if value is None:
+        return source
+    return "\n".join(_insert_directive(lines, f"PRESET {address} = {value}"))
+
+
+def set_message(source: str, address: Address, text: str | None) -> str:
+    """The program text with the MESSAGE starting at a word set (or removed)."""
+    if text is not None:
+        pack_message(unescape(text))  # check it
+        if '"' in text.replace('\\"', ""):
+            raise ProgramError('a " inside a MESSAGE is written \\"')
+    lines = source.split("\n")
+    line = None if text is None else f'MESSAGE {address} = "{text}"'
+    for i, raw in enumerate(lines):
+        words = _uncommented(raw).split("=", 1)[0].split()
+        if len(words) == 2 and words[0].upper() == "MESSAGE":
+            try:
+                if parse_address(words[1]) == address:
+                    return "\n".join(lines[:i] + ([line] if line else []) + lines[i + 1:])
+            except AddressError:
+                pass
+    if line is None:
+        return source
+    return "\n".join(_insert_directive(lines, line))
+
+
 def parse_program(source: str) -> Program:
     program = Program(source=source)
     comments: list[str] = []
     open_blocks: list[int] = []
-    for number, raw in enumerate(source.splitlines(), start=1):
+    lines = source.splitlines()
+    # Names first, so a rung may use a mnemonic defined further down.
+    directives = set()
+    for number, raw in enumerate(lines, start=1):
+        text = _uncommented(raw).strip()
+        if text[:5].upper() in ("PRESE", "NAME ", "MESSA") and _directive(program, text, number):
+            directives.add(number)
+    for number, raw in enumerate(lines, start=1):
+        if number in directives:
+            continue
         text, _, note = raw.partition(";")
         text = text.strip()
         if not text:
@@ -550,6 +873,8 @@ def parse_program(source: str) -> Program:
             program.rungs.append(Rung(None, EndBlock(), number, raw.strip(), title))
             continue
         tokens = _TOKEN_RE.findall(text)
+        if program.names:
+            tokens = [str(program.names.get(t.upper(), t)) for t in tokens]
         if "->" not in tokens:
             raise ProgramError("a rung needs '->' before its output element", number)
         parser = _Parser(tokens, number)
@@ -570,6 +895,53 @@ def parse_program(source: str) -> Program:
     return program
 
 
+def instruction_count(program: Program) -> int:
+    """Roughly how many instructions the program takes in the controller.
+
+    From T278 Table 3: one per element, one more for the VALUE of a DELAY,
+    COUNT or Special Function, two for each branch opened and one for each
+    branch closed.
+    """
+    return sum(rung_instructions(rung) for rung in program.rungs)
+
+
+def instruction_ranges(program: Program) -> list[tuple[int, int]]:
+    """Where each rung sits in the controller's store, as first and last
+    instruction numbers (counting from 0), as a programmer reports it."""
+    ranges, at = [], 0
+    for rung in program.rungs:
+        size = rung_instructions(rung)
+        ranges.append((at, at + size - 1))
+        at += size
+    return ranges
+
+
+def rung_instructions(rung: Rung) -> int:
+    """The instructions one rung takes; see ``instruction_count``."""
+
+    def size(node: object) -> int:
+        if node is None:
+            return 0
+        if isinstance(node, Series):
+            return sum(size(item) for item in node.items)
+        if isinstance(node, Parallel):
+            return sum(size(item) for item in node.items) + 3 * (len(node.items) - 1)
+        count = 1
+        if isinstance(node, (Delay, Count)) or (isinstance(node, Spec) and node.value is not None):
+            count += 1
+        if isinstance(node, Count):
+            count += size(node.reset) + (3 if node.reset is not None else 0)
+        operand = getattr(node, "operand", None) or getattr(node, "second", None)
+        if isinstance(operand, Branch):
+            count += size(operand.node) + 3
+        return count
+
+    total = size(rung.condition) + 1
+    if isinstance(rung.output, Seqr) and rung.output.reset is not None:
+        total += size(rung.output.reset) + 3
+    return total
+
+
 def _with_end(rung: Rung, end: int) -> Rung:
     return Rung(rung.condition, rung.output, rung.line, rung.source, rung.comment, end)
 
@@ -577,7 +949,8 @@ def _with_end(rung: Rung, end: int) -> Rung:
 __all__ = [
     "Arith", "Branch", "Coil", "Compare", "Constant", "Contact", "Count", "Delay", "Edge",
     "EndBlock", "Inv", "Latch", "Logic", "ObeyBlock", "Out", "Parallel", "Program",
-    "ProgramError", "Rung", "Seqr", "Series", "ARITHMETIC", "COMPARISONS", "LOGIC", "RAIL",
-    "SPECIAL", "VALUE_MAX", "addresses", "clamp16", "parse_program", "rung_to_json",
+    "ProgramError", "Rung", "Seqr", "Series", "Spec", "SPEC_VALUE", "instruction_count", "ARITHMETIC", "COMPARISONS", "LOGIC", "RAIL",
+    "SPECIAL", "VALUE_MAX", "addresses", "clamp16", "instruction_ranges", "parse_program",
+    "rung_instructions", "rung_to_json",
     "to_signed", "walk",
 ]

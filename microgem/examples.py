@@ -160,6 +160,210 @@ B0.2 DELAY G12 VALUE 20 -> G0.2
 B0.2 COUNT G13 VALUE 32767 -> G1.0
 """
 
+BOTTLING = """\
+; Bottle filling line, for a GEM 80/100C 12K, 100CE or 130C, with the default modules.
+; Inputs  A0.0 start, A0.1 stop (normally closed), A0.2 bottle at the filler,
+;         A0.3 level probe (bottle full), A0.4 reset the count,
+;         A4.0 emergency stop healthy (normally closed)
+; Outputs B6.0 conveyor, B6.1 fill valve, B6.2 running lamp, B6.3 slow fill horn,
+;         B6.4 crate complete beacon; the 16 lamps on B2 show the crates in BCD
+; Special Functions: DBOUNCE on the bottle sensor, DIV into crates of 12 with
+; the odd bottles as the remainder, BCDOUT for the display, COMPARE for the beacon.
+
+; DBOUNCE data: the sensor must be steady for 3 scans, mode on
+AND 3 -> OUT G21
+AND -1 -> OUT G24
+
+; Run latch: start, held by its own contact, dropped by stop or the e-stop
+(A0.0 OR G0.0) AND A0.1 AND A4.0 -> G0.0
+G0.0 -> B6.2
+
+; Bottle sensor, debounced
+A0.2 SPEC DBOUNCE VALUE G20 -> G0.1
+
+; Fill while a bottle is in place and not yet full; the conveyor waits
+G0.0 AND G0.1 AND NOT A0.3 -> B6.1
+G0.0 AND NOT B6.1 -> B6.0
+
+; A fill taking more than 8 s sounds the horn
+B6.1 DELAY G10 VALUE 80 -> B6.3
+
+; Count full bottles; A0.4 resets the count
+G0.1 AND A0.3 COUNT G11 VALUE 9999 RESET A0.4 -> G0.2
+
+; Crates of 12: the quotient to G12, the bottles left over to G13
+AND G11 AND @7FFF SPEC DIV [AND 12] VALUE G13 -> OUT G12
+
+; Crates on the display lamps, in BCD
+AND G12 SPEC BCDOUT -> OUT B2
+
+; Beacon while a crate has just been completed: G13 = 0 and G12 > 0
+AND G13 SPEC COMPARE [AND 0] VALUE G14 -> OUT G15
+AND G12 SPEC COMPARE [AND 0] VALUE G16 -> OUT G17
+G14.15 AND G16.13 -> B6.4
+"""
+
+CAR_WASH = """\
+; Car wash, for any GEM 80 (only the basic Special Functions) with the default modules.
+; Inputs  A0.0 start (coin accepted), A0.1 car in position (photocell),
+;         A0.2 stop (normally closed), A4.0 emergency stop healthy (normally closed)
+; Outputs B6.0 water pump, B6.1 brushes, B6.2 dryer fan, B6.3 drive forward sign,
+;         B6.4 wash complete lamp; the 16 lamps on B2 show the washes in BCD
+; Special Functions: DBOUNCE on the photocell, BCDOUT for the display.
+
+; DBOUNCE data: the photocell must be steady for 3 scans, mode on
+AND 3 -> OUT G21
+AND -1 -> OUT G24
+A0.1 SPEC DBOUNCE VALUE G20 -> G1.0
+
+; Cycle latch: start with a car in place, held until the end of the cycle,
+; dropped by stop or the e-stop
+((A0.0 AND G1.0) OR G0.0) AND A0.2 AND A4.0 AND NOT G0.2 -> G0.0
+
+; 20 s of water and brushes, then 10 s of drying
+G0.0 DELAY G10 VALUE 200 -> G0.1
+G0.0 AND NOT G0.1 -> B6.0
+G0.0 AND NOT G0.1 -> B6.1
+G0.1 DELAY G11 VALUE 100 -> G0.2
+G0.1 AND NOT G0.2 -> B6.2
+
+; Count the washes, and light the wash complete lamp for 5 s
+G0.2 COUNT G12 VALUE 9999 -> G0.3
+G0.2 OR (B6.4 AND NOT G0.4) -> B6.4
+B6.4 DELAY G13 VALUE 50 -> G0.4
+
+; Drive forward until the car is in position
+NOT G0.0 AND NOT G1.0 -> B6.3
+
+; Washes on the display lamps, in BCD
+AND G12 SPEC BCDOUT -> OUT B2
+"""
+
+HEATING = """\
+; Room heating with three-term control and a printed log, for a GEM 80/130C
+; with the default modules (the 8108 analogue module is in slots 5 and 6).
+; Analogue A8 (8108): channel 0 room temperature, 0 to 10 V for 0 to 40 C;
+;         channel 1 the set point knob, 0 to 10 V for 5 to 30 C
+; Inputs  A0.0 heating on
+; Outputs B6.0 heater (time-proportioned over 10 s), B6.1 heating on lamp,
+;         B6.2 too hot lamp (2 C over the set point)
+; Printer a time-stamped line when the heating goes on or off, or it gets too hot
+; Special Functions: LOCATE and MOVE to read the 8108, LINCON to scale,
+; PIDABS for the control, DIV and COMPARE for the heater, WRITEXT and WRINUM.
+; In Home Assistant, wire channel 0 to a temperature sensor and B6.0 to a heater.
+
+NAME A0.0 HEATING Heating on switch
+NAME B6.0 HEATER Heater contactor
+NAME B6.1 ONLAMP Heating on lamp
+NAME B6.2 TOOHOT Too hot lamp
+NAME G120 TEMP Room temperature, 0.1 C
+NAME G121 SETPT Set point, 0.1 C
+NAME G140 OUTPUT Heater output, 0.1 percent
+NAME G150 TICKS Tenths of a second in the heater cycle
+
+; LINCON data (F M D C): the temperature in tenths of a degree, 0 to 400,
+; and the set point, 50 to 300
+PRESET R100 = 0 400 32000 0
+PRESET R104 = 0 250 32000 50
+; PIDABS data: F P I D L+ L- L1 L2 S H
+PRESET R200 = 0 600 40 0 1000 0 1000 1000 1 0
+; Port 1 as a printer port (P5 negative): no padding, 80 characters a line,
+; 1200 bit/s. The port reads these when the controller goes to Run.
+PRESET P2 = 0 80 1200 -1
+; The printed text: a list of messages, each in the words after the last;
+; WRITEXT's rung input picks one, 1 the first
+MESSAGE P100 = ":"
+MESSAGE P101 = "  HEATING ON, SET POINT "
+MESSAGE P114 = "  HEATING OFF, ROOM "
+MESSAGE P125 = "  TOO HOT, ROOM "
+MESSAGE P134 = " C\\n"
+; WRINUM formats: width, characters from the decimal point, power of ten
+PRESET P140 = 2 0 0
+PRESET P143 = 1 0 0
+PRESET P146 = 4 2 -1
+
+; Read the 8108 (as in its manual, T443 8.3): the channel to G20, the value
+; to G21, then MOVE it to G100 + channel: G100 is channel 0, G101 channel 1
+AND A8 AND 15 -> OUT G20
+AND A8 AND @FFF0 -> OUT G21
+AND 0 SPEC LOCATE VALUE G21 SPEC MOVE [AND G20 SPEC LOCATE VALUE G100] VALUE 1 -> OUT G22
+
+; Scale to tenths of a degree
+AND G100 SPEC LINCON VALUE R100 -> OUT TEMP
+AND G101 SPEC LINCON VALUE R104 -> OUT SETPT
+
+; PIDABS runs while the heating is on (S = 1); S = 0 runs the output down
+AND 0 -> OUT R208
+HEATING -> BLOCK
+AND 1 -> OUT R208
+END BLOCK
+
+; Three-term control once a second, on the error: set point - temperature
+E0.1 -> BLOCK
+AND SETPT SUB TEMP SPEC PIDABS VALUE R200 -> OUT OUTPUT
+END BLOCK
+
+; A 10 s heater cycle: TICKS counts 0 to 99 in tenths of a second
+E0.0 -> BLOCK
+AND TICKS ADD 1 -> OUT TICKS
+END BLOCK
+AND TICKS SPEC COMPARE [AND 99] VALUE G151 -> OUT G152
+G151.13 -> BLOCK
+AND 0 -> OUT TICKS
+END BLOCK
+
+; The heater is on while the output in percent is more than the count
+AND OUTPUT SPEC DIV [AND 10] VALUE G153 -> OUT G154
+AND G154 SPEC COMPARE [AND TICKS] VALUE G155 -> OUT G156
+HEATING AND G155.13 -> HEATER
+HEATING -> ONLAMP
+
+; Too hot: 2 C (20 tenths) over the set point
+AND SETPT ADD 20 SPEC COMPARE [AND TEMP] VALUE G157 -> OUT G158
+HEATING AND G157.11 -> TOOHOT
+
+; One-scan pulses: G1.0 heating on, G1.2 heating off, G1.3 too hot
+HEATING AND NOT G1.1 -> G1.0
+NOT HEATING AND G1.1 -> G1.2
+HEATING -> G1.1
+TOOHOT AND NOT G1.4 -> G1.3
+TOOHOT -> G1.4
+
+; A log line, unless the printer buffer is more than 2/3 full (E0.8)
+G1.0 OR G1.2 OR G1.3 -> G1.5
+G1.5 AND NOT E0.8 -> BLOCK
+; The time, hh:mm, from the clock in E3 and E2; message 1 is ":"
+AND E3 SPEC WRINUM VALUE P140 -> OUT G160
+AND 1 SPEC WRITEXT VALUE P100 -> OUT G160
+AND E2 SPEC DIV [AND 10] VALUE G164 -> OUT G165
+AND G165 SPEC WRINUM VALUE P143 -> OUT G160
+AND G164 SPEC WRINUM VALUE P143 -> OUT G160
+; What happened (messages 2, 3 and 4) and the degrees to go with it
+G1.0 -> BLOCK
+AND 2 SPEC WRITEXT VALUE P100 -> OUT G160
+AND SETPT -> OUT G170
+END BLOCK
+G1.2 -> BLOCK
+AND 3 SPEC WRITEXT VALUE P100 -> OUT G160
+AND TEMP -> OUT G170
+END BLOCK
+G1.3 -> BLOCK
+AND 4 SPEC WRITEXT VALUE P100 -> OUT G160
+AND TEMP -> OUT G170
+END BLOCK
+; The degrees in G170 (tenths) as 21.5, and the end of the line (message 5)
+AND G170 SPEC WRINUM VALUE P146 -> OUT G160
+AND 5 SPEC WRITEXT VALUE P100 -> OUT G160
+END BLOCK
+"""
+
+#: Demo programmes for the GEM 80 compact controllers (default modules).
+GEM80_EXAMPLES = [
+    Example("bottling", "Bottle filling line", "Fills, counts and crates bottles, with Special Functions.", BOTTLING),
+    Example("car-wash", "Car wash", "A timed wash and dry cycle that any GEM 80 can run.", CAR_WASH),
+    Example("heating", "Room heating", "PID control from an analogue input, with a printed log (130C).", HEATING),
+]
+
 EXAMPLES = [
     Example("bedroom", "Bedroom lighting", "Toggle, direct and timed lights (the default).", BEDROOM),
     Example("pelican", "Pelican crossing", "Traffic lights and a crossing, stepped by SEQR.", PELICAN),
@@ -167,3 +371,11 @@ EXAMPLES = [
     Example("pumps", "Pumping station", "Duty/standby pumps on level floats, with an alarm.", PUMPS),
     Example("packing", "Packing conveyor", "Counts six bottles into each case and pushes it out.", PACKING),
 ]
+
+
+def examples_for(family: str) -> list[Example]:
+    return GEM80_EXAMPLES if family == "gem80" else EXAMPLES
+
+
+def default_program(family: str) -> str:
+    return examples_for(family)[0].source

@@ -7,7 +7,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from . import MicroGemConfigEntry
-from .entity import MicroGemEntity
+from .entity import MicroGemEntity, io_key
 
 
 async def async_setup_entry(
@@ -28,7 +28,7 @@ class OutputSensor(MicroGemEntity, BinarySensorEntity):
     _attr_icon = "mdi:led-on"
 
     def __init__(self, entry_id, title, service, index: int) -> None:
-        super().__init__(entry_id, title, service, f"output_{index}")
+        super().__init__(entry_id, title, service, io_key(service.controller.config, "output", index))
         self._index = index
         self._attr_name = f"Output {service.controller.config.output_address(index)}"
 

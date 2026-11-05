@@ -35,6 +35,8 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .unit svg + svg { margin-top: 14px; }
 .unit svg { color: var(--text); overflow: visible; }
 .term { fill: transparent; }
+.an-switch { fill: transparent; cursor: pointer; }
+.an-switch:hover { fill: rgba(255, 216, 58, .14); stroke: #ffd83a; stroke-width: 1; }
 .unit.wirable .term { cursor: pointer; }
 .unit.wirable .term:hover, .term.sel { fill: rgba(255, 216, 58, .14); stroke: #ffd83a; stroke-width: 1.5; }
 .cable { fill: none; stroke-width: 4; stroke-linecap: round; }
@@ -73,10 +75,20 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .led.on { fill: #ff3b2f; filter: url(#glow); }
 .led.g.on { fill: #4dff6a; }
 
+.g80-ctl { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; font: 600 .8rem system-ui, sans-serif; color: var(--muted); }
+.g80-ctl[hidden] { display: none; }
+.g80-ctl .seg button { font-weight: 700; }
+.hw.g80 { grid-template-columns: minmax(0, 1fr); }
+.g80-only { display: none; }
+:host(.g80) .g80-only { display: block; }
 .sim { margin-top: 16px; background: #2b2926; border-radius: 8px; padding: 10px 12px 12px; color: #e8e1d2;
   box-shadow: inset 0 2px 0 rgba(255,255,255,.06), 0 3px 8px rgba(0,0,0,.25); }
 .sim-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; font: 600 .72rem/1 Arial, sans-serif; letter-spacing: .12em; }
 .group-label { margin-top: 10px; font: 600 .62rem/1 Arial, sans-serif; letter-spacing: .1em; color: #b8ad95; }
+.analogue { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 14px; margin-top: 8px; }
+.an-row { display: grid; grid-template-columns: 46px 1fr 58px; align-items: center; gap: 6px; font: 12px var(--mono); }
+.an-row input { width: 100%; accent-color: #5d7f46; }
+.an-row .an-val { text-align: right; color: var(--muted); }
 .toggles { display: grid; grid-template-columns: repeat(var(--n, 12), minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
 .toggle { display: flex; flex-direction: column; align-items: center; gap: 4px; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; touch-action: manipulation; }
 .toggle .plate { width: 22px; height: 34px; border-radius: 4px; background: linear-gradient(#5a554d, #2b2824); position: relative; box-shadow: inset 0 1px 2px rgba(0,0,0,.6); }
@@ -86,6 +98,56 @@ h2 { margin: 0 0 8px; font-size: 1rem; }
 .seg { display: inline-flex; border: 1px solid #77705f; border-radius: 4px; overflow: hidden; }
 .seg button { border: 0; background: #4a453d; color: #e8e1d2; padding: 4px 9px; font: 600 .7rem/1.2 Arial, sans-serif; letter-spacing: .06em; cursor: pointer; min-width: 30px; }
 .seg button.active { background: #e8e1d2; color: #2a241c; }
+
+/* ---------- 8920 Portable Programmer (GEM 80) ---------- */
+.p8920 { margin-top: 22px; }
+.p8920[hidden] { display: none; }
+.p89 { outline: none; max-width: 1000px; margin: 0 auto; padding: 18px; border-radius: 14px; color: #2a2721;
+  background: linear-gradient(#e4dece, #cec6b0); box-shadow: 0 12px 22px rgba(0,0,0,.35); }
+.p89:focus-visible { box-shadow: 0 0 0 3px var(--accent), 0 12px 22px rgba(0,0,0,.35); }
+.p89.alarm { animation: p89-alarm .35s; }
+@keyframes p89-alarm { 30% { box-shadow: 0 0 0 4px #d33, 0 12px 22px rgba(0,0,0,.35); } }
+.p89-hood { display: grid; grid-template-columns: minmax(0, 1fr) 140px; gap: 16px; align-items: center; }
+.p89-bezel { background: #2c2b28; border-radius: 22px; padding: 16px; box-shadow: inset 0 4px 10px rgba(0,0,0,.6); }
+.p89-screen { container-type: inline-size; border-radius: 18px / 26px; padding: 2.4% 2.8%;
+  background: radial-gradient(ellipse at center, #0c2617, #030b06 85%); box-shadow: inset 0 0 30px rgba(0,0,0,.85); }
+.p89-screen pre { margin: 0; font: 400 calc(100cqw / 49)/1.2 var(--mono); color: #8dffb0; white-space: pre; overflow: hidden;
+  text-shadow: 0 0 4px rgba(90,255,150,.55); font-variant-numeric: slashed-zero; }
+.p89-side { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }
+.p89-badge { display: flex; align-items: center; gap: 6px; background: #1d1d1d; color: #eee; padding: 6px 9px; border-radius: 3px; }
+.p89-badge b { font: 900 20px/1 "Arial Black", Arial, sans-serif; }
+.p89-badge span { font: 700 8px/1.2 Arial, sans-serif; text-align: left; }
+.p89-model { font: 900 24px/1 Arial, sans-serif; letter-spacing: .02em; }
+.p89-model small { display: block; font: 800 8.5px/1.4 Arial, sans-serif; letter-spacing: .06em; }
+.p89-key { width: 46px; height: 46px; border-radius: 50%; padding: 0; cursor: pointer; display: grid; place-items: center;
+  background: radial-gradient(circle at 40% 35%, #f0f0f0, #9a9a9a); border: 2px solid #6d6a62; }
+.p89-key .barrel { width: 6px; height: 28px; border-radius: 3px; background: linear-gradient(90deg, #555, #222, #555); transform: rotate(-45deg); transition: transform .15s; }
+.p89-key.mon .barrel { transform: rotate(45deg); }
+.p89-keypos { display: flex; justify-content: space-between; width: 130px; font: 700 8px/1.2 Arial, sans-serif; color: #77705f; letter-spacing: .04em; }
+.p89-keypos .on { color: #1d1b17; }
+.p89-tray { margin-top: 16px; padding: 12px; border-radius: 10px; background: linear-gradient(#cfc7b1, #bdb49c); box-shadow: inset 0 2px 5px rgba(0,0,0,.25); }
+.p89 button { font: 700 11px/1 Arial, sans-serif; color: #2a2721; min-width: 30px; height: 30px; padding: 0 5px; border-radius: 4px; cursor: pointer;
+  border: 1px solid #8c8676; background: linear-gradient(#f6f3ea, #d9d3c3); box-shadow: 0 2px 0 #7d7768; }
+.p89 button:active { transform: translateY(2px); box-shadow: none; }
+.p89 button.p89-key { box-shadow: none; }
+.p89-fkeys { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-bottom: 12px; }
+.p89 .fk { min-width: 52px; height: 40px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px;
+  color: #f4f1e8; background: linear-gradient(#5b5851, #3a3833); border-color: #2a2824; font-size: 10px; }
+.p89 .fk small { font: 700 10px/1 var(--mono); }
+.p89-main { display: flex; gap: 18px; justify-content: center; align-items: flex-start; flex-wrap: wrap; }
+.p89 .kr { display: flex; gap: 4px; margin-bottom: 4px; }
+.p89 .wide { min-width: 58px; }
+.p89 .space { flex: 1; min-width: 160px; }
+.p89-pad button { min-width: 36px; }
+.p89-help { max-width: 1000px; margin: 8px auto 0; }
+@media (max-width: 700px) {
+  .p89 { padding: 10px; }
+  .p89-hood { grid-template-columns: 1fr; }
+  .p89-side { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+  .p89-bezel { padding: 8px; border-radius: 12px; }
+  .p89 button { min-width: 24px; height: 28px; font-size: 10px; }
+  .p89 .fk { min-width: 44px; }
+}
 
 /* ---------- MicroGEM Programmer ---------- */
 .progwrap { display: flex; flex-direction: column; align-items: center; }
@@ -156,6 +218,32 @@ textarea { width: 100%; min-height: 320px; resize: vertical; font: 13px/1.5 var(
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .message { font-size: .85rem; color: var(--muted); }
 .demo-row { margin: 0 0 8px; }
+.files { margin-top: 6px; }
+.vp-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vp-head h2 { margin: 0; }
+.vp-tools { margin-left: auto; display: flex; gap: 6px; }
+.vp-tools .btn { padding: 5px 10px; font-size: .85rem; }
+.vp-lamp { width: 10px; height: 10px; border-radius: 50%; background: #3a3a3a; box-shadow: inset 0 0 2px #000; }
+.vp-port { font: 12px var(--mono); margin: 2px 0 8px; }
+.vp-port.bad { color: #ffb347; }
+.vp-keys { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .85rem; }
+.vp-keys[hidden], .vp-port .btn[hidden] { display: none; }
+.vp-port .btn { padding: 2px 8px; font-size: .8rem; margin-left: 6px; }
+.vp-keys input { flex: 1; font: 13px var(--mono); }
+.vp-lamp.on { background: #4cff6a; box-shadow: 0 0 6px #4cff6a; }
+.vp-paper { position: relative; max-height: 340px; overflow: auto; border-radius: 3px; padding: 6px 34px;
+  background:
+    radial-gradient(circle at 12px 9px, var(--panel) 4px, transparent 5px) left top / 24px 18px repeat-y,
+    radial-gradient(circle at 12px 9px, var(--panel) 4px, transparent 5px) right top / 24px 18px repeat-y,
+    repeating-linear-gradient(#fbfbf4 0 54px, #dff0dc 54px 108px);
+  background-attachment: local; border: 1px solid #c9c9bd; }
+.vp-paper pre { margin: 0; font: 13px/18px "Courier New", var(--mono); color: #232323; white-space: pre; min-height: 108px; }
+.vp-paper .head::after { content: "\\2588"; animation: vp-blink 1s steps(1) infinite; color: #555; }
+@keyframes vp-blink { 50% { opacity: 0; } }
+.files .btn { padding: 5px 10px; font-size: .85rem; }
+textarea.drop { outline: 2px dashed var(--accent); }
+.printout { margin-top: 10px; border: 1px solid var(--border); border-radius: 6px; padding: 0 10px 10px; background: var(--bg); }
+.printout pre { margin: 8px 0 0; max-height: 420px; overflow: auto; font: 12px/1.35 var(--mono); white-space: pre; }
 select { font: inherit; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); max-width: 100%; }
 .message.error { color: var(--error); }
 table { width: 100%; border-collapse: collapse; font: 12px/1.4 var(--mono); }
@@ -183,8 +271,8 @@ kbd { font: 700 .75rem var(--mono); border: 1px solid var(--border); border-radi
 const MARKUP = `
 <main>
   <header>
-    <h1>Virtual MicroGEM</h1>
-    <p>A MicroGEM60 controller running in software. Flip the inputs, watch the relay outputs and the ladder, and program it from the MicroGEM Programmer or the text editor. <span class="conn" id="conn">Connecting…</span></p>
+    <h1 id="title">Virtual MicroGEM</h1>
+    <p><span id="about">A MicroGEM60 controller running in software. Flip the inputs, watch the relay outputs and the ladder, and program it from the MicroGEM Programmer or the text editor.</span> <span class="conn" id="conn">Connecting…</span></p>
   </header>
 
   <div class="hw">
@@ -201,10 +289,16 @@ const MARKUP = `
         <div class="fields">
           <label id="we-attr-box">Read<select id="we-attr"></select></label>
           <label id="we-above-box">Contact closes above<input id="we-above" type="number" step="any" placeholder="leave empty for on/off"></label>
+          <label id="we-low-box"><span id="we-low-label">Value at 0 V</span><input id="we-low" type="number" step="any" value="0"></label>
+          <label id="we-high-box"><span id="we-high-label">Value at 10 V</span><input id="we-high" type="number" step="any" value="100"></label>
           <label class="check" id="we-invert-box"><input type="checkbox" id="we-invert"> Invert: the contact is closed while the entity is <i>off</i> (like a normally closed switch)</label>
         </div>
         <p class="message" id="we-now"></p>
         <div class="row"><button class="btn primary" id="we-save">Connect</button><button class="btn" id="we-remove">Disconnect</button><button class="btn" id="we-cancel">Cancel</button></div>
+      </div>
+      <div class="g80-ctl" id="g80-ctl" hidden>
+        <span class="seg" id="g80-mode"><button data-run="1">RUN</button><button data-run="0">HALT</button></span>
+        <span class="g80-info" id="g80-info"></span>
       </div>
       <div class="sim">
         <div class="sim-head">
@@ -215,7 +309,7 @@ const MARKUP = `
       </div>
     </section>
 
-    <section class="progwrap" aria-label="MicroGEM Programmer">
+    <section class="progwrap" id="progwrap" aria-label="MicroGEM Programmer">
       <div class="lead"></div>
       <div class="prog" id="prog" tabindex="0">
         <div class="prog-head">
@@ -233,6 +327,20 @@ const MARKUP = `
       <p class="prog-help" id="prog-help"></p>
     </section>
   </div>
+
+  <section class="p8920" id="p8920" aria-label="8920 Portable Programmer" hidden></section>
+
+  <section class="panel vprinter" id="printer" aria-label="Printer on the printer port" hidden>
+    <div class="vp-head">
+      <h2>Printer</h2>
+      <span class="vp-lamp" id="vp-lamp" title="On line"></span><span class="message" id="vp-status"></span>
+      <span class="vp-tools"><button class="btn" id="vp-line">Off line</button><button class="btn" id="vp-tear">Tear off</button><button class="btn" id="vp-save">Download</button></span>
+    </div>
+    <p class="hint">What the program prints on port 1 with <code>SPEC WRITEXT</code> (S22, message <i>n</i> of the list at VALUE, <i>n</i> the rung input) and <code>SPEC WRINUM</code> (S23, the rung word in the format at VALUE: width, characters from the point, power of ten). Port 1 is a printer port when <code>P5</code> is negative, with <code>P2</code> NULs after each line, <code>P3</code> characters a line and <code>P4</code> bit/s: <code>PRESET P2 = 0 80 1200 -1</code>; the port reads them when the controller goes to Run. <code>E0.8</code> is on while the 255-character buffer is more than 2/3 full. A 20 mA loop has no handshake: what is sent while the printer is off line is lost.</p>
+    <div class="vp-port" id="vp-port"><span id="vp-port-text"></span> <button class="btn" id="vp-power" hidden>Switch off and on</button></div>
+    <div class="vp-paper" id="vp-paper"><pre id="vp-lines"></pre></div>
+    <label class="vp-keys" id="vp-keys-row" hidden>Keyboard <input id="vp-keys" autocomplete="off" spellcheck="false" placeholder="type here: each key goes to J0"></label>
+  </section>
 
   <section class="panel ha-links" id="ha-links" hidden>
     <h2>In Home Assistant</h2>
@@ -254,6 +362,18 @@ const MARKUP = `
       <div class="row demo-row"><select id="demo" aria-label="Demo programme"><option>Demo programmes…</option></select><button class="btn" id="demo-load" disabled>Load demo</button><span class="message" id="demo-about"></span></div>
       <textarea id="program" spellcheck="false" aria-label="Ladder program"></textarea>
       <div class="row"><button class="btn primary" id="load">Load program</button><span class="message" id="message"></span></div>
+      <div class="row files">
+        <button class="btn" id="open-file" title="Program text, a ladder print-out, or a CSV of names or data">Open file…</button>
+        <button class="btn" id="convert" title="Turn a print-out or CSV pasted into the box into program text">Convert pasted text</button>
+        <button class="btn" id="save-file">Save as file</button>
+        <button class="btn" id="printout">Print-out</button>
+        <input type="file" id="file-input" accept=".txt,.lst,.prn,.csv,.tsv,.lad,.gem,text/plain,text/csv" hidden>
+      </div>
+      <p class="hint">Bring in an old programme: open or drop a ladder print-out (as text, from a programmer or a PC package), program text, or a CSV of mnemonics (<code>A0.0,START,Start button</code>) or data (<code>G10,250</code>). It is converted into the box for you to check, then Load program.</p>
+      <div class="printout" id="printout-box" hidden>
+        <div class="row"><b>Print-out</b><button class="btn" id="printout-save">Download</button><button class="btn" id="printout-print">Print</button><button class="btn" id="printout-close">Close</button></div>
+        <pre id="printout-text"></pre>
+      </div>
       <details>
         <summary>Language reference</summary>
         <p><b>Addresses:</b> <code>A0.3</code> is bit 3 of word 0 in table A. Inputs are A (terminals 00–11 are <code>A0.0</code>–<code>A0.11</code>), relay outputs are B (<code>B0.0</code>–<code>B0.7</code>). Expansion unit 1 uses <code>A1</code> and <code>B1</code>, unit 2 <code>A2</code> and <code>B2</code>, and so on. Workspace is G H L N O S U, retained workspace is R W.</p>
@@ -264,6 +384,10 @@ const MARKUP = `
         <p><b>Flags (read-only):</b> <code>E0.0</code> pulses every 0.1 s, <code>E0.1</code> every second, <code>E0.6</code> after a program load, <code>E0.7</code> when ADD or SUB was limited to ±32767. <code>E1</code> to <code>E6</code> hold the time and date, <code>E7</code> the last scan time in ms. Hex numbers: <code>@00FF</code>.</p>
         <p><b>Watchdog:</b> the W/DOG O.K. light and W/DOG OUTPUT close after three clean scans in Run and open in Halt. To trip it from the program, hold a non-zero code in <code>F1</code> for 100 ms (GEM80-400 manual T1614, 2.12), for example <code>A0.5 -&gt; BLOCK</code>, <code>AND 123 -&gt; OUT F1</code>, <code>END BLOCK</code>. The controller stops; switch it back to Run to clear the trip.</p>
         <p><b>Extensions</b> (not in a real GEM 80): <code>RISE A0.0</code>/<code>FALL A0.0</code> one-scan pulses, comparisons such as <code>G1 GE 5</code>, and <code>SET</code>/<code>RESET</code> outputs. On the real controller you latch with a seal-in branch.</p>
+        <p class="g80-only"><b>GEM 80 tables and I/O:</b> the compact controllers have tables A and B (32 words each, one pair of words per I/O slot: slot 1 is <code>A0</code>/<code>A1</code> or <code>B0</code>/<code>B1</code>, slot 2 is words 2 and 3, and so on), E (flags; the 130C adds the clock in <code>E1</code> to <code>E6</code>), F (diagnostics; <code>F1</code> trips the watchdog), G (workspace), R (retained), P (presets, read-only on the CE models with EPROM), J and K (serial) and M (maintainer). Sizes follow the T278 data sheet for the model chosen, and so does the program capacity.</p>
+        <p class="g80-only"><b>Special Functions:</b> <code>SPEC</code> and the number or name, then for the two-input T functions the lower branch in square brackets, then <code>VALUE</code>: <code>AND G10 SPEC SQRT VALUE 100 -&gt; OUT G11</code>, <code>AND G10 SPEC LIMIT VALUE G100 -&gt; OUT G11</code> (G101 low, G102 high, flags in G100), <code>AND G10 SPEC COMPARE [AND G11] VALUE G59 -&gt; OUT G58</code>, <code>AND G20 SPEC DIV [AND 16] VALUE R120 -&gt; OUT G30</code>. Emulated: S0 DBOUNCE, S1 BCDIN, S2 BCDOUT, S3 HISTATE, S4 SWAP, S11 LINCON, S12 SQRT, S20 LOCATE, S22 WRITEXT, S23 WRINUM, S30 FGEN, S31 DEDBAND, S32 LIMIT, S33 RAMP, S34 PIDABS, S35 PIDINC, S36 INCOUT, S37 ANALAG, T0 COMPARE, T10 MULT, T11 DIV, T20 MOVE, T30 STORE, each as its GEM 80 Software Data sheet describes, where the model has it.</p>
+        <p><b>Names, presets and messages</b>, kept with the program: <code>NAME A0.0 START Start push button</code> (a mnemonic the rungs can use), <code>PRESET R100 = 0 400 32000 0</code> (written into R100 to R103 at a load, and again only where it changes; use a table kept across Run, P or R), <code>MESSAGE P100 = "PUMP 1 TRIPPED\\n"</code> (text for WRITEXT; <code>\\n</code> new line, <code>\\e</code> ETX).</p>
+        <p class="g80-only"><b>Analogue:</b> an 8108 puts one channel at a time on its A word: the value (±10 V is ±32752) in bits 4 to 15 and the channel in bits 0 to 3, a new channel every 70 ms. Mask with <code>@FFF0</code> and <code>15</code>, then MOVE the value to its own word, as the Room heating demo does.</p>
         <p>Elements and behaviour follow the GEM 80 Ladder Diagram Programming Manual (T391). The MicroGEM's own table letters (I and Q on the programmer) are not documented yet, so inputs and outputs use the GEM 80 A and B tables.</p>
       </details>
     </section>
@@ -404,6 +528,213 @@ function unitSvg(nIn, nOut, unit = 0, inBase = 0, outBase = 0, wires = { inputs:
 </svg>`;
 }
 
+// ---------------------------------------------------------------------------
+// A GEM 80/100C or 130C compact controller: a 19 inch subrack with eight
+// Compact I/O module slots, the 9032-style power supply module and the
+// processor module, laid out like the GEM 80/131 backplane (T478 Figure 1.5:
+// slots 8 to 1 from the left, then the power supply, then the processor).
+// The modules carry the details T278 and T438 list: a lamp per channel, the
+// type number and plant connector on each I/O module; watchdog, battery and
+// serial port lamps and the programming socket on the processor; power and
+// output healthy lamps and the run/shutdown switch on the power supply.
+
+const G80_MODULE_COLOURS = { input: "#4c7a9e", output: "#a4473a", relay: "#c98a2b", analogue: "#5d7f46" };
+
+// The 8108 Compact Analogue Input Module (T443 Fig 4): its switches, the
+// plant connector for the harness, and for the emulator a bar and the
+// voltage of each of its 16 channels, beside the channel it is reading.
+const AN_ROW0 = 118, AN_STEP = 13.4;
+// The 8108's INPUT range: nominal, full scale and unit of the plant signal (T443).
+const AN_RANGES = { "10V": [10, 10.235, "V"], "5V": [5, 5.117, "V"], "20mA": [20, 20.468, "mA"] };
+const AN_DIAL = (n) => -135 + (n - 1) * 270 / 7; // the Scan Number dial, 1 to 8
+
+function analogueModuleSvg(slot, sx, top, w, MH, wires, { screw, lamp, txt }) {
+  const s = slot.slot;
+  const sw = (x, y, label, a, b, id, title) => `${txt(x, y - 16, label, "g8 small")}
+    <rect x="${x - 7}" y="${y - 10}" width="14" height="22" rx="3" fill="#0d0d0d" stroke="#555"/>
+    <rect id="${id}" data-y="${y}" x="${x - 3}" y="${y - 8}" width="6" height="10" rx="2" fill="#cfcac0"/>
+    ${txt(x + 18, y - 3, a, "g8 tiny")}${txt(x + 18, y + 10, b, "g8 tiny")}
+    <rect class="an-switch" data-slot="${s}" data-switch="${id.split("-")[2]}" x="${x - 12}" y="${y - 26}" width="${a.length > 3 ? 52 : 40}" height="42" rx="3"><title>${title}</title></rect>`;
+  let out = `<rect x="${sx}" y="${top}" width="${w}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
+    <rect x="${sx + w / 2 - 18}" y="${top + 4}" width="36" height="12" rx="3" fill="#0d0d0d"/>
+    <rect x="${sx + 6}" y="${top + 22}" width="${w - 12}" height="30" rx="2" fill="${G80_MODULE_COLOURS.analogue}"/>
+    ${txt(sx + w / 2, top + 36, slot.module, "g8 type")}
+    ${txt(sx + w / 2, top + 47, "ANALOGUE INPUT 16 CH", "g8 small")}
+    ${sw(sx + 20, top + 80, "INPUT", "10V", "5V", `an-sw-input-${s}`, "INPUT: ±10 V, ±5 V, or 0 to 20 mA (5 V with the 20 mA termination panel). Click to change.")}
+    ${sw(sx + 64, top + 80, "WORD", "UP", "LO", `an-sw-word-${s}`, "UPPER/LOWER WORD: byte addressing on an 8-point subrack; LOWER here")}
+    ${sw(sx + 110, top + 80, "SCAN", "SELF", "FORCED", `an-sw-forced-${s}`, "SELF or FORCED scan: forced, one bit of B" + (slot.words[0] + 1) + " picks the channel. Click to change.")}
+    <circle cx="${sx + w - 22}" cy="${top + 80}" r="10" fill="#0d0d0d" stroke="#555"/>
+    <path id="an-dial-${s}" d="M${sx + w - 22} ${top + 80}v-8" stroke="#cfcac0" stroke-width="2.4" stroke-linecap="round" transform="rotate(${AN_DIAL(8)} ${sx + w - 22} ${top + 80})"/>
+    ${txt(sx + w - 22, top + 64, "No.", "g8 small")}<text id="an-dialn-${s}" x="${sx + w - 22}" y="${top + 102}" class="g8 tiny">8</text>
+    <rect class="an-switch" data-slot="${s}" data-switch="scan" x="${sx + w - 36}" y="${top + 56}" width="28" height="50" rx="3"><title>Scan Number 1 to 8: self-scan reads twice as many channels, from 0. Click to change.</title></rect>
+    ${txt(sx + 30, top + AN_ROW0 - 8, `A${slot.words[0]}`, "g8 word")}
+    <text id="an-unit-${s}" x="${sx + w - 10}" y="${top + AN_ROW0 - 8}" class="g8 tiny" text-anchor="end">VOLTS</text>`;
+  for (let c = 0; c < 16; c++) {
+    const g = slot.first + c, cy = top + AN_ROW0 + c * AN_STEP;
+    out += txt(sx + 22, cy + 3.5, String(c), "g8 ch") + lamp("g", `mux-${g}`, sx + 30, cy, 3) +
+      `<rect x="${sx + 40}" y="${cy - 4}" width="${w - 96}" height="8" rx="2" fill="#111" stroke="#333"/>` +
+      `<line x1="${sx + 40 + (w - 96) / 2}" y1="${cy - 5}" x2="${sx + 40 + (w - 96) / 2}" y2="${cy + 5}" stroke="#555"/>` +
+      `<rect class="an-bar" id="an-${g}" x="${sx + 40 + (w - 96) / 2}" y="${cy - 3}" width="0" height="6" fill="#7ad36b"/>` +
+      `<text class="g8 an-v" id="anv-${g}" x="${sx + w - 10}" y="${cy + 3.5}">0.00</text>`;
+    if (wires.analogue && wires.analogue[g]) {
+      out += `<path class="cable in" d="M${sx + 2} ${cy} h-6"/>`;
+    }
+  }
+  const py = top + MH - 44;
+  out += `<rect x="${sx + 30}" y="${py}" width="${w - 60}" height="32" rx="5" fill="#2a2a2a" stroke="#555"/>
+    <rect x="${sx + 40}" y="${py + 7}" width="${w - 80}" height="18" rx="4" fill="#0e0e0e"/>
+    <text id="an-term-${s}" x="${sx + w / 2}" y="${py - 6}" class="g8 tiny">PLANT SIGNALS</text>
+    ${screw(sx + w / 2, top + MH - 4, 3)}`;
+  return out;
+}
+
+function analogueTerms(slot, sx, top, w, wires) {
+  let out = "";
+  for (let c = 0; c < 16; c++) {
+    const g = slot.first + c, cy = top + AN_ROW0 + c * AN_STEP;
+    const wired = wires.analogue && wires.analogue[g];
+    out += `<rect class="term" data-kind="analogue" data-index="${g}" x="${sx + 10}" y="${cy - AN_STEP / 2}" width="${w - 20}" height="${AN_STEP}" rx="2"><title>Slot ${slot.slot} (${slot.module}) analogue channel ${c}, read through A${slot.words[0]} (${wired ? "wired to " + esc(wired.title) : "click to wire it to a sensor"})</title></rect>`;
+  }
+  return out;
+}
+
+function gem80Svg(io, model, wires = { inputs: {}, outputs: {} }) {
+  const slots = io.slots || [];
+  const SW = 96, H = 470, top = 40, MH = 380;
+  const psuW = 128, cpuW = 150, gap = 6;
+  const W = 40 + slots.length * (SW + gap) + psuW + gap + cpuW + 40;
+  const screw = (x, y, r = 6) => `<circle cx="${x}" cy="${y}" r="${r}" fill="url(#g80screw)" stroke="#111"/><path d="M${x - r * .6} ${y}h${r * 1.2}" stroke="#222" stroke-width="1.6"/>`;
+  const lamp = (cls, id, x, y, r = 4.2) => `<circle class="led${cls ? " " + cls : ""}"${id ? ` id="${id}"` : ""} cx="${x}" cy="${y}" r="${r}"/>`;
+  const txt = (x, y, s, cls = "g8") => `<text x="${x}" y="${y}" class="${cls}">${esc(s)}</text>`;
+  let body = "", terms = "";
+
+  // Subrack: front frame with mounting ears.
+  body += `<rect x="0" y="0" width="${W}" height="${H}" rx="6" fill="url(#g80frame)" stroke="#111" stroke-width="2"/>
+    <rect x="22" y="${top - 18}" width="${W - 44}" height="${MH + 36}" rx="3" fill="#141414" stroke="#2c2c2c"/>
+    ${screw(12, 30)}${screw(12, H - 30)}${screw(W - 12, 30)}${screw(W - 12, H - 30)}`;
+
+  // I/O slots, 8 to 1 from the left. A double-width module (the 8108)
+  // starts at the slot to its left, which it covers.
+  let x = 40, coverX = null;
+  for (let s = slots.length; s >= 1; s--) {
+    const slot = slots[s - 1];
+    let sx = x;
+    x += SW + gap;
+    if (slot && !slot.module && slot.covered_by) { coverX = sx; continue; }
+    if (slot && slot.kind === "analogue") {
+      if (coverX !== null) sx = coverX;
+      coverX = null;
+      const w = x - gap - sx;
+      body += analogueModuleSvg(slot, sx, top, w, MH, wires, { screw, lamp, txt });
+      body += txt(sx + w / 2, top + MH + 30, `SLOTS ${s + 1}–${s}`, "g8 slot");
+      terms += analogueTerms(slot, sx, top, w, wires);
+      continue;
+    }
+    if (!slot || !slot.module) {
+      body += `<rect x="${sx}" y="${top}" width="${SW}" height="${MH}" rx="3" fill="#232323" stroke="#333"/>
+        <rect x="${sx + 8}" y="${top + 10}" width="${SW - 16}" height="${MH - 20}" rx="2" fill="#1b1b1b"/>
+        ${screw(sx + SW / 2, top + 22, 4)}${screw(sx + SW / 2, top + MH - 22, 4)}
+        ${txt(sx + SW / 2, top + MH / 2, "BLANK", "g8 dim")}${txt(sx + SW / 2, top + MH + 30, `SLOT ${s}`, "g8 slot")}`;
+      continue;
+    }
+    const colour = slot.relay ? G80_MODULE_COLOURS.relay : G80_MODULE_COLOURS[slot.kind];
+    const isIn = slot.kind === "input";
+    const kind = isIn ? "inputs" : "outputs";
+    const tbl = isIn ? "A" : "B";
+    body += `<rect x="${sx}" y="${top}" width="${SW}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
+      <rect x="${sx + SW / 2 - 18}" y="${top + 4}" width="36" height="12" rx="3" fill="#0d0d0d"/>
+      <rect x="${sx + 6}" y="${top + 22}" width="${SW - 12}" height="30" rx="2" fill="${colour}"/>
+      ${txt(sx + SW / 2, top + 36, slot.module, "g8 type")}
+      ${txt(sx + SW / 2, top + 47, `${slot.channels} CH ${isIn ? "IN" : slot.relay ? "RELAY" : "OUT"}`, "g8 small")}`;
+    // Lamps: one column of up to 16 per data table word, numbered 0 to 15.
+    const words = Math.ceil(slot.channels / 16), perCol = Math.min(16, slot.channels);
+    const colX = words === 1 ? [sx + SW / 2 + 8] : [sx + SW / 2 - 12, sx + SW / 2 + 26];
+    const ly = top + 76, step = Math.min(15, 240 / perCol);
+    for (let w = 0; w < words; w++) {
+      body += txt(colX[w] - 6, ly - 10, `${tbl}${slot.words[w]}`, "g8 word");
+      for (let c = 0; c < perCol && w * 16 + c < slot.channels; c++) {
+        const ch = w * 16 + c, g = slot.first + ch, cy = ly + c * step;
+        const wired = wires[kind][g];
+        body += txt(colX[w] - 14, cy + 3.5, String(c), "g8 ch") + lamp("", `${isIn ? "in" : "out"}-${g}`, colX[w], cy, 3.6);
+        if (wired) body += `<path class="cable ${isIn ? "in" : "out"}" id="cable-${isIn ? "in" : "out"}-${g}" d="M${colX[w] + 6} ${cy} h${words === 1 ? 26 : 10}"/>`;
+        terms += `<rect class="term" data-kind="${kind}" data-index="${g}" x="${colX[w] - 20}" y="${cy - step / 2}" width="${words === 1 ? 60 : 34}" height="${step}" rx="2"><title>Slot ${s} (${slot.module}) channel ${ch}: ${tbl}${slot.words[w]}.${c} (${wired ? "wired to " + esc(wired.title) : "click to wire it to an entity"})</title></rect>`;
+      }
+    }
+    // Plant connector: screw terminals, or the 32-way D connector.
+    const py = top + MH - 54;
+    if (slot.channels === 32) {
+      body += `<rect x="${sx + 22}" y="${py}" width="${SW - 44}" height="40" rx="6" fill="#2a2a2a" stroke="#555"/>
+        <rect x="${sx + 30}" y="${py + 8}" width="${SW - 60}" height="24" rx="5" fill="#0e0e0e"/>`;
+    } else {
+      body += `<rect x="${sx + 10}" y="${py}" width="${SW - 20}" height="40" rx="2" fill="#3b3e3c" stroke="#222"/>`;
+      for (let k = 0; k < 5; k++) body += `<circle cx="${sx + 20 + k * ((SW - 40) / 4)}" cy="${py + 20}" r="5" fill="#1d1f1e" stroke="#555"/>`;
+    }
+    body += txt(sx + SW / 2, top + MH + 30, `SLOT ${s}`, "g8 slot");
+  }
+
+  // Power supply module.
+  const px = x;
+  x += psuW + gap;
+  body += `<rect x="${px}" y="${top}" width="${psuW}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
+    <rect x="${px + 10}" y="${top + 8}" width="${psuW - 20}" height="16" rx="8" fill="#0d0d0d"/>
+    ${txt(px + psuW / 2, top + 44, "POWER SUPPLY", "g8 head")}
+    ${txt(px + 30, top + 74, "INPUT", "g8 small")}${txt(px + 30, top + 84, "POWER", "g8 small")}${lamp("g supply", "", px + 30, top + 98, 5)}
+    ${txt(px + psuW - 34, top + 74, "OUTPUT", "g8 small")}${txt(px + psuW - 34, top + 84, "HEALTHY", "g8 small")}${lamp("g supply", "", px + psuW - 34, top + 98, 5)}
+    <rect x="${px + psuW / 2 - 16}" y="${top + 128}" width="32" height="64" rx="4" fill="#0e0e0e" stroke="#444"/>
+    <rect x="${px + psuW / 2 - 9}" y="${top + 134}" width="18" height="24" rx="3" fill="#cfcac0"/>
+    ${txt(px + psuW / 2, top + 122, "RUN", "g8 small")}${txt(px + psuW / 2, top + 206, "SHUTDOWN", "g8 small")}
+    ${txt(px + psuW / 2, top + 238, "A.C. 220V", "g8 small")}
+    <rect x="${px + 22}" y="${top + 248}" width="${psuW - 44}" height="34" rx="3" fill="#262626" stroke="#555"/>
+    ${[0, 1, 2].map((k) => `<rect x="${px + 34 + k * 22}" y="${top + 258}" width="8" height="14" fill="#9c958a"/>`).join("")}
+    ${txt(px + psuW / 2, top + 300, "D.C. 24V", "g8 small")}
+    <circle cx="${px + psuW / 2}" cy="${top + 322}" r="13" fill="#262626" stroke="#555"/>
+    ${txt(px + 36, top + 356, "FS1", "g8 small")}${txt(px + psuW - 36, top + 356, "FS2", "g8 small")}`;
+
+  // Processor module with the maker's badge, the model, and its lamps.
+  const cx = x;
+  const label = model ? model.label : "GEM 80";
+  body += `<rect x="${cx}" y="${top}" width="${cpuW}" height="${MH}" rx="3" fill="url(#g80mod)" stroke="#000"/>
+    <rect x="${cx + 8}" y="${top + 8}" width="${cpuW - 16}" height="44" rx="2" fill="#e3c25a"/>
+    <text x="${cx + 14}" y="${top + 38}" style="font:900 21px Arial Black,Arial,sans-serif;fill:#151515">${MAKER.mark}</text>
+    <text x="${cx + 72}" y="${top + 23}" style="font:700 9px Arial;fill:#151515">${MAKER.line1}</text>
+    <text x="${cx + 72}" y="${top + 34}" style="font:700 9px Arial;fill:#151515">${MAKER.line2}</text>
+    <text x="${cx + 72}" y="${top + 45}" style="font:600 6px Arial;fill:#333;letter-spacing:.04em">${MAKER.place.join(" ")}</text>
+    ${txt(cx + cpuW / 2, top + 76, label, "g8 model")}
+    ${txt(cx + 42, top + 104, "W/DOG", "g8 small")}${txt(cx + 42, top + 114, "HEALTHY", "g8 small")}
+    ${lamp("g", "led-wdog", cx + 30, top + 128)}${lamp("g", "led-wdog2", cx + 54, top + 128)}
+    ${txt(cx + cpuW - 36, top + 104, "BATTERY", "g8 small")}${txt(cx + cpuW - 36, top + 114, "LOW", "g8 small")}
+    ${lamp("", "led-batt", cx + cpuW - 36, top + 128)}
+    ${txt(cx + cpuW / 2, top + 158, "SERIAL PORTS", "g8 small")}
+    ${txt(cx + 40, top + 174, "1 TX", "g8 small")}${lamp("", "led-p1tx", cx + 40, top + 186, 3.6)}
+    ${txt(cx + 70, top + 174, "1 RX", "g8 small")}${lamp("", "led-p1rx", cx + 70, top + 186, 3.6)}
+    ${txt(cx + 100, top + 174, "2 TX", "g8 small")}${lamp("", "led-p2tx", cx + 100, top + 186, 3.6)}
+    ${txt(cx + 130, top + 174, "2 RX", "g8 small")}${lamp("", "led-p2rx", cx + 130, top + 186, 3.6)}
+    <rect x="${cx + 24}" y="${top + 206}" width="${cpuW - 48}" height="40" rx="4" fill="#0b0b0b" stroke="#444"/>
+    ${Array.from({ length: 13 }, (_, i) => `<circle cx="${cx + 36 + i * 6.6}" cy="${top + 220}" r="1.6" fill="#8a857b"/><circle cx="${cx + 39 + i * 6.6}" cy="${top + 232}" r="1.6" fill="#8a857b"/>`).join("")}
+    ${txt(cx + cpuW / 2, top + 260, "PROGRAMMING", "g8 small")}
+    <rect x="${cx + 24}" y="${top + 278}" width="${cpuW - 48}" height="30" rx="4" fill="#0b0b0b" stroke="#444"/>
+    ${txt(cx + cpuW / 2, top + 322, "SERIAL LINK", "g8 small")}
+    ${txt(cx + cpuW / 2, top + 352, "PROCESSOR", "g8 head")}`;
+
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)} compact controller with ${io.inputs} inputs and ${io.outputs} outputs">
+  <defs>
+    <radialGradient id="g80screw" cx=".35" cy=".35" r=".8"><stop offset="0" stop-color="#9a9a9a"/><stop offset="1" stop-color="#3a3a3a"/></radialGradient>
+    <linearGradient id="g80frame" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5e6163"/><stop offset="1" stop-color="#3c3e40"/></linearGradient>
+    <linearGradient id="g80mod" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2b2b2b"/><stop offset=".5" stop-color="#363636"/><stop offset="1" stop-color="#262626"/></linearGradient>
+    <filter id="glow" x="-2" y="-2" width="5" height="5"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>
+      .g8{font:700 10px Arial,sans-serif;fill:#e8e4da;text-anchor:middle;letter-spacing:.03em}
+      .g8.small{font-size:8.5px}.g8.head{font-size:10.5px;letter-spacing:.08em}
+      .g8.type{font:900 15px Arial Black,Arial,sans-serif;fill:#fff}.g8.model{font:900 13px Arial Black,Arial,sans-serif}
+      .g8.word{font-size:9px;fill:#ffd36b}.g8.ch{font-size:8px;fill:#aaa;text-anchor:end}
+      .g8.slot{font-size:11px;fill:#d8d4ca}.g8.dim{fill:#666;letter-spacing:.2em}
+      .g8.tiny{font-size:7px;fill:#bbb;text-anchor:start}.g8.an-v{font:600 8.5px var(--mono,monospace);fill:#cde8c6;text-anchor:end}
+    </style>
+  </defs>
+  ${body}${terms}
+</svg>`;
+}
+
 export function websocketTransport(url) {
   let ws = null;
   return {
@@ -473,6 +804,11 @@ function size(n) {
       if (n.arg && typeof n.arg === "object") { const b = size(n.arg); return { w: b.w + 1, h: 1 + b.h }; }
       return { w: n.spec ? 2 : 1, h: 1 };
     }
+    case "spec": {
+      const base = n.value != null ? 2 : 1;
+      if (n.arg) { const b = size(n.arg); return { w: b.w + base, h: 1 + b.h }; }
+      return { w: base, h: 1 };
+    }
     default: return { w: 1, h: 1 };
   }
 }
@@ -480,6 +816,9 @@ function size(n) {
 function wire(x1, y1, x2, y2, on) {
   return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="w${on ? " on" : ""}"/>`;
 }
+
+// The mnemonic a NAME line gives an address, if any.
+const mnem = (ctx, addr) => (ctx.names && ctx.names[addr] ? ctx.names[addr][0] : undefined);
 
 const fmtNum = (v) => (v === undefined || v === null ? "" : typeof v === "boolean" ? (v ? "1" : "0") : String(v));
 
@@ -521,7 +860,7 @@ function drawNode(n, x, y, pin, ctx) {
         `<line x1="${mx - 9}" y1="${cy - 13}" x2="${mx - 9}" y2="${cy + 13}" class="plate${pin ? " on" : ""}"/>` +
         `<line x1="${mx + 9}" y1="${cy - 13}" x2="${mx + 9}" y2="${cy + 13}" class="plate${pout ? " on" : ""}"/>` +
         (n.nc ? `<line x1="${mx - 12}" y1="${cy + 12}" x2="${mx + 12}" y2="${cy - 12}" class="plate${pout ? " on" : ""}"/>` : ""),
-        pout, n.addr);
+        pout, n.addr, mnem(ctx, n.addr));
     }
     case "edge": {
       const pout = out(false);
@@ -554,6 +893,21 @@ function drawNode(n, x, y, pin, ctx) {
       const above = !branch && isAddr(n.arg) ? fmtNum(live[n.arg]) : undefined;
       if (n.spec) svg += box(`SPEC. ${n.spec}`, under, n.op, pout, 2, ex);
       else svg += box(n.op, under, above, pout, 1, ex);
+      return [svg, pout];
+    }
+    case "spec": {
+      // SPEC. with the mnemonic above and the number below, then its VALUE
+      // with the table address below, as T391 draws it; a T function's lower
+      // input joins in from its own branch.
+      const pout = out(pin);
+      const base = n.value != null ? 2 : 1;
+      const ex = x + (size(n).w - base) * CW;
+      let svg = n.arg ? wire(x, cy, ex, cy, pin) + lower(n.arg, ex, "JOIN") : "";
+      svg += box("SPEC.", n.num, n.name, pout, 1, ex);
+      if (n.value != null) {
+        const v = isAddr(n.value) && !ctx.draft ? fmtNum(live[n.value]) : undefined;
+        svg += box("VALUE", n.value, v, pout, 1, ex + CW);
+      }
       return [svg, pout];
     }
     case "delay": {
@@ -635,7 +989,8 @@ function drawOutput(o, x, y, pin, ctx, rungX) {
       `<circle cx="${mx}" cy="${cy}" r="9" class="coilfill${on ? " on" : ""}"/>` +
       wire(mx + 14, cy, x + AW, cy, pin) +
       `<text x="${mx}" y="${cy + 27}" class="lab">${esc(addr)}</text>` +
-      (note ? `<text x="${mx}" y="${cy - 19}" class="sub">${note}</text>` : "");
+      (note ? `<text x="${mx}" y="${cy - 19}" class="sub">${note}</text>`
+        : mnem(ctx, addr) ? `<text x="${mx}" y="${cy - 19}" class="sub">${esc(mnem(ctx, addr))}</text>` : "");
   };
   const word = (title, addr, hex) => {
     const v = live[addr];
@@ -761,13 +1116,16 @@ function textRung(rung, flow) {
         const a = opnd(n.arg);
         return n.spec ? { sym: "SPEC.", addr: n.spec + (a !== null ? " " + a : "") } : { sym: `<${n.op}>`, addr: a ?? "" };
       }
+      case "spec": return n.value != null
+        ? { sym: "SPEC.--VALUE", addr: `${n.num}`.padEnd(7) + n.value, name: n.name }
+        : { sym: "SPEC.", addr: n.num, name: n.name };
       case "delay": return { sym: "<DELAY>--VALUE", addr: `${n.word}`.padEnd(9) + n.value };
       case "count": return { sym: "<COUNT>--VALUE", addr: `${n.word}`.padEnd(9) + n.value };
     }
     return { sym: "?", addr: "" };
   };
-  const branchOf = (n) => (n.t === "count" ? n.reset : (n.t === "logic" || n.t === "arith") && n.arg && typeof n.arg === "object" ? n.arg : null);
-  const width = (n) => Math.max(CELL, leaf(n).sym.length + 4);
+  const branchOf = (n) => (n.t === "count" ? n.reset : (n.t === "logic" || n.t === "arith" || n.t === "spec") && n.arg && typeof n.arg === "object" ? n.arg : null);
+  const width = (n) => { const l = leaf(n); return Math.max(CELL, l.sym.length + 4, String(l.addr).length + 4); };
 
   function measure(n) {
     if (!n) return { w: 0, h: 1 };
@@ -895,6 +1253,740 @@ const draftText = (d) => {
   return (c || "") + (d.acts.length ? " -> " + d.acts.join(", ") : "");
 };
 
+// ---------------------------------------------------------------------------
+// The 8920 Portable Programmer, for the GEM 80 (product data sheet T208): a
+// 9 inch monochrome screen of 24 lines of 80 characters over a typewriter
+// keyboard, a number pad and a row of GEM 80 function keys, with a key
+// switch for PROGRAM or MONITOR ONLY. The screens follow the data sheet's
+// Figure 7: the rung drawn as text with its addresses under it, where it is
+// stored, the COMMAND LEVEL options and the controller status. The sheet
+// names the options but not what each does; the meanings here are our best
+// reading of them (see the ? help screen).
+
+const COLS = 80, ROWS = 24;
+// Figure 2, left to right; each with the PC key that also gives it.
+const FKEYS = [
+  ["SPEC", ""], ["BLOCK", ""], ["LOGIC", ""], ["ADD", ""], ["SUB", ""], ["AND", ""], ["VALUE", "F10"], ["OUT", ""],
+  ["COUNT", "F8"], ["DELAY", "F7"], ["SEQR", ""], ["LINK", "F4"], ["JOIN", "F6"], ["N/O\n-] [-", "F1"], ["N/C\n-]/[-", "F2"], ["COIL\n-( )-", "F3"],
+];
+const PC_FKEY = { F1: "N/O", F2: "N/C", F3: "COIL", F4: "LINK", F5: "LF", F6: "JOIN", F7: "DELAY", F8: "COUNT", F9: "SPEC", F10: "VALUE" };
+const ALPHA = ["QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+const NUMPAD = ["789", "456", "123", "0.-"];
+// Series elements that pass the word on, so follow the one before with a space, not AND.
+const WORD_ELEMENT = /^(AND|OR|XOR|ADD|SUB|SPEC|INV|DELAY|COUNT)\b/;
+const RUNG_COMMANDS = "S, F, L, N, E, B, D, I, R, C, M, W, T?.";
+const MAX_SERIES = 9, MAX_BRANCHES = 5; // per rung line, per branch point (T208, 4)
+
+class Programmer8920 {
+  constructor(box, send) {
+    this.send = send;
+    this.state = null;
+    this.mode = "power"; // power, control, ladder, entry, tables, help
+    this.monitorOnly = false;
+    this.monitor = true;
+    this.cur = 0; // the stored rung on screen
+    this.pan = 0; this.scroll = 0;
+    this.prompt = null; // { label, buf, done(text), hint }
+    this.confirm = null; // { label, yes() }
+    this.message = "";
+    this.draft = null; // a rung being keyed in
+    this.shown = null; // a rung keyed in or changed, displayed but not yet stored
+    this.preview = null; // its parsed form, from the controller
+    this.wantPreview = false;
+    this.tableAt = "G0"; this.values = null;
+    this.pendingLoad = null;
+    box.innerHTML = this.markup();
+    this.screen = box.querySelector(".p89-screen pre");
+    this.unit = box.querySelector(".p89");
+    this.keyEl = box.querySelector(".p89-key");
+    box.querySelectorAll("[data-k]").forEach((b) => b.addEventListener("click", () => { this.unit.focus(); this.key(b.dataset.k); }));
+    this.keyEl.addEventListener("click", () => { this.monitorOnly = !this.monitorOnly; this.draw(); });
+    this.unit.addEventListener("keydown", (e) => this.keydown(e));
+    setTimeout(() => { this.mode = "control"; this.draw(); }, 1400);
+    setInterval(() => { if (this.mode === "tables") this.readTables(); }, 400);
+  }
+
+  markup() {
+    const fk = FKEYS.map(([k, pc]) => {
+      const [name, sym] = k.split("\n");
+      return `<button class="fk" data-k="${name}" title="${name}${pc ? ` (${pc})` : ""}">${name}${sym ? `<small>${sym}</small>` : ""}</button>`;
+    }).join("");
+    const alpha = ALPHA.map((row, r) => `<div class="kr" style="padding-left:${r * 14}px">${[...row].map((c) => `<button data-k="${c}">${c}</button>`).join("")}${r === 2 ? `<button data-k="@">@</button><button data-k="[">[</button><button data-k="]">]</button><button data-k="?">?</button>` : r === 1 ? `<button data-k="&quot;">"</button><button data-k="\\">\\</button>` : ""}</div>`).join("");
+    const pad = NUMPAD.map((row) => `<div class="kr">${[...row].map((c) => `<button data-k="${c}">${c}</button>`).join("")}</div>`).join("");
+    return `
+<div class="p89" tabindex="0" aria-label="8920 Portable Programmer: click here, then type">
+  <div class="p89-hood">
+    <div class="p89-bezel"><div class="p89-screen"><pre aria-live="polite"></pre></div></div>
+    <div class="p89-side">
+      <div class="p89-badge"><b>${MAKER.mark}</b><span>${MAKER.line1}<br>${MAKER.line2}</span></div>
+      <div class="p89-model">8920<small>PORTABLE PROGRAMMER</small></div>
+      <button class="p89-key" title="Key switch: PROGRAM or MONITOR ONLY"><span class="barrel"></span></button>
+      <div class="p89-keypos"><span data-pos="prog">PROGRAM</span><span data-pos="mon">MONITOR ONLY</span></div>
+    </div>
+  </div>
+  <div class="p89-tray">
+    <div class="p89-fkeys">${fk}</div>
+    <div class="p89-main">
+      <div class="p89-alpha">
+        <div class="kr"><button data-k="ESC" class="wide">ESC</button><button data-k="◄">◄</button><button data-k="►">►</button><button data-k="▲">▲</button><button data-k="▼">▼</button><button data-k="RUBOUT" class="wide">RUBOUT</button></div>
+        ${alpha}
+        <div class="kr"><button data-k="LF" class="wide">LF</button><button data-k="SPACE" class="space">SPACE</button><button data-k="CR" class="wide">CR</button></div>
+      </div>
+      <div class="p89-pad">${pad}</div>
+    </div>
+  </div>
+</div>
+<p class="hint p89-help">Click the programmer and type, or use its keys. The PC keys F1 to F10 give N/O, N/C, COIL, LINK, LF, JOIN, DELAY, COUNT, SPEC and VALUE; Enter is CR, Backspace RUBOUT and Esc ESC. Press <b>?</b> for the options on each screen.</p>`;
+  }
+
+  // --- state from the controller --------------------------------------------
+
+  update(state) {
+    this.state = state;
+    const n = (state.ladder || []).length;
+    if (this.cur >= n) this.cur = Math.max(0, n - 1);
+    this.draw();
+  }
+
+  reply(msg) {
+    if (msg.type === "values" && this.mode === "tables") { this.values = msg; this.draw(); return true; }
+    if (msg.type === "preview" && this.wantPreview) {
+      this.wantPreview = false;
+      this.preview = msg.rungs[0] || null;
+      if (this.preview && this.draft && !this.draft.acts.length) this.preview.output = null;
+      this.draw();
+      return true;
+    }
+    if (msg.type === "error" && this.wantPreview) {
+      // The last thing keyed in made the rung invalid: take it back.
+      this.wantPreview = false;
+      this.alarm("INVALID ENTRY - " + msg.message.toUpperCase());
+      if (this.draft && this.draft.history.length) this.undo();
+      else if (this.mode !== "entry") this.shown = null;
+      return true;
+    }
+    if (msg.type === "loaded" && this.pendingLoad) {
+      const done = this.pendingLoad; this.pendingLoad = null;
+      this.shown = null; this.preview = null;
+      if (done.cur !== undefined) this.cur = done.cur;
+      this.say(done.message);
+      return false;
+    }
+    if (msg.type === "error" && this.pendingLoad) {
+      this.pendingLoad = null;
+      this.alarm("NOT STORED - " + msg.message.toUpperCase());
+      return false;
+    }
+    return false;
+  }
+
+  // --- keys --------------------------------------------------------------------
+
+  keydown(e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    let k = PC_FKEY[e.key] || { Enter: "CR", Escape: "ESC", Backspace: "RUBOUT", " ": "SPACE",
+      ArrowLeft: "◄", ArrowRight: "►", ArrowUp: "▲", ArrowDown: "▼" }[e.key];
+    if (!k && e.key.length === 1) k = e.key.toUpperCase();
+    if (!k) return;
+    e.preventDefault();
+    this.key(k);
+  }
+
+  key(k) {
+    this.unlockAudio();
+    if (this.mode === "power") return;
+    if (this.confirm) {
+      const c = this.confirm; this.confirm = null;
+      if (k === "Y") c.yes(); else this.say("CANCELLED");
+      return this.draw();
+    }
+    if (["◄", "►", "▲", "▼"].includes(k) && !this.prompt) return this.move(k);
+    if (this.prompt) return this.promptKey(k);
+    this.message = "";
+    const handler = { control: this.controlKey, ladder: this.ladderKey, entry: this.entryKey, tables: this.tablesKey, presets: this.presetsKey, help: this.helpKey }[this.mode];
+    handler.call(this, k);
+    this.draw();
+  }
+
+  move(k) {
+    if (this.mode === "ladder" || this.mode === "entry") {
+      if (k === "◄") this.pan = Math.max(0, this.pan - 8);
+      if (k === "►") this.pan += 8;
+      if (k === "▲") this.scroll = Math.max(0, this.scroll - 2);
+      if (k === "▼") this.scroll += 2;
+    } else if (this.mode === "tables") {
+      if (k === "▲" || k === "◄") this.stepTables(-16);
+      if (k === "▼" || k === "►") this.stepTables(16);
+    } else if (this.mode === "presets") {
+      this.presetPage = Math.max(0, (this.presetPage || 0) + (k === "▲" || k === "◄" ? -1 : 1));
+    }
+    this.draw();
+  }
+
+  ask(label, done, hint = "") { this.prompt = { label, buf: "", done, hint }; }
+
+  promptKey(k) {
+    const p = this.prompt;
+    if (k === "ESC") { this.prompt = null; this.say(this.mode === "entry" ? "ELEMENT ABANDONED" : ""); }
+    else if (k === "RUBOUT") p.buf = p.buf.slice(0, -1);
+    else if (k === "CR" || (k === "SPACE" && p.spaceEnds !== false)) { this.prompt = null; p.done(p.buf.trim()); }
+    else if (k === "SPACE") p.buf += " ";
+    else if (k === "VALUE" && p.onValue) p.onValue();
+    else if (k.length === 1) p.buf += k;
+    else this.alarm("NOT ALLOWED HERE");
+    this.draw();
+  }
+
+  // --- control mode ---------------------------------------------------------------
+
+  controlKey(k) {
+    const cmd = { H: "halt", R: "run", S: "single" }[k];
+    if (k === "L") { this.mode = "ladder"; this.pan = 0; this.scroll = 0; }
+    else if (k === "D") this.ask("FIRST LOCATION? ", (a) => this.openTables(a), "A TABLE AND WORD, E.G. G0");
+    else if (k === "P") { this.mode = "presets"; this.presetPage = 0; }
+    else if (k === "O") this.askPrint();
+    else if (k === "?") this.help("control");
+    else if (cmd || k === "T" || k === "N" || k === "C") {
+      if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
+      if (cmd) { this.send({ type: cmd }); this.say({ halt: "HALT", run: "RUN", single: "SINGLE CYCLE" }[cmd] + " SENT"); }
+      else if (k === "T" || k === "N") { this.send({ type: "test_inputs", value: k === "T" }); this.say(k === "T" ? "TEST INPUTS" : "NORMAL INPUTS"); }
+      else if (this.eprom()) this.alarm("PROGRAM IN EPROM - CANNOT CLEAR STORE");
+      else this.confirm = { label: "CLEAR STORE: PROGRAM AND DATA TABLES WILL BE LOST. ARE YOU SURE (Y/N)? ",
+        yes: () => { this.send({ type: "clear" }); this.cur = 0; this.say(`${this.connected()} - STORE CLEARED`); } };
+    } else this.alarm("NOT AN OPTION");
+  }
+
+  // --- ladder mode: command level ----------------------------------------------
+
+  rungs() { return (this.state && this.state.ladder) || []; }
+
+  ladderKey(k) {
+    const rungs = this.rungs(), n = rungs.length;
+    const go = (i) => { this.cur = Math.max(0, Math.min(n - 1, i)); this.shown = null; this.preview = null; this.pan = 0; this.scroll = 0; };
+    switch (k) {
+      case "F": return n ? go(0) : this.alarm("NO PROGRAM");
+      case "L": return n ? go(n - 1) : this.alarm("NO PROGRAM");
+      case "N": return this.cur < n - 1 ? go(this.cur + 1) : this.alarm("LAST RUNG");
+      case "B": return this.cur > 0 ? go(this.cur - 1) : this.alarm("FIRST RUNG");
+      case "M": this.monitor = !this.monitor; return this.say(this.monitor ? "MONITOR ON" : "MONITOR OFF");
+      case "T": this.mode = "control"; this.shown = null; this.preview = null; return;
+      case "?": return this.help("ladder");
+      case "S": return this.ask("SEARCH FOR? ", (a) => this.search(a), "AN ADDRESS, E.G. A0.3 OR G25: THE NEXT RUNG THAT USES IT");
+      case "W": return this.askWrite();
+    }
+    if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
+    if (this.eprom()) return this.alarm("PROGRAM IN EPROM - CANNOT ALTER ON LINE");
+    switch (k) {
+      case "E": this.draft = { stack: [{ branches: [[]] }], acts: [], history: [] }; this.mode = "entry"; this.preview = null; this.shown = null; this.pan = 0; this.scroll = 0; return;
+      case "C": {
+        const r = rungs[this.cur];
+        if (!r) return this.alarm("NO RUNG TO CHANGE");
+        this.ask("CHANGE RUNG: ", (text) => this.showText(text), "EDIT THE RUNG AS TEXT, THEN CR. I OR R STORES IT");
+        this.prompt.buf = this.shown || r.source.split(";")[0].trim();
+        this.prompt.spaceEnds = false;
+        return;
+      }
+      case "I": case "R": {
+        if (!this.shown) return this.alarm(k === "I" ? "NO NEW RUNG - E ENTERS ONE" : "NO CHANGED RUNG - C CHANGES THIS ONE");
+        if (k === "R" && !rungs[this.cur]) return this.alarm("NO STORED RUNG TO REPLACE");
+        return this.store(k === "R");
+      }
+      case "D": {
+        if (this.shown) { this.shown = null; this.preview = null; return this.say("DISPLAYED RUNG ABANDONED"); }
+        const r = rungs[this.cur];
+        if (!r) return this.alarm("NO RUNG TO DELETE");
+        this.confirm = { label: `DELETE RUNG ${this.cur + 1} (Y/N)? `, yes: () => this.remove() };
+        return;
+      }
+    }
+    this.alarm("NOT AN OPTION");
+  }
+
+  search(addr) {
+    const rungs = this.rungs();
+    if (!/^[A-Z]\d+(\.\d+)?$/.test(addr)) return this.alarm("NOT AN ADDRESS");
+    const re = new RegExp("(^|[^A-Z0-9.@])" + addr.replace(".", "\\.") + "(?![0-9.])");
+    for (let s = 1; s <= rungs.length; s++) {
+      const j = (this.cur + s) % rungs.length;
+      if (re.test(rungs[j].source.split(";")[0])) { this.cur = j; this.shown = null; this.preview = null; return this.say(`${addr} FOUND IN RUNG ${j + 1}`); }
+    }
+    this.alarm(`${addr} NOT FOUND`);
+  }
+
+  askWrite() {
+    if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
+    this.ask("WRITE TO? ", (addr) => {
+      if (!/^[A-Z]\d+(\.\d+)?$/.test(addr)) return this.alarm("NOT AN ADDRESS");
+      this.ask(`WRITE TO ${addr}  VALUE? `, (v) => {
+        const value = /^@[0-9A-F]+$/.test(v) ? parseInt(v.slice(1), 16) : Number(v);
+        if (v === "" || Number.isNaN(value)) return this.alarm("NOT A NUMBER");
+        this.send({ type: "write", address: addr, value: value > 32767 ? value - 65536 : value });
+        this.say(`${addr} = ${value}`);
+      }, addr.includes(".") ? "1 OR 0" : "-32768 TO 32767, OR @0000 TO @FFFF");
+    }, "A TABLE ADDRESS, E.G. G12 OR A0.3");
+  }
+
+  showText(text) {
+    if (!text) return;
+    this.shown = text;
+    this.wantPreview = true;
+    this.send({ type: "preview", source: text });
+    this.say("DISPLAYED RUNG NOT STORED - I INSERTS IT, R REPLACES THE STORED RUNG");
+  }
+
+  store(replace) {
+    const rungs = this.rungs();
+    const lines = (this.state.program || "").split("\n");
+    const r = rungs[this.cur];
+    let cur = this.cur;
+    if (replace) lines.splice(r.line - 1, 1, this.shown);
+    else { lines.splice(r ? r.line : lines.length, 0, this.shown); cur = r ? this.cur + 1 : 0; }
+    this.pendingLoad = { cur, message: replace ? `RUNG ${cur + 1} REPLACED` : `RUNG INSERTED AS RUNG ${cur + 1}` };
+    this.send({ type: "load", source: lines.join("\n") });
+  }
+
+  remove() {
+    const r = this.rungs()[this.cur];
+    const lines = this.state.program.split("\n");
+    lines.splice(r.line - 1, 1);
+    this.pendingLoad = { cur: Math.max(0, this.cur - 1), message: `RUNG ${this.cur + 1} DELETED` };
+    this.send({ type: "load", source: lines.join("\n") });
+  }
+
+  // --- ladder mode: rung entry -------------------------------------------------
+
+  entryKey(k) {
+    const d = this.draft;
+    const top = d.stack.at(-1), line = top.branches.at(-1);
+    const done = d.acts.length > 0;
+    const element = (label, make, hint, opts = {}) => {
+      if (done) return this.alarm("RUNG HAS ITS OUTPUT - ESC, THEN I TO INSERT IT");
+      if (!opts.output && line.length >= MAX_SERIES) return this.alarm(`AT MOST ${MAX_SERIES} ELEMENTS IN SERIES`);
+      this.ask(label, (text) => {
+        if (!text && !opts.empty) return this.alarm("NOTHING ENTERED");
+        this.push(make(text), opts.output);
+      }, hint);
+      Object.assign(this.prompt, opts.prompt || {});
+    };
+    const addr = "AN ADDRESS, E.G. A2.8 - SPACE OR CR ENDS IT";
+    switch (k) {
+      case "N/O": return element("N/O CONTACT ", (a) => a, addr);
+      case "N/C": return element("N/C CONTACT ", (a) => "NOT " + a, addr);
+      case "COIL": return element("COIL ", (a) => a, "A BIT ADDRESS, E.G. B1.13", { output: true });
+      case "OUT": return element("OUT ", (a) => "OUT " + a, "A WORD, E.G. G12: THE RUNG WORD IS WRITTEN TO IT", { output: true });
+      case "SEQR": return element("SEQR ", (a) => "SEQR " + a, "THE SEQUENCER WORD, E.G. G12", { output: true });
+      case "AND": case "ADD": case "SUB":
+        return element(k + " ", (a) => `${k} ${a}`, "A WORD OR A NUMBER, E.G. G4, 12 OR @00FF");
+      case "LOGIC": return element("LOGIC ", (a) => a, "OR, XOR OR INV, AND ITS WORD OR NUMBER: E.G. OR @00F0", { prompt: { spaceEnds: false } });
+      case "DELAY": case "COUNT": case "SPEC": return this.withValue(k);
+      case "BLOCK":
+        if (done) return this.alarm("RUNG HAS ITS OUTPUT");
+        return this.ask("BLOCK: O = OBEY BLOCK, E = END OF BLOCK? ", (a) => {
+          if (a === "O") this.push("BLOCK", true);
+          else if (a === "E") { if (line.length || d.stack.length > 1 || top.branches.length > 1) return this.alarm("END OF BLOCK STANDS ALONE IN ITS RUNG"); this.push("END BLOCK", true); }
+          else this.alarm("O OR E");
+        });
+      case "LINK":
+        if (done) return this.alarm("RUNG HAS ITS OUTPUT");
+        d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+        d.stack.push({ branches: [[]] });
+        return this.say("BRANCH POINT - KEY THE TOP LINE, LF FOR THE NEXT LINE DOWN, JOIN TO CLOSE");
+      case "LF":
+        if (!line.length) return this.alarm("THIS LINE IS EMPTY");
+        if (top.branches.length >= MAX_BRANCHES) return this.alarm(`AT MOST ${MAX_BRANCHES} PARALLEL BRANCHES`);
+        d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+        top.branches.push([]);
+        return this.say("NEXT LINE DOWN");
+      case "JOIN": {
+        if (d.stack.length === 1 && top.branches.length === 1) return this.alarm("NO BRANCH TO JOIN");
+        d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+        if (d.stack.length > 1) {
+          const s = joinLines(d.stack.pop());
+          if (s) d.stack.at(-1).branches.at(-1).push(s);
+        } else top.branches = [[joinLines(top)]];
+        return this.refresh();
+      }
+      case "RUBOUT": return d.history.length ? this.undo() : this.alarm("NOTHING TO RUB OUT");
+      case "ESC": {
+        this.mode = "ladder";
+        if (!done) { this.draft = null; this.preview = null; return this.say("RUNG ABANDONED: IT HAD NO OUTPUT"); }
+        this.shown = draftSource(d); this.draft = null;
+        return this.say("DISPLAYED RUNG NOT STORED - I INSERTS IT AFTER THE STORED RUNG, R REPLACES IT");
+      }
+      case "?": return this.help("entry");
+    }
+    this.alarm("PRESS A FUNCTION KEY FIRST: N/O, N/C, COIL ...");
+  }
+
+  // DELAY G26 VALUE 50, COUNT G25 VALUE 12, SPEC SQRT VALUE 100: the VALUE
+  // key (or SPACE, after the word of a DELAY or COUNT) moves on to the value.
+  withValue(k) {
+    const d = this.draft;
+    if (d.acts.length) return this.alarm("RUNG HAS ITS OUTPUT - ESC, THEN I TO INSERT IT");
+    if (d.stack.at(-1).branches.at(-1).length >= MAX_SERIES) return this.alarm(`AT MOST ${MAX_SERIES} ELEMENTS IN SERIES`);
+    const p = {
+      label: k + " ", buf: "", first: null, spaceEnds: k !== "SPEC",
+      hint: { DELAY: "ITS WORD, E.G. G26, THEN VALUE AND THE TIME IN 0.1 S", COUNT: "ITS WORD, E.G. G25, THEN VALUE AND THE COUNT",
+        SPEC: "E.G. SQRT OR S12, OR DIV [AND 12] FOR A T FUNCTION, THEN VALUE OR CR" }[k],
+    };
+    p.onValue = () => {
+      if (p.first !== null || !p.buf.trim()) return this.alarm("NOT ALLOWED HERE");
+      p.first = p.buf.trim();
+      p.label = `${k} ${p.first} VALUE `;
+      p.buf = "";
+      p.spaceEnds = true;
+      p.hint = k === "DELAY" ? "THE TIME IN 0.1 S, OR A WORD" : "A NUMBER OR A WORD";
+    };
+    p.done = (text) => {
+      if (p.first === null) {
+        if (!text) return this.alarm("NOTHING ENTERED");
+        if (k === "SPEC") return this.push(`SPEC ${text}`);
+        p.buf = text; p.onValue(); this.prompt = p;
+        return;
+      }
+      if (!text) { this.prompt = p; return this.alarm("NEEDS A VALUE"); }
+      this.push(`${k} ${p.first} VALUE ${text}`);
+    };
+    this.prompt = p;
+  }
+
+  push(text, output) {
+    const d = this.draft;
+    d.history.push(JSON.stringify({ stack: d.stack, acts: d.acts }));
+    if (output) d.acts.push(text); else d.stack.at(-1).branches.at(-1).push(text);
+    this.refresh();
+  }
+
+  undo() {
+    const d = this.draft;
+    Object.assign(d, JSON.parse(d.history.pop()));
+    this.refresh();
+  }
+
+  refresh() {
+    const d = this.draft;
+    const cond = draftCond8920(d);
+    if (!cond && !d.acts.length) { this.preview = null; return this.draw(); }
+    const out = d.acts[0];
+    this.wantPreview = true;
+    this.send({ type: "preview", source: out === "END BLOCK" ? "END BLOCK" : `${cond} -> ${out || "G63.15"}` });
+  }
+
+  // --- data tables mode ---------------------------------------------------------
+
+  openTables(a) {
+    if (!/^[A-Z]\d+$/.test(a)) return this.alarm("A TABLE AND WORD, E.G. G0");
+    this.tableAt = a; this.values = null; this.mode = "tables";
+    this.readTables();
+  }
+
+  readTables() { this.send({ type: "read", address: this.tableAt, count: 32 }); }
+
+  stepTables(n) {
+    const m = /^([A-Z])(\d+)$/.exec(this.tableAt);
+    const size = this.values ? this.values.size : 9999;
+    const w = Math.max(0, Math.min(Number(m[2]) + n, Math.max(0, size - 1)));
+    this.tableAt = m[1] + w; this.readTables();
+  }
+
+  tablesKey(k) {
+    if (k === "N") return this.stepTables(32);
+    if (k === "B") return this.stepTables(-32);
+    if (k === "S") return this.ask("FIRST LOCATION? ", (a) => this.openTables(a), "A TABLE AND WORD, E.G. R100");
+    if (k === "W") return this.askWrite();
+    if (k === "T") { this.mode = "control"; return; }
+    if (k === "?") return this.help("tables");
+    this.alarm("NOT AN OPTION");
+  }
+
+  // --- preset data table ------------------------------------------------------
+  // The presets and messages kept with the program (PRESET and MESSAGE lines):
+  // written into the tables at a program load, and kept on cassette with it.
+
+  presetRows() {
+    const s = this.state || {}, rows = [];
+    const words = (s.presets || []).map(([a, v]) => `${a.padEnd(7)}=${String(v).padStart(7)}`);
+    for (const [a, t] of Object.entries(s.messages || {}).sort(([a], [b]) => a.localeCompare(b, "en", { numeric: true }))) {
+      rows.push(`${a.padEnd(7)}"${t.toUpperCase()}"`.slice(0, COLS - 2));
+    }
+    for (let i = 0; i < words.length; i += 3) rows.push(words.slice(i, i + 3).map((w) => w.padEnd(24)).join(""));
+    return rows;
+  }
+
+  presetLines() {
+    const s = this.state || {}, rows = this.presetRows();
+    const per = ROWS - 8, pages = Math.max(1, Math.ceil(rows.length / per));
+    this.presetPage = Math.min(this.presetPage || 0, pages - 1);
+    const n = (count, what) => `${count} ${what}${count === 1 ? "" : "S"}`;
+    const L = [`PRESET DATA TABLE - ${n((s.presets || []).length, "WORD")} AND ${n(Object.keys(s.messages || {}).length, "MESSAGE")} - PAGE ${this.presetPage + 1} OF ${pages}`, ""];
+    if (!rows.length) L.push("  NO PRESET DATA - W ENTERS A VALUE, OR \"TEXT\" FOR A MESSAGE");
+    for (const r of rows.slice(this.presetPage * per, (this.presetPage + 1) * per)) L.push(" " + r);
+    while (L.length < ROWS - 4) L.push("");
+    return this.foot(L, "COMMAND LEVEL - OPTIONS:  W, D, N, B, T, ?.");
+  }
+
+  presetsKey(k) {
+    if (k === "N" || k === "B") { this.presetPage = Math.max(0, (this.presetPage || 0) + (k === "N" ? 1 : -1)); return; }
+    if (k === "T") { this.mode = "control"; return; }
+    if (k === "?") return this.help("presets");
+    if (k !== "W" && k !== "D") return this.alarm("NOT AN OPTION");
+    if (this.monitorOnly) return this.alarm("KEY SWITCH AT MONITOR ONLY");
+    if (this.eprom()) return this.alarm("PRESET DATA IN EPROM - CANNOT ALTER ON LINE");
+    const word = /^[A-Z]\d+$/;
+    if (k === "D") {
+      return this.ask("DELETE PRESET AT? ", (a) => {
+        if (!word.test(a)) return this.alarm("A TABLE AND WORD, E.G. R100");
+        const isText = a in ((this.state && this.state.messages) || {});
+        this.pendingLoad = { message: `${isText ? "MESSAGE" : "PRESET"} AT ${a} DELETED` };
+        this.send(isText ? { type: "message", address: a, text: null } : { type: "preset", address: a, value: null });
+      }, "THE WORD, OR THE FIRST WORD OF A MESSAGE");
+    }
+    this.ask("PRESET LOCATION? ", (a) => {
+      if (!word.test(a)) return this.alarm("A TABLE AND WORD, E.G. R100");
+      this.ask(`PRESET ${a}  VALUE? `, (v) => {
+        if (v.startsWith('"')) {
+          const text = v.replace(/^"/, "").replace(/"$/, "");
+          this.pendingLoad = { message: `MESSAGE AT ${a} STORED` };
+          return this.send({ type: "message", address: a, text });
+        }
+        const value = /^@[0-9A-F]+$/.test(v) ? parseInt(v.slice(1), 16) : Number(v);
+        if (v === "" || Number.isNaN(value) || value < -32768 || value > 65535) return this.alarm("NOT A NUMBER");
+        this.pendingLoad = { message: `${a} PRESET TO ${value}` };
+        this.send({ type: "preset", address: a, value: value > 32767 ? value - 65536 : value });
+      }, 'A NUMBER (@ FOR HEX), OR "TEXT" FOR WRITEXT; \\N ENDS A LINE');
+      this.prompt.spaceEnds = false;
+    }, "A TABLE AND WORD THE PROGRAM KEEPS, E.G. R100 OR P100");
+  }
+
+  // --- print-out on the programmer's printer --------------------------------------
+
+  askPrint() {
+    this.ask("PRINT (P)ROGRAM OR (D)ATA TABLES? ", (w) => {
+      if (w === "P") { this.send({ type: "printout" }); return this.say("PROGRAM PRINTED - SEE THE PRINT-OUT UNDER THE PROGRAM TEXT"); }
+      if (w !== "D") return this.alarm("P OR D");
+      this.ask("FIRST LOCATION? ", (a) => {
+        if (!/^[A-Z]\d+$/.test(a)) return this.alarm("A TABLE AND WORD, E.G. G0");
+        this.ask("HOW MANY LOCATIONS? ", (n) => {
+          const count = Number(n || 64);
+          if (!Number.isInteger(count) || count < 1) return this.alarm("NOT A NUMBER");
+          this.send({ type: "printout", what: "tables", address: a, count });
+          this.say(`${a} ON PRINTED - SEE THE PRINT-OUT UNDER THE PROGRAM TEXT`);
+        }, "1 TO 2048, CR FOR 64");
+      }, "A TABLE AND WORD, E.G. G0");
+    }, "P: THE LADDER DIAGRAM, NAMES AND PRESETS   D: A RUN OF DATA TABLE WORDS");
+  }
+
+  // --- help -----------------------------------------------------------------
+
+  help(from) { this.helpFrom = from; this.mode = "help"; }
+  helpKey() { this.mode = this.helpFrom; }
+
+  // --- the screen -----------------------------------------------------------------
+
+  eprom() { return !!(this.state && this.state.model && this.state.model.eprom); }
+  connected() { const m = this.state && this.state.model; return m ? `GEM80 ${m.title.replace("GEM 80/", "")}` : "NOT CONNECTED TO GEM80"; }
+
+  status() {
+    const s = this.state;
+    if (!s) return "NOT CONNECTED TO GEM80";
+    const run = s.running ? "RUNNING" : s.trip_code ? `HALTED - WATCHDOG TRIP F1=${s.trip_code}` : "HALTED";
+    return `GEM 80 STATUS - ${run} - ${s.test_inputs ? "TEST" : "NORMAL"} INPUTS.`;
+  }
+
+  say(text) { this.message = text; this.draw(); }
+
+  alarm(text) {
+    this.message = text;
+    this.beep();
+    this.unit.classList.remove("alarm"); void this.unit.offsetWidth; this.unit.classList.add("alarm");
+    this.draw();
+  }
+
+  unlockAudio() {
+    if (this.audio) return;
+    try { this.audio = new (window.AudioContext || window.webkitAudioContext)(); } catch { this.audio = null; }
+  }
+
+  beep() {
+    const a = this.audio;
+    if (!a) return;
+    try {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = "square"; o.frequency.value = 1150; g.gain.value = 0.04;
+      o.connect(g).connect(a.destination);
+      o.start(); o.stop(a.currentTime + 0.12);
+    } catch { /* no sound */ }
+  }
+
+  lines() {
+    const L = [];
+    const s = this.state;
+    if (this.mode === "power") {
+      L.push("", "", "", "", "", "", "", "", center("PORTABLE GEM 80 PROGRAMMER - VERSION 4.5"), "", center("8920 - ENGLISH - 50 HZ"));
+      return L;
+    }
+    if (!s) return ["", "", center("NOT CONNECTED TO GEM80")];
+    if (this.mode === "help") return this.helpLines();
+    if (this.mode === "control") {
+      const m = s.model;
+      L.push(center("PORTABLE GEM 80 PROGRAMMER - VERSION 4.5"), "", `  CONNECTED TO ${this.connected()}   ${m.memory} ${m.eprom ? "EPROM" : "RAM"}   PROGRAM ${s.instructions} OF ${m.instructions} INSTRUCTIONS`, "");
+      L.push("  CONTROL MODE - OPTIONS:", "");
+      L.push("     L   LADDER DIAGRAM - DISPLAY, MONITOR AND EDIT RUNGS");
+      L.push("     D   DATA TABLES - MONITOR AND WRITE, 32 LOCATIONS AT A TIME");
+      L.push("     P   PRESET DATA TABLE - VALUES AND MESSAGES KEPT WITH THE PROGRAM");
+      L.push("     O   PRINT-OUT OF THE PROGRAM OR THE DATA TABLES", "");
+      L.push("     H   HALT                R   RUN                 S   SINGLE CYCLE");
+      L.push("     T   TEST INPUTS         N   NORMAL INPUTS       C   CLEAR STORE", "");
+      L.push(`     KEY SWITCH AT ${this.monitorOnly ? "MONITOR ONLY: MONITORING ONLY" : "PROGRAM: ENTRY AND EDITING ALLOWED"}`);
+      return this.foot(L, "COMMAND LEVEL - OPTIONS:  L, D, P, O, H, R, S, T, N, C, ?.");
+    }
+    if (this.mode === "tables") return this.tableLines();
+    if (this.mode === "presets") return this.presetLines();
+    // ladder and entry
+    const rungs = this.rungs();
+    const r = rungs[this.cur];
+    L.push(`INSTRUCTIONS END AT ${s.instructions}`);
+    if (this.mode === "entry") L.push("RUNG ENTRY - RUNG NOT YET STORED");
+    else if (this.shown) L.push("DISPLAYED RUNG NOT STORED");
+    else if (r && r.instructions) L.push(`DISPLAYED RUNG ${this.cur + 1} OF ${rungs.length} STORED AS INSTRUCTIONS ${r.instructions[0]} to ${r.instructions[1]}`);
+    else L.push(rungs.length ? "" : "NO PROGRAM - E ENTERS A RUNG");
+    L.push("");
+    const show = this.mode === "entry" || this.shown ? this.preview : r;
+    const body = [];
+    if (show) {
+      if (show.comment && !this.shown && this.mode !== "entry") body.push(";" + String(show.comment).split("\n")[0].toUpperCase());
+      const live = this.monitor && show === r ? (s.flow || {}) : null;
+      body.push(...textRung(show, live).lines);
+    }
+    const room = ROWS - 7;
+    this.scroll = Math.min(this.scroll, Math.max(0, body.length - room));
+    for (const line of body.slice(this.scroll, this.scroll + room)) L.push(line.slice(this.pan, this.pan + COLS));
+    while (L.length < ROWS - 4) L.push("");
+    if (this.mode === "entry") {
+      const d = this.draft, top = d.stack.at(-1);
+      L.push(`RUNG ENTRY - ${d.stack.length > 1 ? `BRANCH LINE ${top.branches.length} OF ${d.stack.length - 1} OPEN BRANCH POINT${d.stack.length > 2 ? "S" : ""}` : "MAIN LINE"} - ${d.acts.length ? "OUTPUT ENTERED: ESC" : "FUNCTION KEYS ENTER ELEMENTS"}`);
+      return this.foot(L, "");
+    }
+    return this.foot(L, `COMMAND LEVEL - OPTIONS:  ${RUNG_COMMANDS}`);
+  }
+
+  tableLines() {
+    const v = this.values;
+    const L = [`DATA TABLE MONITOR - 32 LOCATIONS FROM ${this.tableAt}${v ? ` - ${v.address[0]} TABLE HAS ${v.size} WORDS` : ""}`, ""];
+    const m = /^([A-Z])(\d+)$/.exec(this.tableAt);
+    const cell = (i) => {
+      if (!v || i >= v.values.length) return "".padEnd(38);
+      const val = v.values[i], bits = (val & 0xFFFF).toString(2).padStart(16, "0");
+      return `${(m[1] + (Number(m[2]) + i)).padEnd(6)}${String(val).padStart(7)}  ${bits.replace(/(\d{4})(?=\d)/g, "$1 ")}`.padEnd(38);
+    };
+    for (let i = 0; i < 16; i++) L.push(" " + cell(i) + "  " + cell(i + 16));
+    while (L.length < ROWS - 4) L.push("");
+    L.push("");
+    return this.foot(L, "COMMAND LEVEL - OPTIONS:  N, B, S, W, T?.   ▲ ▼ MOVE 16 WORDS");
+  }
+
+  helpLines() {
+    const text = {
+      control: [
+        "CONTROL MODE", "",
+        "L  LADDER DIAGRAM: SHOW THE PROGRAM A RUNG AT A TIME, MONITOR IT AND EDIT IT",
+        "D  DATA TABLES: MONITOR 32 LOCATIONS, AND WRITE TO THEM",
+        "P  PRESET DATA TABLE: CONSTANTS AND MESSAGES LOADED WITH THE PROGRAM",
+        "O  PRINT-OUT: THE PROGRAM, OR A RUN OF DATA TABLE WORDS",
+        "H  HALT    R  RUN    S  SINGLE CYCLE: OBEY THE PROGRAM ONCE, FROM HALT",
+        "T  TEST INPUTS: THE A TABLE IS NO LONGER UPDATED FROM THE INPUTS, SO INPUTS",
+        "   CAN BE FORCED WITH W; THE WATCHDOG STAYS OPEN.    N  NORMAL INPUTS",
+        "C  CLEAR STORE: ERASE THE PROGRAM AND THE DATA TABLES (ASKS FIRST)", "",
+        "THE KEY SWITCH (RIGHT OF THE SCREEN) SETS PROGRAM OR MONITOR ONLY.",
+      ],
+      ladder: [
+        "COMMAND LEVEL (LADDER DIAGRAM)", "",
+        "F  FIRST RUNG      L  LAST RUNG       N  NEXT RUNG      B  BACK ONE RUNG",
+        "S  SEARCH: THE NEXT RUNG THAT USES AN ADDRESS",
+        "E  ENTER A NEW RUNG WITH THE FUNCTION KEYS; ESC WHEN IT IS COMPLETE",
+        "I  INSERT THE DISPLAYED NEW RUNG AFTER THE STORED ONE",
+        "R  REPLACE THE STORED RUNG WITH THE DISPLAYED ONE",
+        "C  CHANGE: EDIT THE STORED RUNG AS TEXT, THEN I OR R",
+        "D  DELETE THE STORED RUNG (ASKS FIRST), OR ABANDON A DISPLAYED ONE",
+        "M  MONITOR ON OR OFF: ..] [.. AN OPEN CONTACT, --] [-- A CLOSED ONE",
+        "W  WRITE A VALUE TO A DATA TABLE LOCATION    T  TERMINATE: BACK TO CONTROL MODE",
+        "◄ ► ▲ ▼  MOVE ROUND A RUNG TOO BIG FOR THE SCREEN",
+        "OUR READING OF THE OPTIONS: THE 8920 DATA SHEET NAMES THEM BUT NOT WHAT EACH DOES.",
+      ],
+      entry: [
+        "RUNG ENTRY", "",
+        "N/O -] [-  N/C -]/[-  AND THE ADDRESS, SPACE: A CONTACT IN SERIES",
+        "LINK  OPEN A BRANCH POINT     LF  NEXT LINE DOWN     JOIN  CLOSE IT",
+        "DELAY G26 VALUE 50, COUNT G25 VALUE 12, SPEC SQRT VALUE 100: ELEMENTS IN THE RUNG",
+        "AND, ADD, SUB AND A WORD OR NUMBER; LOGIC FOR OR, XOR AND INV",
+        "COIL -( )-, OUT, SEQR OR BLOCK: THE OUTPUT, WHICH ENDS THE RUNG",
+        "RUBOUT  TAKE BACK THE LAST ENTRY     ESC  FINISH (OR ABANDON A RUNG WITH NO OUTPUT)",
+        `A RUNG HAS UP TO ${MAX_BRANCHES} PARALLEL BRANCHES OF UP TO ${MAX_SERIES} SERIES ELEMENTS.`,
+      ],
+      presets: [
+        "PRESET DATA TABLE", "",
+        "W  WRITE A PRESET: A LOCATION, THEN A NUMBER, OR \"TEXT\" FOR A WRITEXT MESSAGE",
+        "D  DELETE A PRESET OR A MESSAGE     N  NEXT PAGE     B  BACK     T  TERMINATE",
+        "PRESETS ARE WRITTEN INTO THE TABLES WHEN THE PROGRAM IS LOADED, AND AGAIN",
+        "ONLY WHERE THEY CHANGE. USE TABLES KEPT ACROSS RUN: P OR R ON A GEM 80.",
+      ],
+      tables: [
+        "DATA TABLE MONITOR", "",
+        "N  NEXT 32 LOCATIONS     B  BACK 32     ▲ ▼  16 AT A TIME",
+        "S  START FROM ANOTHER LOCATION     W  WRITE A VALUE     T  TERMINATE",
+        "EACH LOCATION SHOWS ITS VALUE AND BITS 15 TO 0.",
+      ],
+    }[this.helpFrom] || [];
+    const L = ["", ...text.map((t) => "  " + t)];
+    while (L.length < ROWS - 4) L.push("");
+    return this.foot(L, "PRESS ANY KEY TO GO BACK");
+  }
+
+  foot(L, options) {
+    while (L.length < ROWS - 3) L.push("");
+    L.length = ROWS - 3;
+    if (this.confirm) L.push(this.confirm.label + "_");
+    else if (this.prompt) {
+      const line = this.prompt.label + this.prompt.buf + "_";
+      L.push(line.length > COLS ? "…" + line.slice(line.length - COLS + 1) : line);
+    } else L.push(options);
+    L.push(this.message || (this.prompt && this.prompt.hint ? "(" + this.prompt.hint + ")" : ""));
+    L.push(this.status());
+    return L;
+  }
+
+  draw() {
+    if (!this.screen) return;
+    const text = this.lines().slice(0, ROWS).map((l) => String(l).slice(0, COLS).padEnd(COLS)).join("\n");
+    if (text !== this.last) { this.last = text; this.screen.textContent = text; }
+    this.keyEl.classList.toggle("mon", this.monitorOnly);
+    this.unit.querySelectorAll("[data-pos]").forEach((n) => n.classList.toggle("on", (n.dataset.pos === "mon") === this.monitorOnly));
+  }
+}
+
+const center = (t) => " ".repeat(Math.max(0, Math.floor((COLS - t.length) / 2))) + t;
+
+// A line of series elements: contacts follow each other with AND; an element
+// that passes the word on (DELAY, SPEC, ADD ...) just follows.
+const seriesText = (items) => items.reduce((acc, t) => (acc ? acc + (WORD_ELEMENT.test(t) ? " " : " AND ") + t : t), "");
+function joinLines(section) {
+  const lines = section.branches.filter((b) => b.length).map(seriesText);
+  if (!lines.length) return "";
+  return lines.length === 1 ? lines[0] : "(" + lines.join(" OR ") + ")";
+}
+function draftCond8920(d) {
+  const stack = JSON.parse(JSON.stringify(d.stack));
+  while (stack.length > 1) {
+    const s = joinLines(stack.pop());
+    if (s) stack.at(-1).branches.at(-1).push(s);
+  }
+  return joinLines(stack[0]);
+}
+function draftSource(d) {
+  const out = d.acts[0];
+  return out === "END BLOCK" ? out : `${draftCond8920(d)} -> ${out}`.trim();
+}
+
 class MicroGemPanel extends HTMLElement {
   constructor() {
     super();
@@ -953,12 +2045,142 @@ class MicroGemPanel extends HTMLElement {
 
     // I/O point i -> its address; unit n (0 = controller) uses word n of A and B.
     function ioAddress(table, i, perUnit) {
+      const pts = state && state.points && state.points[table === "A" ? "inputs" : "outputs"];
+      if (pts && pts[i]) return pts[i];
       const unit = Math.floor(i / perUnit), point = i % perUnit;
       return `${table}${unit * Math.ceil(perUnit / 16) + Math.floor(point / 16)}.${point % 16}`;
     }
     const io = () => state.io || { units: 1, inputs: state.inputs.length, outputs: state.outputs.length };
 
+    const isGem80 = () => io().family === "gem80";
+
+    function buildToggle(group, i, title, label) {
+      const wires = { inputs: {} };
+      for (const [k, point] of Object.entries(wiring().inputs)) wires.inputs[k] = describe(point);
+      const b = el("button", "toggle");
+      b.title = title;
+      b.innerHTML = `<span class="plate"><span class="lever"></span></span><small>${label}</small>`;
+      if (wires.inputs[i]) { b.disabled = true; b.title += `: wired to ${wires.inputs[i].title}`; }
+      b.addEventListener("click", () => { if (mode === "toggle") send({ type: "input", index: i, value: !state.inputs[i] }); });
+      const press = (v) => (e) => { if (mode === "momentary") { e.preventDefault(); send({ type: "input", index: i, value: v }); } };
+      b.addEventListener("pointerdown", press(true));
+      b.addEventListener("pointerup", press(false));
+      b.addEventListener("pointerleave", (e) => { if (mode === "momentary" && state.inputs[i]) press(false)(e); });
+      group.append(b);
+    }
+
+    function buildGem80() {
+      const info = io(), model = state.model;
+      const wires = { inputs: {}, outputs: {}, analogue: {} };
+      for (const kind of ["inputs", "outputs", "analogue"]) {
+        for (const [i, point] of Object.entries(wiring()[kind])) wires[kind][i] = describe(point);
+      }
+      $("unit").innerHTML = gem80Svg(info, model, wires);
+      $("unit").classList.toggle("wirable", canWire());
+      $("title").textContent = `Virtual ${model.label}`;
+      $("about").textContent = `A ${model.label} compact controller running in software: a 19 inch subrack with ${info.slots.filter((s) => s.module).length} Compact I/O modules. Flip the inputs, watch the module lamps and the ladder, and program it from the 8920 Portable Programmer or the text editor.`;
+      host.classList.add("g80");
+      root.querySelector(".hw").classList.add("g80");
+      $("progwrap").style.display = "none";
+      $("g80-ctl").hidden = false;
+      $("p8920").hidden = false;
+      if (!pp) pp = new Programmer8920($("p8920"), send);
+      $("printer").hidden = !(model.printer);
+      if (model.printer && !paper) { paper = []; send({ type: "paper" }); }
+      const t = $("toggles");
+      t.replaceChildren();
+      for (const slot of info.slots) {
+        if (slot.kind === "analogue") { buildAnalogue(t, slot); continue; }
+        if (!slot.module || slot.kind !== "input") continue;
+        t.append(el("div", "group-label", `SLOT ${slot.slot} · ${slot.module} · ${slot.words.map((w) => "A" + w).join(" ")}`));
+        const group = el("div", "toggles");
+        group.style.setProperty("--n", Math.min(slot.channels, 16));
+        for (let c = 0; c < slot.channels; c++) {
+          const i = slot.first + c;
+          buildToggle(group, i, `Slot ${slot.slot} channel ${c} (${ioAddress("A", i)})`, String(c % 16));
+        }
+        t.append(group);
+      }
+      if (!g80Built) {
+        g80Built = true;
+        $("g80-mode").querySelectorAll("button").forEach((b) => b.addEventListener("click", () => send({ type: b.dataset.run === "1" ? "run" : "halt" })));
+      }
+      built = true;
+      buildLinks();
+    }
+    // Sliders for an 8108's channels, in volts; a wired channel follows its sensor.
+    // An 8108's range from its INPUT switch: [nominal, full scale, unit].
+    const anSwitches = (slotNo) => (state.analogue_switches || {})[String(slotNo)] || { input: "10V", scan: 8, forced: false };
+    const anRange = (slotNo) => AN_RANGES[anSwitches(slotNo).input] || AN_RANGES["10V"];
+    const anSlotOf = (i) => io().slots.find((sl) => sl.kind === "analogue" && i >= sl.first && i < sl.first + sl.channels);
+    function buildAnalogue(t, slot) {
+      t.append(el("div", "group-label", `SLOTS ${slot.slot + 1}–${slot.slot} · ${slot.module} · A${slot.words[0]} · ANALOGUE`));
+      const group = el("div", "analogue");
+      for (let c = 0; c < slot.channels; c++) {
+        const i = slot.first + c;
+        const row = el("label", "an-row");
+        const input = document.createElement("input");
+        Object.assign(input, { type: "range", min: "-10", max: "10", step: "0.05", value: "0" });
+        input.id = `ans-${i}`;
+        input.setAttribute("aria-label", `Analogue channel ${c} (slot ${slot.slot})`);
+        input.addEventListener("input", () => send({ type: "analogue", index: i, value: Number(input.value) }));
+        row.append(el("span", "an-ch", `CH ${c}`), input, el("span", "an-val", "0.00 V"));
+        row.lastChild.id = `ansv-${i}`;
+        group.append(row);
+      }
+      t.append(group);
+    }
+    function renderAnalogue() {
+      const volts = state.analogue || [];
+      const u = $("unit");
+      const wiredAn = (wiring().analogue) || {};
+      for (const slot of io().slots.filter((sl) => sl.kind === "analogue")) renderAnalogueSwitches(slot);
+      volts.forEach((v, i) => {
+        const slot = anSlotOf(i);
+        const [nominal, , unit] = slot ? anRange(slot.slot) : AN_RANGES["10V"];
+        const bar = u.querySelector(`#an-${i}`);
+        if (bar) {
+          const full = Number(bar.previousElementSibling.previousElementSibling.getAttribute("width"));
+          const half = full / 2, len = Math.min(1, Math.abs(v) / nominal) * half;
+          const mid = Number(bar.previousElementSibling.getAttribute("x1"));
+          bar.setAttribute("x", v < 0 ? mid - len : mid);
+          bar.setAttribute("width", len);
+        }
+        const tv = u.querySelector(`#anv-${i}`);
+        if (tv) tv.textContent = v.toFixed(2);
+        const sl = root.querySelector(`#ans-${i}`);
+        if (sl) {
+          const lo = unit === "mA" ? 0 : -nominal;
+          if (Number(sl.max) !== nominal || Number(sl.min) !== lo) Object.assign(sl, { min: String(lo), max: String(nominal), step: String(nominal / 200) });
+          if (root.activeElement !== sl) { sl.value = v; sl.disabled = !!wiredAn[i]; }
+        }
+        const sv = root.querySelector(`#ansv-${i}`);
+        if (sv) sv.textContent = `${v.toFixed(2)} ${unit}`;
+      });
+      const mux = state.mux || [];
+      u.querySelectorAll("[id^=mux-]").forEach((n) => n.classList.toggle("on", mux.includes(Number(n.id.slice(4)))));
+    }
+    // The 8108's switches on the drawing, as the controller has them.
+    function renderAnalogueSwitches(slot) {
+      const u = $("unit"), s = slot.slot, sw = anSwitches(s);
+      const lever = (id, up) => { const n = u.querySelector(`#${id}`); if (n) n.setAttribute("y", Number(n.dataset.y) + (up ? -8 : 0)); };
+      lever(`an-sw-input-${s}`, sw.input === "10V");
+      lever(`an-sw-word-${s}`, false);
+      lever(`an-sw-forced-${s}`, !sw.forced);
+      const dial = u.querySelector(`#an-dial-${s}`);
+      if (dial) dial.setAttribute("transform", dial.getAttribute("transform").replace(/rotate\(-?[\d.]+/, `rotate(${AN_DIAL(sw.scan)}`));
+      const n = u.querySelector(`#an-dialn-${s}`);
+      if (n) n.textContent = String(sw.scan);
+      const unitText = u.querySelector(`#an-unit-${s}`);
+      if (unitText) unitText.textContent = sw.input === "20mA" ? "mA" : "VOLTS";
+      const term = u.querySelector(`#an-term-${s}`);
+      if (term) term.textContent = sw.input === "20mA" ? "20 mA PANEL" : "PLANT SIGNALS";
+    }
+    let g80Built = false;
+    let pp = null; // the 8920 Portable Programmer, for a GEM 80
+
     function build() {
+      if (isGem80()) return buildGem80();
       const { units, inputs: nIn, outputs: nOut } = io();
       let svgs = "";
       const wires = { inputs: {}, outputs: {} };
@@ -1065,7 +2287,7 @@ class MicroGemPanel extends HTMLElement {
     const OFF = new Set(["off", "closed", "not_home", "away", "idle", "standby", "paused", "locked", "false", "0", "none", "", "unavailable", "unknown"]);
     const TRIGGERED = new Set(["button", "input_button", "scene", "script", "automation"]);
     const SWITCHABLE = new Set(["switch", "light", "fan", "input_boolean", "siren", "cover", "valve", "climate", "humidifier", "media_player", "water_heater", "vacuum", "remote", ...TRIGGERED]);
-    const wiring = () => (ha && ha.wiring) || { inputs: {}, outputs: {} };
+    const wiring = () => Object.assign({ inputs: {}, outputs: {}, analogue: {} }, (ha && ha.wiring) || {});
     const canWire = () => !!(ha && transport.wire);
     const hassState = (id) => host._hass && host._hass.states[id];
     function describe(point) {
@@ -1094,9 +2316,14 @@ class MicroGemPanel extends HTMLElement {
     function openEditor(kind, index) {
       if (!canWire()) return;
       editing = { kind, index };
+      if (kind === "analogue") return openAnalogueEditor(index);
       const { inputs: nIn, outputs: nOut } = io();
       const per = kind === "inputs" ? nIn : nOut, unit = Math.floor(index / per);
-      const where = `${kind === "inputs" ? "input terminal" : "relay output"} ${String(index % per).padStart(2, "0")}${unit ? ` on expansion unit ${unit}` : ""}`;
+      let where = `${kind === "inputs" ? "input terminal" : "relay output"} ${String(index % per).padStart(2, "0")}${unit ? ` on expansion unit ${unit}` : ""}`;
+      if (isGem80()) {
+        const slot = io().slots.find((sl) => sl.module && (sl.kind === "input") === (kind === "inputs") && index >= sl.first && index < sl.first + sl.channels);
+        if (slot) where = `slot ${slot.slot} (${slot.module}) channel ${index - slot.first}`;
+      }
       const addr = ioAddress(kind === "inputs" ? "A" : "B", index, per);
       const point = wiring()[kind][index];
       $("we-title").textContent = `Wire ${where} (${addr})`;
@@ -1110,6 +2337,7 @@ class MicroGemPanel extends HTMLElement {
       $("we-above").value = point && point.above != null ? point.above : "";
       $("we-invert").checked = !!(point && point.invert);
       $("we-attr-box").hidden = $("we-above-box").hidden = $("we-invert-box").hidden = kind !== "inputs";
+      $("we-low-box").hidden = $("we-high-box").hidden = true;
       $("we-remove").hidden = !point;
       fillAttributes(point && point.attribute);
       renderPicker(true);
@@ -1118,6 +2346,39 @@ class MicroGemPanel extends HTMLElement {
       $("wire-ed").scrollIntoView({ block: "nearest", behavior: "smooth" });
       $("we-search").focus();
     }
+    // An 8108 channel follows a number: low reads 0 V and high 10 V, in a
+    // straight line, up to the module's ±10 V.
+    function openAnalogueEditor(index) {
+      const slot = io().slots.find((sl) => sl.kind === "analogue" && index >= sl.first && index < sl.first + sl.channels);
+      const ch = index - slot.first;
+      const point = wiring().analogue[index];
+      $("we-title").textContent = `Wire analogue channel ${ch} of slot ${slot.slot} (${slot.module}, read through A${slot.words[0]})`;
+      const [nominal, , unit] = anRange(slot.slot), top = `${nominal} ${unit}`;
+      $("we-low-label").textContent = `Value at 0 ${unit}`;
+      $("we-high-label").textContent = `Value at ${top}`;
+      $("we-hint").textContent = `The channel follows the entity's number: the value you give for 0 ${unit} reads 0 ${unit}, the one for ${top} reads ${top}, in a straight line (the module's INPUT switch is at ${anSwitches(slot.slot).input}; click it on the drawing to change the range). A temperature of 0 to 40 °C suits the Room heating demo.`;
+      chosen = point ? point.entity_id : "";
+      $("we-search").value = "";
+      filter = "sensor";
+      $("we-low").value = point && point.low != null ? point.low : 0;
+      $("we-high").value = point && point.high != null ? point.high : 40;
+      $("we-attr-box").hidden = false;
+      $("we-above-box").hidden = $("we-invert-box").hidden = true;
+      $("we-low-box").hidden = $("we-high-box").hidden = false;
+      $("we-remove").hidden = !point;
+      fillAttributes(point && point.attribute);
+      renderPicker(true);
+      $("unit").querySelectorAll(".term").forEach((t) => t.classList.toggle("sel", t.dataset.kind === "analogue" && Number(t.dataset.index) === index));
+      $("wire-ed").hidden = false;
+      $("wire-ed").scrollIntoView({ block: "nearest", behavior: "smooth" });
+      $("we-search").focus();
+    }
+    // What a wired number puts on a channel, in the module's unit (as the integration's wiring.fraction).
+    const signal = (value, point, nominal) => {
+      const n = Number(value), lo = Number(point.low ?? 0), hi = Number(point.high ?? 100);
+      if (value === null || value === "" || Number.isNaN(n) || hi === lo) return null;
+      return Math.max(-1.0235, Math.min(1.0235, (n - lo) / (hi - lo))) * nominal;
+    };
     function closeEditor() {
       editing = null;
       $("wire-ed").hidden = true;
@@ -1136,6 +2397,12 @@ class MicroGemPanel extends HTMLElement {
       const entity_id = chosen;
       if (!entity_id) return null;
       const point = { entity_id };
+      if (editing.kind === "analogue") {
+        if ($("we-attr").value) point.attribute = $("we-attr").value;
+        point.low = Number($("we-low").value || 0);
+        point.high = Number($("we-high").value || 0);
+        return point;
+      }
       if (editing.kind === "inputs") {
         if ($("we-attr").value) point.attribute = $("we-attr").value;
         if ($("we-above").value !== "") point.above = Number($("we-above").value);
@@ -1152,6 +2419,16 @@ class MicroGemPanel extends HTMLElement {
       if (!st) { now.textContent = `${point.entity_id} is not in Home Assistant at the moment.`; now.classList.add("error"); return; }
       const value = point.attribute ? st.attributes[point.attribute] : st.state;
       const shown = typeof value === "object" ? JSON.stringify(value) : String(value);
+      if (editing.kind === "analogue") {
+        const slot = anSlotOf(editing.index), [nominal, , unit] = slot ? anRange(slot.slot) : AN_RANGES["10V"];
+        let v = signal(value, point, nominal);
+        if (v !== null && unit === "mA") v = Math.max(0, v);
+        now.textContent = point.high === point.low ? `The values for 0 ${unit} and ${nominal} ${unit} must differ.`
+          : v === null ? `${describe(point).name} is ${shown.slice(0, 60)} now, which is not a number: the channel would read 0 ${unit}.`
+          : `${describe(point).name} is ${shown.slice(0, 60)} now, so the channel would read ${v.toFixed(2)} ${unit}.`;
+        if (point.high === point.low) now.classList.add("error");
+        return;
+      }
       now.textContent = editing.kind === "inputs"
         ? `${describe(point).name} is ${shown.slice(0, 60)} now, so ${io_addr()} would be ${closes(st, point) ? "closed (on)" : "open (off)"}.`
         : `${describe(point).name} is ${shown.slice(0, 60)} now.${TRIGGERED.has(point.entity_id.split(".")[0]) ? " Pressed or run when the relay closes." : ""}`;
@@ -1174,7 +2451,7 @@ class MicroGemPanel extends HTMLElement {
     ];
     const NAMED = new Set(FILTERS.flatMap((f) => f.domains || []));
     const filterHas = (f, domain) => f.key === "all" || (f.domains ? f.domains.includes(domain) : !NAMED.has(domain));
-    const allowed = (kind, f) => kind === "inputs" || !f.inputsOnly;
+    const allowed = (kind, f) => kind !== "outputs" || !f.inputsOnly;
     let chosen = "", filter = "switch", highlight = 0, shownIds = [];
     function matcher(text) {
       const terms = text.trim().toLowerCase().split(/\s+/).filter(Boolean).map((t) =>
@@ -1187,7 +2464,7 @@ class MicroGemPanel extends HTMLElement {
       const states = (host._hass && host._hass.states) || {};
       // This controller's own switches and sensors are its internal I/O, not field devices.
       const own = new Set(Object.values(ha.entities || {}));
-      return Object.keys(states).filter((id) => !own.has(id) && (editing.kind === "inputs" || SWITCHABLE.has(id.split(".")[0])));
+      return Object.keys(states).filter((id) => !own.has(id) && (editing.kind !== "outputs" || SWITCHABLE.has(id.split(".")[0])));
     }
     function renderPicker(scrollToChosen) {
       const states = (host._hass && host._hass.states) || {};
@@ -1233,7 +2510,7 @@ class MicroGemPanel extends HTMLElement {
     }
     function choose(id) {
       chosen = id;
-      fillAttributes(editing.kind === "inputs" ? $("we-attr").value : "");
+      fillAttributes(editing.kind !== "outputs" ? $("we-attr").value : "");
       renderPicker();
     }
 
@@ -1250,6 +2527,15 @@ class MicroGemPanel extends HTMLElement {
         .catch((err) => { $("we-now").textContent = "Not saved: " + (err.message || err.code || err); $("we-now").classList.add("error"); });
     }
     $("unit").addEventListener("click", (e) => {
+      const a = e.target.closest && e.target.closest(".an-switch");
+      if (a) {
+        const slotNo = Number(a.dataset.slot), sw = anSwitches(slotNo), which = a.dataset.switch;
+        const order = Object.keys(AN_RANGES);
+        if (which === "input") send({ type: "analogue_switch", slot: slotNo, input: order[(order.indexOf(sw.input) + 1) % order.length] });
+        else if (which === "forced") send({ type: "analogue_switch", slot: slotNo, forced: !sw.forced });
+        else if (which === "scan") send({ type: "analogue_switch", slot: slotNo, scan: sw.scan % 8 + 1 });
+        return;
+      }
       const t = e.target.closest && e.target.closest(".term, .wl");
       if (t) openEditor(t.dataset.kind, Number(t.dataset.index));
     });
@@ -1268,6 +2554,8 @@ class MicroGemPanel extends HTMLElement {
     });
     $("we-attr").addEventListener("change", wirePreview);
     $("we-above").addEventListener("input", wirePreview);
+    $("we-low").addEventListener("input", wirePreview);
+    $("we-high").addEventListener("input", wirePreview);
     $("we-invert").addEventListener("change", wirePreview);
     $("we-save").addEventListener("click", () => saveWire(editedPoint()));
     $("we-remove").addEventListener("click", () => saveWire(null));
@@ -1295,6 +2583,12 @@ class MicroGemPanel extends HTMLElement {
         c.classList.toggle("on", !!on);
       });
       u.querySelector("#led-wdog")?.classList.toggle("on", !!state.watchdog);
+      u.querySelector("#led-wdog2")?.classList.toggle("on", !!state.watchdog);
+      if (isGem80()) {
+        $("g80-mode").querySelectorAll("button").forEach((b) => b.classList.toggle("active", (b.dataset.run === "1") === !!state.running));
+        const m = state.model;
+        $("g80-info").textContent = `${state.running ? "Running" : state.trip_code ? `Tripped by F1 = ${state.trip_code}` : "Halted"} · program ${state.instructions} of ${m.instructions} instructions · ${m.memory} ${m.eprom ? "EPROM" : "RAM"}`;
+      }
       $("toggles").querySelectorAll(".toggle").forEach((n, i) => n.classList.toggle("on", state.inputs[i]));
       $("keyswitch").classList.toggle("halt", !state.running);
       $("kp-run").innerHTML = state.running ? "<b>RUN</b>" : "RUN";
@@ -1302,6 +2596,9 @@ class MicroGemPanel extends HTMLElement {
       renderLadder();
       renderTables();
       renderLcd();
+      if (pp && isGem80()) pp.update(state);
+      if (state.printer) renderPrinter(state.printer);
+      if (state.analogue && state.analogue.length) renderAnalogue();
       if (!programDirty && state.program !== undefined && $("program").value !== state.program) $("program").value = state.program;
     }
     const schedule = () => { if (!frame) frame = requestAnimationFrame(render); };
@@ -1309,7 +2606,7 @@ class MicroGemPanel extends HTMLElement {
     function renderLadder() {
       const rungs = state.ladder || [];
       const box = $("ladder");
-      const ctx = { live: state.live || {}, flow: state.flow || {}, draft: false };
+      const ctx = { live: state.live || {}, flow: state.flow || {}, names: state.names || {}, draft: false };
       const all = draftRungs ? rungs.concat(draftRungs.map((r) => ({ ...r, draft: true }))) : rungs;
       if (!all.length) { box.innerHTML = `<div class="ladder-empty">No program loaded.</div>`; return; }
       const condWidth = Math.max(...all.map((r) => size(r.condition).w));
@@ -1720,6 +3017,7 @@ class MicroGemPanel extends HTMLElement {
     });
 
     function onMessage(msg) {
+      if (pp && state && isGem80() && pp.reply(msg)) return;
       if (msg.type === "state") {
         if (!examples) { examples = []; send({ type: "examples" }); }
         state = Object.assign(state || {}, msg);
@@ -1745,6 +3043,18 @@ class MicroGemPanel extends HTMLElement {
         draftRungs = msg.rungs;
         if (!P.draft.acts.length && draftRungs[0]) draftRungs[0].output = null;
         schedule();
+      } else if (msg.type === "paper") {
+        paper = msg.lines.slice();
+        printedSeen = msg.printed;
+        if (state) state.printer = Object.assign({}, state.printer || {}, msg, { lines: msg.lines.slice(-20) });
+        drawPaper(msg);
+      } else if (msg.type === "imported") {
+        $("program").value = msg.source;
+        programDirty = true;
+        setMessage(`${msg.summary}. Check it, then Load program.`);
+      } else if (msg.type === "printout") {
+        $("printout-text").textContent = msg.text;
+        $("printout-box").hidden = false;
       } else if (msg.type === "loaded") {
         programDirty = false;
         setMessage("Program loaded.");
@@ -1767,9 +3077,104 @@ class MicroGemPanel extends HTMLElement {
       $("program").value = e.source;
       programDirty = true;
       send({ type: "load", source: e.source });
+      if (state && state.printer) send({ type: "power_cycle" }); // so its printer port set-up takes
       selected = 0;
     });
     $("load").addEventListener("click", () => send({ type: "load", source: $("program").value }));
+
+    // The printer on the printer port: keep our own roll of paper, topped
+    // up from the last lines in each state, or fetched whole after a gap.
+    let paper = null, printedSeen = 0;
+    function renderPrinter(pr) {
+      if (!paper) return;
+      const fresh = pr.printed - printedSeen;
+      if (fresh > pr.lines.length) { printedSeen = pr.printed; send({ type: "paper" }); return; }
+      if (fresh > 0) paper.push(...pr.lines.slice(pr.lines.length - fresh));
+      printedSeen = pr.printed;
+      if (paper.length > 200) paper.splice(0, paper.length - 200);
+      drawPaper(pr);
+    }
+    function drawPaper(pr) {
+      const box = $("vp-paper"), pre = $("vp-lines");
+      const atEnd = box.scrollTop + box.clientHeight >= box.scrollHeight - 4;
+      const text = paper.join("\n") + (paper.length ? "\n" : "");
+      const key = text + "\u0000" + pr.head;
+      if (pre.dataset.key !== key) {
+        pre.dataset.key = key;
+        pre.textContent = text;
+        pre.append(el("span", "head", pr.head || ""));
+        if (atEnd) box.scrollTop = box.scrollHeight;
+      }
+      $("vp-lamp").classList.toggle("on", !!pr.on_line);
+      $("vp-line").textContent = pr.on_line ? "Off line" : "On line";
+      $("vp-status").textContent = `${pr.on_line ? "On line" : "Off line"} · buffer ${pr.buffered} of ${pr.size} characters · ${pr.printed} lines printed` + (pr.lost ? ` · ${pr.lost} characters lost off line` : "");
+      const su = pr.setup || {}, port = $("vp-port");
+      let portText = su.problem ? `Port 1: ${su.problem}.` : `Port 1: printer port, ${su.rate} bit/s, ${su.line} characters a line` + (su.padding ? `, ${su.padding} NULs after each` : "") + ".";
+      if (pr.changed) portText += " P2 to P5 have changed; the port reads them at power on (or Halt and Run).";
+      if (!pr.part_lines) portText += " (The 6K sends complete lines only.)";
+      $("vp-port-text").textContent = portText;
+      $("vp-power").hidden = !pr.changed;
+      port.classList.toggle("bad", !!(su.problem || pr.changed));
+      $("vp-keys-row").hidden = !(pr.keyboard && !su.problem);
+    }
+    $("vp-line").addEventListener("click", () => send({ type: "printer", action: state.printer && state.printer.on_line ? "off_line" : "on_line" }));
+    $("vp-tear").addEventListener("click", () => send({ type: "printer", action: "tear_off" }));
+    $("vp-power").addEventListener("click", () => send({ type: "power_cycle" }));
+    // The serial keyboard: each key as it is pressed (J0 holds one at a time).
+    $("vp-keys").addEventListener("keydown", (ev) => {
+      const key = ev.key === "Enter" ? "\r" : ev.key === "Backspace" ? "\b" : ev.key === "Escape" ? "\x1b" : ev.key;
+      if (key.length !== 1 || ev.ctrlKey || ev.metaKey) return;
+      ev.preventDefault();
+      send({ type: "printer", action: "type", text: key });
+    });
+    $("vp-save").addEventListener("click", () => download(`${fileStem()}-printer.txt`, (paper || []).join("\n") + "\n"));
+
+    // Files: open, drop, convert, save and print-out.
+    const fileStem = () => (state && state.model ? state.model.title : "microgem")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    const download = (name, text) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      a.download = name;
+      root.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    };
+    // A CSV of names or data merges into the programme: the one in the box
+    // when a file is opened, the loaded one when the box itself is converted.
+    const importText = (text, current = $("program").value) => send({ type: "import", text, current });
+    const readFile = (file) => {
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) return setMessage("That file is over 2 MB, too big for a programme.", true);
+      file.text().then(importText, () => setMessage("Could not read that file.", true));
+    };
+    $("open-file").addEventListener("click", () => $("file-input").click());
+    $("file-input").addEventListener("change", (e) => { readFile(e.target.files[0]); e.target.value = ""; });
+    $("convert").addEventListener("click", () => importText($("program").value, (state && state.program) || ""));
+    $("save-file").addEventListener("click", () => download(`${fileStem()}-program.txt`, $("program").value));
+    $("printout").addEventListener("click", () => send({ type: "printout" }));
+    $("printout-close").addEventListener("click", () => { $("printout-box").hidden = true; });
+    $("printout-save").addEventListener("click", () => download(`${fileStem()}-printout.txt`, $("printout-text").textContent));
+    $("printout-print").addEventListener("click", () => {
+      const w = window.open("", "_blank");
+      if (!w) return setMessage("The browser blocked the print window; use Download instead.", true);
+      const pre = w.document.createElement("pre");
+      pre.style.font = "10pt/1.3 monospace";
+      pre.textContent = $("printout-text").textContent;
+      w.document.title = "Ladder print-out";
+      w.document.body.appendChild(pre);
+      w.print();
+    });
+    const ta = $("program");
+    ta.addEventListener("dragover", (e) => { e.preventDefault(); ta.classList.add("drop"); });
+    ta.addEventListener("dragleave", () => ta.classList.remove("drop"));
+    ta.addEventListener("drop", (e) => {
+      ta.classList.remove("drop");
+      const file = e.dataTransfer && e.dataTransfer.files[0];
+      if (!file) return;
+      e.preventDefault();
+      readFile(file);
+    });
     $("program").addEventListener("keydown", (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); $("load").click(); }
     });
