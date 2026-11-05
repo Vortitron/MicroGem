@@ -141,7 +141,8 @@ class ControllerService:
 
         Commands: ``{"type": "input", "index": 0, "value": true}``, ``{"type":
         "analogue", "index": 0, "value": 4.5}`` (volts), ``{"type": "run"}``,
-        ``{"type": "halt"}``, ``{"type": "read", "address": "G12"}``,
+        ``{"type": "halt"}``, ``{"type": "power_cycle"}`` (switch off and on: the
+        printer port reads its preset data again), ``{"type": "read", "address": "G12"}``,
         ``{"type": "preview", "source": "..."}`` (parse without loading), ``{"type": "write", "address": "G12", "value": 5}`` and
         ``{"type": "load", "source": "..."}`` and ``{"type": "examples"}`` (the demo
         programmes, to pick from). A programmer also sends ``{"type": "single"}``
@@ -158,7 +159,8 @@ class ControllerService:
         message in the program text and load it (``null`` removes it). On a controller with a printer
         port, ``{"type": "paper"}`` returns everything printed so far and
         ``{"type": "printer", "action": "tear_off" | "on_line" | "off_line"}``
-        works the printer.
+        works the printer; ``{"type": "printer", "action": "type", "text": "Y"}``
+        types on its keyboard (into J0, one character a scan).
         """
         kind = message.get("type")
         try:
@@ -170,6 +172,9 @@ class ControllerService:
                 self.run()
             elif kind == "halt":
                 self.halt()
+            elif kind == "power_cycle":
+                self.controller.power_cycle()
+                self._notify_if_changed(force=True)
             elif kind == "single":
                 self.single_cycle()
             elif kind == "test_inputs":
@@ -233,6 +238,8 @@ class ControllerService:
                     printer.tear_off()
                 elif action in ("on_line", "off_line"):
                     printer.on_line = action == "on_line"
+                elif action == "type":
+                    self.controller.type_keys(str(message.get("text", "")))
                 else:
                     raise ValueError(f"unknown printer action {action!r}")
                 self._notify_if_changed(force=True)

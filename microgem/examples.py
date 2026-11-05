@@ -267,14 +267,20 @@ PRESET R100 = 0 400 32000 0
 PRESET R104 = 0 250 32000 50
 ; PIDABS data: F P I D L+ L- L1 L2 S H
 PRESET R200 = 0 600 40 0 1000 0 1000 1000 1 0
-; The printed text
+; Port 1 as a printer port (P5 negative): no padding, 80 characters a line,
+; 1200 bit/s. The port reads these when the controller goes to Run.
+PRESET P2 = 0 80 1200 -1
+; The printed text: a list of messages, each in the words after the last;
+; WRITEXT's rung input picks one, 1 the first
 MESSAGE P100 = ":"
-MESSAGE P102 = "0"
-MESSAGE P104 = "  HEATING ON, SET POINT "
-MESSAGE P120 = "  HEATING OFF, ROOM "
-MESSAGE P140 = "  TOO HOT, ROOM "
-MESSAGE P160 = "."
-MESSAGE P162 = " C\\n"
+MESSAGE P101 = "  HEATING ON, SET POINT "
+MESSAGE P114 = "  HEATING OFF, ROOM "
+MESSAGE P125 = "  TOO HOT, ROOM "
+MESSAGE P134 = " C\\n"
+; WRINUM formats: width, characters from the decimal point, power of ten
+PRESET P140 = 2 0 0
+PRESET P143 = 1 0 0
+PRESET P146 = 4 2 -1
 
 ; Read the 8108 (as in its manual, T443 8.3): the channel to G20, the value
 ; to G21, then MOVE it to G100 + channel: G100 is channel 0, G101 channel 1
@@ -323,37 +329,31 @@ HEATING -> G1.1
 TOOHOT AND NOT G1.4 -> G1.3
 TOOHOT -> G1.4
 
-; Each log line starts with the time, hh:mm, from the clock in E3 and E2
-G1.0 OR G1.2 OR G1.3 -> BLOCK
-AND E3 SPEC WRINUM VALUE 2 -> OUT G160
+; A log line, unless the printer buffer is more than 2/3 full (E0.8)
+G1.0 OR G1.2 OR G1.3 -> G1.5
+G1.5 AND NOT E0.8 -> BLOCK
+; The time, hh:mm, from the clock in E3 and E2; message 1 is ":"
+AND E3 SPEC WRINUM VALUE P140 -> OUT G160
 AND 1 SPEC WRITEXT VALUE P100 -> OUT G160
-AND E2 SPEC COMPARE [AND 10] VALUE G164 -> OUT G165
-G164.11 -> BLOCK
-AND 1 SPEC WRITEXT VALUE P102 -> OUT G160
-END BLOCK
-AND E2 SPEC WRINUM VALUE 0 -> OUT G160
-END BLOCK
-
+AND E2 SPEC DIV [AND 10] VALUE G164 -> OUT G165
+AND G165 SPEC WRINUM VALUE P143 -> OUT G160
+AND G164 SPEC WRINUM VALUE P143 -> OUT G160
+; What happened (messages 2, 3 and 4) and the degrees to go with it
 G1.0 -> BLOCK
-AND 1 SPEC WRITEXT VALUE P104 -> OUT G160
+AND 2 SPEC WRITEXT VALUE P100 -> OUT G160
 AND SETPT -> OUT G170
 END BLOCK
 G1.2 -> BLOCK
-AND 1 SPEC WRITEXT VALUE P120 -> OUT G160
+AND 3 SPEC WRITEXT VALUE P100 -> OUT G160
 AND TEMP -> OUT G170
 END BLOCK
 G1.3 -> BLOCK
-AND 1 SPEC WRITEXT VALUE P140 -> OUT G160
+AND 4 SPEC WRITEXT VALUE P100 -> OUT G160
 AND TEMP -> OUT G170
 END BLOCK
-
-; Then the degrees in G170, to a tenth, and the end of the line
-G1.0 OR G1.2 OR G1.3 -> BLOCK
-AND G170 SPEC DIV [AND 10] VALUE G171 -> OUT G172
-AND G172 SPEC WRINUM VALUE 0 -> OUT G160
-AND 1 SPEC WRITEXT VALUE P160 -> OUT G160
-AND G171 SPEC WRINUM VALUE 0 -> OUT G160
-AND 1 SPEC WRITEXT VALUE P162 -> OUT G160
+; The degrees in G170 (tenths) as 21.5, and the end of the line (message 5)
+AND G170 SPEC WRINUM VALUE P146 -> OUT G160
+AND 5 SPEC WRITEXT VALUE P100 -> OUT G160
 END BLOCK
 """
 

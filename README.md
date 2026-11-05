@@ -194,11 +194,33 @@ and 10 V). The **Room heating** demo reads it with LOCATE and MOVE exactly as
 the manual's example does, scales with LINCON, controls with PIDABS and
 switches a heater relay in proportion over a 10 s cycle.
 
-On a 130C or 130CE the **printer** on the printer port prints what the
-program sends with `WRITEXT` (S22) and `WRINUM` (S23): on fanfold paper in the
-panel, at 1200 bit/s from a 512 character buffer, with flags in `F50`
-(`F50.0` off line, `F50.1` filling, `F50.2` empty). Take it off line, tear off
-the paper or download it.
+On a 130C or 130CE, port 1 can be a **printer port**, set up by preset data as
+the data sheets give it (T278 Table 5, and T247/T419 for the 225 series of the
+same generation): `P5` negative makes it a printer port, `P2` is the NULs
+added after each line for a slow printer, `P3` the characters a line (1 to
+125) and `P4` the bit/s (110 to 9600), so `PRESET P2 = 0 80 1200 -1` gives an
+80-column printer at 1200 bit/s. The real controller reads these at power on;
+the emulator reads them when it goes to Run, or at **Switch off and on**
+(which the panel offers when they have changed, and does for you when it
+loads a demo). The program prints with
+`WRITEXT` (S22) and `WRINUM` (S23) into a 255-character buffer, and `E0.8` is
+on while the buffer is more than two thirds full. Lines come out on fanfold
+paper in the panel at the set rate (11 bits a character), wrapped at `P3`.
+On the 12K an ETX (`\e`) sends a part line, and the panel's keyboard puts each
+key in `J0`, one a scan, as the Serial Links manual (T418, 6.3) describes; the
+6K sends complete lines only and takes no keyboard. The 20 mA loop has no
+handshake, so what is sent with the printer off line is lost.
+
+`WRITEXT`'s rung input picks message *n* from the list that starts at
+`VALUE` (1 the first): each message is a length byte and its characters,
+packed two to a word, and the next one starts in the following word. Write
+the list with `MESSAGE` lines in consecutive words (`MESSAGE P100 = ":"`,
+`MESSAGE P101 = "HEATING ON"` and so on); the emulator refuses ones that
+overlap. `WRINUM` prints the rung word in the format in three words at
+`VALUE`: the field width, the characters from the decimal point on (0 for
+none) and a power of ten to scale by, so `PRESET P146 = 4 2 -1` prints 215 as
+`21.5`. A number that does not fit loses decimals, then the 0 before the
+point, then is printed in the six-character default format (`P00215`).
 
 ### Your own programmes
 
@@ -314,12 +336,16 @@ and `SET` / `RESET` outputs (the real one latches with a seal-in branch).
   them all.
 - The default 12 inputs / 8 outputs match the MicroGEM60; `--inputs` /
   `--outputs` change them.
-- WRITEXT (S22) and WRINUM (S23): no data sheet for either has been found.
-  WRITEXT takes the message layout of PRITEXT (S38), which the WRITEXT example
-  in the Serial Links manual (T418) bears out, with PRITEXT's fault codes;
-  WRINUM printing the rung word as a number in a field `VALUE` characters wide
-  is our reading of its name. The printer buffer size, the baud rate and the
-  `F50` flags are our choice (the 131's port 3 flags are F50.0 and F50.1).
+- WRITEXT (S22) and WRINUM (S23) have no data sheets online. The message
+  layout is the one in the Serial Links manual's WRITEXT example (T418, 6.3);
+  that the rung input numbers a message in a list comes from their timing and
+  memory figures (T278, T419: "0.23 x message no.", half "qty of messages +
+  total qty of characters"), and starting each message on a new word is our
+  choice. WRINUM's three words are read as the three quantities of a numeric
+  field on the later PRINT (T38); the order is ours.
+- The 130C's printer port preset words: the 130C data sheet (T278) says only
+  that preset data sets the port up, so the 225/235/245's `P2` to `P5` (T419)
+  are used. The 130C has `E0` to `E6`, and its E0.8 is taken from the 225's.
 - The 8108's forced-scan mode, its 5 V and 20 mA ranges and the scan number
   switch are not emulated: it self-scans all 16 channels at ±10 V.
 - The 8920's preset data table and print-out keys (`P` and `O`): its data

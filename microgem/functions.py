@@ -551,47 +551,120 @@ def store(ctx: Context, x: int, y: int, zm: Address) -> int:
 
 
 # --- printer port: S22 WRITEXT and S23 WRINUM -----------------------------
-# No data sheet for these two has been found. The message layout is the one
-# the PRITEXT (S38) sheet gives, which the WRITEXT example in the Serial Links
-# manual (T418, 6.3) bears out: bits 0-7 of Zm hold the length (0 to 255),
-# bits 8-15 the first character, then two characters a word, the low byte
-# first. The rung input selects the port as for PRITEXT (0 = do nothing), and
-# the fault codes are PRITEXT's: 0 done, 9 message beyond the table, 17 no
-# printer port, 129 printer buffer full.
+# Their own data sheets have not been found; this is what the other documents
+# give. A message is a length (0 to 255) in bits 0-7 of its first word, the
+# first character in bits 8-15, then two characters a word, low byte first:
+# the WRITEXT example in the Serial Links manual (T418, 6.3) has the length 4
+# in G10, counting the NUL in the top of G10, the character and NUL in G11 and
+# the ETX in G12. The data sheets for the 130 and 225 series (T278, T419)
+# give WRITEXT's time as "0.20 + 0.23 x message no. + 0.035 x quantity of
+# characters" and its memory as half "qty of messages + total qty of
+# characters": Zm starts a list of messages and the rung input X is the
+# number of the one to print, 1 the first (as in T418: AND 1, VALUE G10).
+# Each message starts in the word after the last one ends. WRINUM takes
+# three locations (T419, Table 1.2); the emulator reads them as the three
+# quantities a numeric field has on the later PRINT (T38): the field width,
+# the characters from the decimal point on, and a power of ten to scale by.
+# The fault codes are PRINT's and PRITEXT's: 0 done, 5 message number out of
+# range, 9 beyond the end of the table, 17 the port is not a printer port,
+# 65 a bad format (the default one used), 129 printer buffer full.
 
-def message_codes(ctx: Context, zm: Address) -> list[int] | None:
-    first = ctx.get(zm) & 0xFFFF
+def _message_start(ctx: Context, zm: Address, number: int) -> int | None:
+    """Words from Zm to message ``number`` (1 the first), or None off the table."""
+    offset = 0
+    for _ in range(number - 1):
+        if not ctx.fits(zm, offset + 1):
+            return None
+        offset += 1 + (ctx.get(zm, offset) & 0xFF) // 2
+    return offset
+
+
+def message_codes(ctx: Context, zm: Address, number: int = 1) -> list[int] | None:
+    """The character codes of message ``number`` in the list at Zm."""
+    offset = _message_start(ctx, zm, number)
+    if offset is None or not ctx.fits(zm, offset + 1):
+        return None
+    first = ctx.get(zm, offset) & 0xFFFF
     length = first & 0xFF
     words = 1 + length // 2
-    if not ctx.fits(zm, words):
+    if not ctx.fits(zm, offset + words):
         return None
     codes = [first >> 8]
     for k in range(1, words):
-        w = ctx.get(zm, k) & 0xFFFF
+        w = ctx.get(zm, offset + k) & 0xFFFF
         codes += [w & 0xFF, w >> 8]
     return codes[:length]
 
 
+def _port(ctx: Context):
+    printer = ctx.printer
+    return printer if printer is not None and printer.setup.working else None
+
+
 def writext(ctx: Context, x: int, _y: int, zm: Address) -> int:
+    x = to_signed(x)
     if x == 0:
         return 0
-    if ctx.printer is None:
+    if x < 0:
+        return 5
+    printer = _port(ctx)
+    if printer is None:
         return 17
-    codes = message_codes(ctx, zm)
+    codes = message_codes(ctx, zm, x)
     if codes is None:
         return 9
-    return 0 if ctx.printer.put(codes) else 129
+    return 0 if printer.put(codes) else 129
 
 
-def wrinum(ctx: Context, x: int, _y: int, value: Address | int) -> int:
-    """The rung word as a signed decimal number, right-justified in a field
-    VALUE characters wide (0 for no padding). Our reading of the name; no data
-    sheet has been found."""
-    if ctx.printer is None:
+#: WRINUM's default format, as PRINT's: six characters, P or N for the sign,
+#: no scaling, leading zeros printed.
+def _default_number(value: int) -> str:
+    return ("N" if value < 0 else "P") + f"{abs(value):05d}"
+
+
+def format_number(value: int, width: int, point: int, scale: int) -> str | None:
+    """``value`` x 10^``scale`` right-justified in ``width`` characters, with
+    ``point`` characters from the decimal point on (0 for none), rounded half
+    up; None if the format is no good. Too wide a number loses decimals, then
+    the 0 before the point, then takes the default format (as PRINT, T38)."""
+    if not (1 <= width <= 15 and 0 <= point < width and -5 <= scale <= 5):
+        return None
+    places = max(0, point - 1)
+    while True:
+        # Exact decimal arithmetic: value x 10^(scale + places), rounded half up.
+        shift = scale + places
+        n = abs(value) * 10 ** shift if shift >= 0 else (abs(value) * 2 + 10 ** -shift) // (2 * 10 ** -shift)
+        digits = str(n).rjust(places + 1, "0")
+        whole, frac = digits[:len(digits) - places], digits[len(digits) - places:]
+        negative = value < 0 and n != 0
+        text = ("-" if negative else "") + whole + ("." + frac if point else "")
+        if len(text) <= width:
+            return text.rjust(width)
+        if whole == "0" and point and len(text) - 1 <= width:
+            return text.replace("0.", ".", 1).rjust(width)
+        if places == 0:
+            break
+        places -= 1
+        point = places + 1 if places else 0
+    return _default_number(value)
+
+
+def wrinum(ctx: Context, x: int, _y: int, zm: Address) -> int:
+    """The rung word as a number, in the format at Zm, Zm+1, Zm+2: the width,
+    the characters from the decimal point on, the power of ten to scale by."""
+    printer = _port(ctx)
+    if printer is None:
         return 17
-    width = max(0, min(15, ctx.number(value)))
-    text = str(to_signed(x)).rjust(width)
-    return 0 if ctx.printer.put([ord(c) for c in text]) else 129
+    if not ctx.fits(zm, 3):
+        return 9
+    value = to_signed(x)
+    text = format_number(value, ctx.get(zm), ctx.get(zm, 1), ctx.get(zm, 2))
+    fault = 0
+    if text is None:
+        text, fault = _default_number(value), 65
+    if not printer.put([ord(c) for c in text]):
+        return 129
+    return fault
 
 
 FUNCTIONS: dict[str, Function] = {

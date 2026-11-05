@@ -48,7 +48,8 @@ Preset data and names, which a programmer keeps with the program::
 
     PRESET P1 = 20                          P1 (the repetition interval) is 20
     PRESET W100 = 0 1067 3200 64 2          W100 to W104, one after another
-    MESSAGE G100 = "FILL FAULT\\n"           text for WRITEXT (S22), packed as it needs
+    MESSAGE P100 = "FILL FAULT\\n"           text for WRITEXT (S22), packed as it needs;
+    MESSAGE P107 = "DOOR OPEN\\n"            the next words: message 2 of the list at P100
     NAME A0.0 START Start push button       a mnemonic (up to 7 characters) and
                                             a description for an address
 
@@ -103,7 +104,7 @@ SPECIAL = {"MULT": "T10", "DIV": "T11"}
 SPEC_VALUE = {
     "S0": "location", "S1": "none", "S2": "none", "S3": "none", "S4": "ignored",
     "S11": "location", "S12": "either", "S20": "location", "S22": "location",
-    "S23": "either", "S30": "location",
+    "S23": "location", "S30": "location",
     "S31": "location", "S32": "location", "S33": "location", "S34": "location",
     "S35": "location", "S36": "location", "S37": "location",
     "T0": "location", "T10": "none", "T11": "location", "T20": "either", "T30": "location",
@@ -720,7 +721,16 @@ def _directive(program: Program, text: str, line: int) -> bool:
             raise ProgramError(str(exc), line) from None
         if start.is_bit:
             raise ProgramError("MESSAGE takes a word address, such as G100", line)
-        for k, value in enumerate(pack_message(unescape(text[1:-1], line), line)):
+        words = pack_message(unescape(text[1:-1], line), line)
+        for other, other_text in program.messages.items():
+            size = len(pack_message(unescape(other_text)))
+            if other.table == start.table and other.word < start.word + len(words) \
+                    and start.word < other.word + size:
+                end = Address(other.table, other.word + size)
+                raise ProgramError(f"this MESSAGE overlaps the one at {other}, which ends before {end}"
+                                   if other.word < start.word else
+                                   f"this MESSAGE ({len(words)} words) runs into the one at {other}", line)
+        for k, value in enumerate(words):
             program.presets[Address(start.table, start.word + k)] = value
         program.messages[start] = text[1:-1]
         return True

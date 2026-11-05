@@ -31,8 +31,12 @@ The GEM 80 compact controllers join the MicroGEM60.
 - The engine has SINGLE CYCLE, TEST INPUTS (T478, 2.3.8) and CLEAR STORE, and
   reports which instructions each rung is stored as.
 - RAMP (S33), PIDABS (S34), PIDINC (S35) and INCOUT (S36), and the printer
-  functions WRITEXT (S22) and WRINUM (S23) with a virtual printer on fanfold
-  paper (130C and 130CE).
+  functions WRITEXT (S22, message *n* of a list) and WRINUM (S23, a number in
+  a width, decimal places and scaling) with a virtual printer on fanfold
+  paper (130C and 130CE). Port 1 is set up by `P2` to `P5` as the data sheets
+  give it: padding, characters a line, 110 to 9600 bit/s, and `P5` negative
+  for a printer. A 255-character buffer with `E0.8` on at two thirds full,
+  part lines with ETX and a keyboard into `J0` on the 12K.
 - The 8108 Compact Analogue Input Module: 16 channels multiplexed into one A
   word (T443), sliders on the panel, and in Home Assistant a channel can follow
   any numeric entity. It is in the default modules (slots 5 and 6).

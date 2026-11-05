@@ -573,19 +573,25 @@ PRESET R10 = 5, -6 @00FF
             raise AssertionError(bad)
 
 
-def test_writext_and_wrinum_print_through_the_buffer():
-    source = """\
+PRINTER_PORT = "PRESET P2 = 0 80 1200 -1  ; port 1 a printer: no padding, 80 a line, 1200 bit/s\n"
+
+
+def test_writext_prints_a_message_from_a_list():
+    source = PRINTER_PORT + """\
 MESSAGE P100 = "CRATE \\e"
-MESSAGE P110 = " DONE\\n"
+MESSAGE P104 = " DONE\\n"
+PRESET P120 = 4 0 0
 A0.0 -> BLOCK
 AND 1 SPEC WRITEXT VALUE P100 -> OUT G90
-AND G12 SPEC WRINUM VALUE 4 -> OUT G91
-AND 1 SPEC WRITEXT VALUE P110 -> OUT G92
+AND G12 SPEC WRINUM VALUE P120 -> OUT G91
+AND 2 SPEC WRITEXT VALUE P100 -> OUT G92
 END BLOCK
-AND 1 SPEC WRITEXT VALUE G500 -> OUT G93
+AND 1 SPEC WRITEXT VALUE G799 -> OUT G93
+AND 0 SUB 1 SPEC WRITEXT VALUE P100 -> OUT G94
 """
-    plc = gem80(source.replace("G500", "G799"))
-    assert plc.program.messages and word(plc, "P100") == 7 | (ord("C") << 8)
+    plc = gem80(source)
+    assert plc.printer.setup.working and plc.printer.setup.rate == 1200
+    assert word(plc, "P100") == 7 | (ord("C") << 8)
     put(plc, "G12", 42)
     put(plc, "G799", 10)  # a 10-character message at the very end of G
     inp = {str(plc.config.input_address(i)): i for i in range(plc.config.total_inputs)}
@@ -594,25 +600,151 @@ AND 1 SPEC WRITEXT VALUE G500 -> OUT G93
     plc.set_input(inp["A0.0"], False)
     assert [word(plc, g) for g in ("G90", "G91", "G92")] == [0, 0, 0]
     assert word(plc, "G93") == 9  # G799 + its message runs off the end of G
+    assert word(plc, "G94") == 5  # no message -1
     for _ in range(20):
         plc.scan(20)
     paper = plc.printer.snapshot()
     assert paper["lines"] == ["CRATE   42 DONE"] and paper["buffered"] == 0
-    assert plc.tables.get_bit(parse_address("F50.2"))  # empty
 
-    # A message every scan fills the buffer: fault 129 and the filling flag.
-    plc.set_input(inp["A0.0"], True)
-    for _ in range(40):
+
+def test_writext_message_layout_of_the_serial_links_manual():
+    # T418 6.3: G10 = 4 (the NUL above it, the character and NUL in G11, the
+    # ETX in G12); only the character is printed, at once, as a part line.
+    plc = gem80(PRINTER_PORT + """\
+AND 4 -> OUT G10
+AND 65 -> OUT G11
+AND 3 -> OUT G12
+AND 1 SPEC WRITEXT VALUE G10 -> OUT G13
+""")
+    for _ in range(5):
         plc.scan(20)
-    assert word(plc, "G90") == 129 and plc.tables.get_bit(parse_address("F50.1"))
+    paper = plc.printer.snapshot()
+    assert paper["head"].startswith("AA") and set(paper["head"]) == {"A"} and paper["lines"] == []
+    # The 130 6K sends complete lines only: the ETX does not send the part line.
+    six = gem80(PRINTER_PORT + "AND 1 -> G20.0\nG20.0 -> BLOCK\nAND 4 -> OUT G10\nAND 65 -> OUT G11\n"
+                "AND 3 -> OUT G12\nAND 1 SPEC WRITEXT VALUE G10 -> OUT G13\nEND BLOCK\n",
+                model="gem80-130c-6k")
+    for _ in range(5):
+        six.scan(20)
+    assert six.printer.snapshot()["head"] == "" and six.printer.snapshot()["buffered"] == 20
 
-    # Off line, nothing more prints; the 100C has no printer port at all.
+
+def test_printer_port_needs_its_preset_data():
+    # A new controller's P5 is 0: port 1 is a tributary port, so no printing.
+    plc = gem80('MESSAGE P100 = "X\\n"\nAND 1 SPEC WRITEXT VALUE P100 -> OUT G90\n'
+                "PRESET P140 = 3 0 0\nAND 7 SPEC WRINUM VALUE P140 -> OUT G91\n")
+    plc.scan(20)
+    assert (word(plc, "G90"), word(plc, "G91")) == (17, 17)
+    assert "tributary" in plc.printer.setup.problem
+    # Presets loaded while running take effect at the next Halt -> Run, as a
+    # power off and on would.
+    plc.load(PRINTER_PORT + plc.program.source)
+    plc.scan(20)
+    assert word(plc, "G90") == 17 and plc.snapshot()["printer"]["changed"]
+    plc.halt()
+    plc.run()
+    plc.scan(20)
+    assert (word(plc, "G90"), word(plc, "G91")) == (0, 0)
+    assert not plc.snapshot()["printer"]["changed"]
+    # Switching off and on does it too, and the controller runs again.
+    plc.load(plc.program.source.replace("80 1200", "40 2400"))
+    plc.power_cycle()
+    assert plc.running and plc.printer.setup.rate == 2400 and plc.printer.setup.line == 40
+    # P4 must be one of the listed rates.
+    plc.load(plc.program.source.replace("2400", "1000"))
+    plc.halt()
+    plc.run()
+    assert "P4" in plc.printer.setup.problem
+
+
+def test_printer_buffer_flag_rate_and_line_length():
+    from microgem.printer import BUFFER_SIZE, FULL_AT
+
+    # 20 characters a line at 110 bit/s (10 characters a second).
+    plc = gem80("PRESET P2 = 0 20 110 -1\n" 'MESSAGE P100 = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"\n'
+                "A0.0 -> BLOCK\nAND 1 SPEC WRITEXT VALUE P100 -> OUT G90\nEND BLOCK\n")
+    assert BUFFER_SIZE == 255 and FULL_AT == 170
+    plc.set_input(0, True)
+    for _ in range(7):
+        plc.scan(1)
+    plc.set_input(0, False)
+    assert plc.printer.snapshot()["buffered"] == 7 * 36 and word(plc, "G90") == 0
+    assert plc.tables.get_bit(parse_address("E0.8"))  # more than 2/3 full
+    plc.set_input(0, True)
+    plc.scan(1)
+    plc.set_input(0, False)
+    assert word(plc, "G90") == 129  # it does not fit
+    plc.scan(1000)  # ten characters in a second
+    assert plc.printer.snapshot()["buffered"] == 7 * 36 - 10
+    for _ in range(30):
+        plc.scan(1000)
+    paper = plc.printer.snapshot(recent=None)["lines"]
+    assert paper[0] == "0123456789ABCDEFGHIJ" and paper[1] == "KLMNOPQRSTUVWXYZ0123"
+    assert not plc.tables.get_bit(parse_address("E0.8"))
+
+
+def test_printer_off_line_loses_what_is_sent():
+    plc = gem80(PRINTER_PORT + 'MESSAGE P100 = "LOST\\n"\nMESSAGE P104 = "KEPT\\n"\n'
+                "A0.0 -> BLOCK\nAND 1 SPEC WRITEXT VALUE P100 -> OUT G90\nEND BLOCK\n"
+                "A0.1 -> BLOCK\nAND 2 SPEC WRITEXT VALUE P100 -> OUT G90\nEND BLOCK\n")
     plc.printer.on_line = False
-    printed = plc.printer.printed
-    plc.scan(1000)
-    assert plc.printer.printed == printed and plc.tables.get_bit(parse_address("F50.0"))
+    plc.set_input(0, True)
+    plc.scan(20)
+    plc.set_input(0, False)
+    plc.scan(100)
+    assert plc.printer.snapshot()["buffered"] == 0 and plc.printer.lost == 4
+    plc.printer.on_line = True
+    plc.set_input(1, True)
+    plc.scan(20)
+    plc.scan(100)
+    assert plc.printer.snapshot()["lines"] == ["KEPT"]
     with pytest.raises(ProgramError, match="not emulated|does not have|has no"):
         gem80("AND 1 SPEC WRITEXT VALUE G10 -> OUT G9", model="gem80-100c-12k")
+
+
+def test_keyboard_characters_reach_j0_one_a_scan():
+    # T418 6.3: echo each key typed to the printer, clearing J0 after it.
+    plc = gem80(PRINTER_PORT + """\
+AND 4 -> OUT G10
+AND J0 -> OUT G11
+AND 3 -> OUT G12
+AND J0 SPEC COMPARE [AND 0] VALUE G20 -> OUT G21
+NOT G20.12 -> BLOCK
+AND 1 SPEC WRITEXT VALUE G10 -> OUT G13
+AND 0 -> OUT J0
+END BLOCK
+""")
+    plc.type_keys("OK")  # 9 ms apart at 1200 bit/s: a 5 ms scan sees each one
+    for _ in range(40):
+        plc.scan(5)
+    assert plc.printer.snapshot()["head"] == "OK"
+    plc.type_keys("NO")  # a 20 ms scan sees only the second: the N is overwritten
+    for _ in range(10):
+        plc.scan(20)
+    assert plc.printer.snapshot()["head"] == "OKO"
+    with pytest.raises(ValueError, match="12K"):
+        gem80("", model="gem80-130c-6k").type_keys("X")
+
+
+def test_wrinum_formats_as_a_print_field():
+    from microgem.functions import format_number as f
+
+    assert f(567, 6, 3, -2) == "  5.67"  # T38's gauge: /100, two decimal places
+    assert f(128, 5, 0, 1) == " 1280"  # and current: x10
+    assert f(-215, 5, 2, -1) == "-21.5" and f(-5, 4, 2, -1) == "-0.5"
+    assert f(999, 4, 2, -1) == "99.9" and f(9999, 4, 2, -1) == "1000"  # decimals go to fit
+    assert f(12345, 4, 0, 0) == "P12345"  # then the default format
+    assert f(-1, 3, 2, -1) == "-.1"  # the 0 before the point goes first
+    assert f(12345, 7, 4, -3) == " 12.345" and f(12345, 5, 4, -3) == "12.35"
+    assert f(1, 0, 0, 0) is None
+    plc = gem80(PRINTER_PORT + "PRESET P140 = 0 0 0\nAND 0 SUB 42 SPEC WRINUM VALUE P140 -> OUT G90\n")
+    plc.scan(20)
+    assert word(plc, "G90") == 65 and plc.printer.snapshot()["buffered"] == 6  # N00042
+
+
+def test_messages_cannot_overlap():
+    with pytest.raises(ProgramError, match="runs into the one at P104"):
+        gem80('MESSAGE P104 = "B"\nMESSAGE P100 = "LONGER THAN EIGHT"\n')
 
 
 def test_8108_words_follow_its_manual():

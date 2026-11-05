@@ -222,6 +222,12 @@ textarea { width: 100%; min-height: 320px; resize: vertical; font: 13px/1.5 var(
 .vp-tools { margin-left: auto; display: flex; gap: 6px; }
 .vp-tools .btn { padding: 5px 10px; font-size: .85rem; }
 .vp-lamp { width: 10px; height: 10px; border-radius: 50%; background: #3a3a3a; box-shadow: inset 0 0 2px #000; }
+.vp-port { font: 12px var(--mono); margin: 2px 0 8px; }
+.vp-port.bad { color: #ffb347; }
+.vp-keys { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: .85rem; }
+.vp-keys[hidden], .vp-port .btn[hidden] { display: none; }
+.vp-port .btn { padding: 2px 8px; font-size: .8rem; margin-left: 6px; }
+.vp-keys input { flex: 1; font: 13px var(--mono); }
 .vp-lamp.on { background: #4cff6a; box-shadow: 0 0 6px #4cff6a; }
 .vp-paper { position: relative; max-height: 340px; overflow: auto; border-radius: 3px; padding: 6px 34px;
   background:
@@ -328,8 +334,10 @@ const MARKUP = `
       <span class="vp-lamp" id="vp-lamp" title="On line"></span><span class="message" id="vp-status"></span>
       <span class="vp-tools"><button class="btn" id="vp-line">Off line</button><button class="btn" id="vp-tear">Tear off</button><button class="btn" id="vp-save">Download</button></span>
     </div>
-    <p class="hint">What the program prints with <code>SPEC WRITEXT</code> (S22) and <code>SPEC WRINUM</code> (S23) on the printer port. Put the text in a table with a <code>MESSAGE P100 = "PUMP 1 TRIPPED\\n"</code> line. The program can watch <code>F50.1</code> (buffer filling), <code>F50.2</code> (empty) and <code>F50.0</code> (printer off line).</p>
+    <p class="hint">What the program prints on port 1 with <code>SPEC WRITEXT</code> (S22, message <i>n</i> of the list at VALUE, <i>n</i> the rung input) and <code>SPEC WRINUM</code> (S23, the rung word in the format at VALUE: width, characters from the point, power of ten). Port 1 is a printer port when <code>P5</code> is negative, with <code>P2</code> NULs after each line, <code>P3</code> characters a line and <code>P4</code> bit/s: <code>PRESET P2 = 0 80 1200 -1</code>; the port reads them when the controller goes to Run. <code>E0.8</code> is on while the 255-character buffer is more than 2/3 full. A 20 mA loop has no handshake: what is sent while the printer is off line is lost.</p>
+    <div class="vp-port" id="vp-port"><span id="vp-port-text"></span> <button class="btn" id="vp-power" hidden>Switch off and on</button></div>
     <div class="vp-paper" id="vp-paper"><pre id="vp-lines"></pre></div>
+    <label class="vp-keys" id="vp-keys-row" hidden>Keyboard <input id="vp-keys" autocomplete="off" spellcheck="false" placeholder="type here: each key goes to J0"></label>
   </section>
 
   <section class="panel ha-links" id="ha-links" hidden>
@@ -3017,6 +3025,7 @@ class MicroGemPanel extends HTMLElement {
       $("program").value = e.source;
       programDirty = true;
       send({ type: "load", source: e.source });
+      if (state && state.printer) send({ type: "power_cycle" }); // so its printer port set-up takes
       selected = 0;
     });
     $("load").addEventListener("click", () => send({ type: "load", source: $("program").value }));
@@ -3046,10 +3055,26 @@ class MicroGemPanel extends HTMLElement {
       }
       $("vp-lamp").classList.toggle("on", !!pr.on_line);
       $("vp-line").textContent = pr.on_line ? "Off line" : "On line";
-      $("vp-status").textContent = `${pr.on_line ? "On line" : "Off line"} · buffer ${pr.buffered} of ${pr.size} characters · ${pr.printed} lines printed`;
+      $("vp-status").textContent = `${pr.on_line ? "On line" : "Off line"} · buffer ${pr.buffered} of ${pr.size} characters · ${pr.printed} lines printed` + (pr.lost ? ` · ${pr.lost} characters lost off line` : "");
+      const su = pr.setup || {}, port = $("vp-port");
+      let portText = su.problem ? `Port 1: ${su.problem}.` : `Port 1: printer port, ${su.rate} bit/s, ${su.line} characters a line` + (su.padding ? `, ${su.padding} NULs after each` : "") + ".";
+      if (pr.changed) portText += " P2 to P5 have changed; the port reads them at power on (or Halt and Run).";
+      if (!pr.part_lines) portText += " (The 6K sends complete lines only.)";
+      $("vp-port-text").textContent = portText;
+      $("vp-power").hidden = !pr.changed;
+      port.classList.toggle("bad", !!(su.problem || pr.changed));
+      $("vp-keys-row").hidden = !(pr.keyboard && !su.problem);
     }
     $("vp-line").addEventListener("click", () => send({ type: "printer", action: state.printer && state.printer.on_line ? "off_line" : "on_line" }));
     $("vp-tear").addEventListener("click", () => send({ type: "printer", action: "tear_off" }));
+    $("vp-power").addEventListener("click", () => send({ type: "power_cycle" }));
+    // The serial keyboard: each key as it is pressed (J0 holds one at a time).
+    $("vp-keys").addEventListener("keydown", (ev) => {
+      const key = ev.key === "Enter" ? "\r" : ev.key === "Backspace" ? "\b" : ev.key === "Escape" ? "\x1b" : ev.key;
+      if (key.length !== 1 || ev.ctrlKey || ev.metaKey) return;
+      ev.preventDefault();
+      send({ type: "printer", action: "type", text: key });
+    });
     $("vp-save").addEventListener("click", () => download(`${fileStem()}-printer.txt`, (paper || []).join("\n") + "\n"));
 
     // Files: open, drop, convert, save and print-out.

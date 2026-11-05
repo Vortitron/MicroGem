@@ -74,6 +74,7 @@ E_LAST_SCAN = Address("E", 7)  # duration of the previous scan in ms
 # open (tripping the controller) when the program holds a non-zero code in F1
 # for 100 ms. The MicroGEM60's W/DOG OUTPUT is assumed to behave the same way.
 F_USER_TRIP = Address("F", 1)
+KEYBOARD_WORD = Address("J", 0)  # a character typed on the printer port's keyboard
 WATCHDOG_CLEAN_SCANS = 3
 USER_TRIP_HOLD_MS = 100
 
@@ -240,7 +241,13 @@ class Controller:
             words_needed = cfg.units * -(-max(cfg.inputs, cfg.outputs) // 16)
             sizes = {letter: max(size, words_needed) for letter, size in sizes.items()}
         self.tables = DataTables(sizes, self.model.letters)
-        self.printer = Printer() if self.model.printer else None
+        if self.model.printer:
+            # The 130 6K sends complete lines only and has no keyboard input (T418, 6.1).
+            later = self.model.memory != "6K"
+            self.printer = Printer(part_lines=later, keyboard=later)
+            self.printer.configure(self.tables)  # power on
+        else:
+            self.printer = None
         # Analogue channels (volts on the terminals) and each 8108's
         # multiplexer: the channel on its output and how long it has been there.
         self.analogue = [0.0] * cfg.total_analogue
@@ -331,11 +338,24 @@ class Controller:
             return
         # As on a GEM 80, most tables are cleared on the Halt -> Run transition.
         self.tables.clear("".join(t for t in self.tables.letters if t not in self.model.retained))
+        if self.printer is not None:
+            self.printer.configure(self.tables)  # as a power off and on would
         self._reset_state()
         self.running = True
         self.trip_code = 0
         self._clean_scans = 0
         self._f1_held_ms = 0
+
+    def power_cycle(self) -> None:
+        """Switch off and on: the outputs drop, the printer buffer empties and
+        the port reads P2 to P5 again; a running controller runs again."""
+        was_running = self.running
+        self.halt()
+        if self.printer is not None:
+            self.printer.clear()
+            self.printer.configure(self.tables)
+        if was_running:
+            self.run()
 
     def halt(self) -> None:
         self.running = False
@@ -413,6 +433,10 @@ class Controller:
         if not self.running:
             return
         self._read_multiplexers(dt_ms)
+        if self.printer is not None:
+            code = self.printer.received()
+            if code is not None and self.tables.size(KEYBOARD_WORD.table) > KEYBOARD_WORD.word:
+                self.tables.set_word(KEYBOARD_WORD, code)  # each character over the last (T418, 6.3)
         self._dt_ms = dt_ms
         self._update_flags(dt_ms)
         self._skipped.clear()
@@ -642,6 +666,19 @@ class Controller:
             for k in range(len(pack_message(unescape(text))))
         }
 
+    def _printer_snapshot(self) -> dict | None:
+        if self.printer is None:
+            return None
+        return {**self.printer.snapshot(), "changed": self.printer.changed(self.tables)}
+
+    def type_keys(self, text: str) -> int:
+        """Characters typed on the printer port's serial keyboard."""
+        if self.printer is None:
+            raise ValueError(f"the {self.model.label} has no printer port")
+        if not self.printer.keyboard:
+            raise ValueError(f"the {self.model.label}'s printer port takes no keyboard (12K only)")
+        return self.printer.type(text)
+
     def snapshot(self, tables: str = "BEGHLRW") -> dict:
         return {
             "name": self.config.name,
@@ -668,7 +705,7 @@ class Controller:
                 if a not in self._message_words()],
             "messages": {str(a): t for a, t in self.program.messages.items()},
             "skipped": sorted(self._skipped),
-            "printer": self.printer.snapshot() if self.printer is not None else None,
+            "printer": self._printer_snapshot(),
             "analogue": [round(v, 3) for v in self.analogue],
             "mux": [k * ANALOGUE_CHANNELS + m[0] for k, m in enumerate(self._mux)],
         }
